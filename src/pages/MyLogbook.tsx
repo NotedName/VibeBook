@@ -56,7 +56,7 @@ export default function MyLogbook() {
   if (!s.me) return null;
   return (
     <>
-      <ProfileHeader profile={s.me}>
+      <ProfileHeader profile={s.me} editable>
         <div className="profile-actions">
           <button type="button" className="btn" onClick={s.editProfile}><EditIcon /> Edit profile</button>
         </div>

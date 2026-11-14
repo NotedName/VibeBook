@@ -134,7 +134,9 @@ a.btn { text-decoration: none; }
 
 /* ---------- profile ---------- */
 .profile { background: var(--surface); box-shadow: var(--shadow); border-bottom: 1px solid var(--line); }
-.cover { height: clamp(120px, 28vw, 180px); position: relative; overflow: hidden; }
+/* 3:1, the same frame the cover photo editor crops to, so what you frame is what shows */
+.cover-wrap { position: relative; }
+.cover { aspect-ratio: 3 / 1; position: relative; overflow: hidden; }
 .cover img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
 .cover:has(img)::after { display: none; }
 .c-amethyst { background: linear-gradient(135deg, rgba(20, 20, 20, 0) 0%, rgba(20, 20, 20, .55) 100%), linear-gradient(110deg, #7e49b3 0%, #5b3486 55%, #141414 100%); }
@@ -235,15 +237,6 @@ a.btn { text-decoration: none; }
 .empty h2 { font-family: var(--font-display); font-size: 19px; margin-bottom: 6px; }
 .empty p { margin: 0 auto 16px; color: var(--muted); max-width: 36ch; }
 
-.fab {
-  position: fixed; z-index: 15;
-  right: max(16px, env(safe-area-inset-right, 0px));
-  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
-  background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 999px;
-  padding: 14px 22px; font-weight: 600; font-size: 16px; box-shadow: 0 6px 18px rgba(0, 0, 0, .35);
-}
-.fab:hover { filter: brightness(1.12); }
-
 /* ---------- sheet / dialogs ---------- */
 .overlay {
   position: fixed; inset: 0; z-index: 40; background: var(--scrim);
@@ -299,7 +292,6 @@ a.btn { text-decoration: none; }
 @media (min-width: 640px) {
   .overlay { align-items: center; }
   .sheet { border-radius: 16px; max-height: 90%; }
-  .fab { right: max(24px, calc(50% - var(--col) / 2)); }
 }
 @media (prefers-reduced-motion: no-preference) {
   .sheet { animation: rise .18s ease-out; }
@@ -307,7 +299,7 @@ a.btn { text-decoration: none; }
 }
 
 /* ---------- tabs ---------- */
-.tabs { max-width: var(--col); margin: 0 auto; display: grid; grid-template-columns: repeat(4, 1fr); }
+.tabs { max-width: var(--col); margin: 0 auto; display: grid; grid-template-columns: repeat(5, 1fr); }
 .tab {
   position: relative; display: flex; align-items: center; justify-content: center; gap: 8px;
   padding: 10px 6px; color: var(--muted); font-weight: 600; font-size: 14px; text-decoration: none;
@@ -316,6 +308,14 @@ a.btn { text-decoration: none; }
 .tab svg { width: 20px; height: 20px; }
 .tab:hover { color: var(--text); }
 .tab.on { color: var(--accent-text); border-bottom-color: var(--accent); }
+/* New entry sits in the navigation, between Feed and Groups. Wide desktop screens use the side column instead. */
+.tab-new { background: none; border: 0; font-family: inherit; cursor: pointer; color: var(--text); }
+.tab-new i {
+  display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%;
+  background: var(--accent); color: var(--accent-ink); box-shadow: 0 2px 8px rgba(0, 0, 0, .3);
+}
+.tab-new i svg { width: 16px; height: 16px; }
+.tab-new:hover i { filter: brightness(1.12); }
 .badge {
   font-style: normal; font-size: 11px; font-weight: 700; min-width: 18px; height: 18px; padding: 0 5px;
   border-radius: 9px; background: var(--accent); color: var(--accent-ink); display: grid; place-items: center;
@@ -350,6 +350,21 @@ a.btn { text-decoration: none; }
 }
 .cover-opt.on { border-color: var(--accent); background: var(--accent-soft); }
 .swatch { width: 100%; height: 34px; border-radius: 6px; display: block; }
+
+/* Edit profile: one column on phones; photos on the left and the fields on the right once there is room. */
+.ps-grid { display: grid; gap: 14px; }
+/* phones keep the order: photo, fields, cover */
+.ps-photos { display: contents; }
+.ps-fields { display: grid; gap: 14px; order: 1; }
+.ps-grid .cover-edit, .ps-grid .covers { order: 2; }
+@media (min-width: 860px) {
+  .sheet.profile-sheet { max-width: 880px; }
+  .profile-sheet .sheet-body { padding: 20px 24px; }
+  .ps-grid { grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: 24px; align-items: start; }
+  .ps-photos { display: grid; gap: 14px; align-content: start; }
+  .profile-sheet .sheet-actions { justify-content: flex-end; }
+  .profile-sheet .sheet-actions .btn, .profile-sheet .sheet-actions .btn.primary { flex: 0 0 auto; padding: 12px 28px; }
+}
 
 /* ---------- people ---------- */
 .page-title { font-family: var(--font-display); font-size: 22px; margin: 18px 16px 4px; }
@@ -601,3 +616,37 @@ a.btn { text-decoration: none; }
 }
 .back-btn:hover { background: var(--accent-soft); }
 .back-btn svg { width: 20px; height: 20px; }
+
+/* ---------- comment menu, round avatar editor ---------- */
+.comment-head { position: relative; }
+.comment-menu { margin-left: auto; }
+.comment-menu .menu-btn { width: 28px; height: 28px; }
+.comment-menu .menu-btn svg { width: 16px; height: 16px; }
+.comment-menu .menu { min-width: 150px; }
+.editor-canvas.round { border-radius: 50%; }
+.entries { display: contents; }
+
+/* ---------- change photos in place on your own profile ---------- */
+.photo-edit-btn {
+  position: absolute; right: 10px; bottom: 10px; z-index: 2; display: inline-flex; align-items: center; gap: 6px;
+  border: 0; border-radius: 999px; padding: 7px 12px; font-size: 13px; font-weight: 600;
+  background: rgba(20, 20, 20, .72); color: #fff; backdrop-filter: blur(4px);
+}
+.photo-edit-btn:hover { background: rgba(20, 20, 20, .88); }
+.photo-edit-btn svg { width: 16px; height: 16px; }
+.photo-edit-btn:disabled { opacity: .6; }
+.profile { position: relative; }
+.avatar-wrap { position: relative; flex: none; }
+.avatar-edit-badge {
+  position: absolute; right: -2px; bottom: 2px; width: 32px; height: 32px; border-radius: 50%; padding: 0;
+  display: grid; place-items: center; border: 3px solid var(--surface); background: var(--accent); color: var(--accent-ink);
+}
+.avatar-edit-badge svg { width: 16px; height: 16px; }
+.avatar-edit-badge:disabled { opacity: .6; }
+.menu-scrim { position: fixed; inset: 0; z-index: 9; background: none; border: 0; cursor: default; }
+.photo-menu-anchor { position: absolute; z-index: 10; }
+.photo-menu-anchor .menu { min-width: 210px; }
+.cover-anchor { right: 10px; top: calc(100% - 6px); }
+.avatar-anchor { left: 0; top: calc(100% + 6px); }
+/* in flow inside its anchor, but positioned so it paints above the click-away scrim */
+.photo-menu-anchor .menu { position: relative; top: auto; right: auto; z-index: 10; }

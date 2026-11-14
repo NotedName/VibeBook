@@ -10,8 +10,9 @@ import { useMyReposts } from "./reposts";
 import { SessionProvider, type Session } from "./session";
 import { useTheme } from "./theme";
 import type { Profile } from "./types";
-import { ArrowLeftIcon, BookIcon, CloseIcon, FeedIcon, GroupsIcon, MoonIcon, SunIcon, UsersIcon } from "./icons";
+import { ArrowLeftIcon, BookIcon, CloseIcon, FeedIcon, GroupsIcon, MoonIcon, PlusIcon, SunIcon, UsersIcon } from "./icons";
 import EntrySheet from "./EntrySheet";
+import SideColumn from "./SideColumn";
 import ProfileSheet from "./ProfileSheet";
 import MyLogbook from "./pages/MyLogbook";
 import FeedPage from "./pages/FeedPage";
@@ -101,6 +102,7 @@ export default function Shell({ user }: { user: User }) {
   const incomingCount = social.incoming.length;
   const subPage = active.name === "person" || active.name === "group" || active.name === "post";
   const backTo = active.name === "group" ? "#/groups" : active.name === "person" ? "#/people" : "#/feed";
+  const newEntry = () => setEntrySheet({ entry: null, groupId: active.name === "group" ? active.id : undefined });
   const goBack = () => { if (trail.current.length > 1) history.back(); else location.hash = backTo; };
   const tab = (href: string, on: boolean, icon: React.ReactNode, label: string, badge = 0) => (
     <a href={href} className={`tab${on ? " on" : ""}`} aria-current={on ? "page" : undefined}>
@@ -124,11 +126,17 @@ export default function Shell({ user }: { user: User }) {
         <nav className="tabs" aria-label="Sections">
           {tab("#/", active.name === "me", <BookIcon />, "Logbook")}
           {tab("#/feed", active.name === "feed", <FeedIcon />, "Feed")}
+          {me && (
+            <button type="button" className="tab tab-new" onClick={newEntry} aria-label="New entry">
+              <i><PlusIcon /></i><span>New</span>
+            </button>
+          )}
           {tab("#/groups", active.name === "groups" || active.name === "group", <GroupsIcon />, "Groups", invites.length)}
           {tab("#/people", active.name === "people" || active.name === "person", <UsersIcon />, "People", incomingCount)}
         </nav>
       </header>
 
+      <div className="page">
       <main className="logbook">
         {subPage && (
           <div className="backbar">
@@ -145,11 +153,8 @@ export default function Shell({ user }: { user: User }) {
         {active.name === "person" && <PersonPage key={active.uid} uid={active.uid} />}
         {active.name === "post" && <PostPage key={`${active.uid}/${active.id}`} uid={active.uid} id={active.id} />}
       </main>
-
-      {me && active.name !== "person" && (
-        <button type="button" className="fab"
-          onClick={() => setEntrySheet({ entry: null, groupId: active.name === "group" ? active.id : undefined })}>+ New entry</button>
-      )}
+      {me && <SideColumn onNewEntry={newEntry} />}
+      </div>
 
       {entrySheet && (
         <EntrySheet key={entrySheet.entry?.id ?? "new"} uid={uid} entry={entrySheet.entry}

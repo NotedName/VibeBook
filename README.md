@@ -67,6 +67,11 @@ After pulling these changes run `npm run deploy` so the new rules go live togeth
 
 ## Layout, back buttons and reposts
 
-- Layout: phones (under 600px) get a bottom tab bar; tablets and unfolded foldables (600px and up) get a left navigation rail; desktop (1024px and up) gets a full sidebar. Where the browser reports a vertical hinge, navigation sits on the left screen and content on the right. See `src/layout.css`.
+- Layout: phones (under 600px) get a bottom tab bar; tablets and unfolded foldables (600px and up) get a left navigation rail; desktop (1024px and up) gets a top bar over a wide two-column page (feed plus a shortcuts column). Where the browser reports a vertical hinge, navigation sits on the left screen and content on the right. See `src/layout.css`.
 - Back: pages opened from a list (a person, a group, a post) show a Back button. It follows the pages visited in the app and falls back to the parent list when the page was opened directly.
 - Reposts: `users/{me}/reposts/{ownerUid}_{entryId}` points at someone else's public entry. It shows in your logbook, in your friends' feeds, and optionally in groups (`groups/{id}/posts/{me}_rp_{ownerUid}_{entryId}`). Your own entries can be shared to groups later from the entry menu. An entry written in or shared to a group always lives in your own logbook too.
+
+- Profile and cover photos: choosing one opens the photo editor locked to a square (profile) or 3:1 (cover) frame, with drag, zoom, rotate, flip and brightness/contrast/saturation. "Adjust" re-opens the photo already on your profile (only the stored crop, since originals are not kept).
+- Wide screens: the content column grows with the window (up to 1560px) and entries sit side by side from 1280px; people lists go two across.
+
+- Profile and cover photos can be changed, adjusted (crop, zoom, brightness) or removed straight from your own profile page. The cover is shown at the same 3:1 shape the editor crops to.

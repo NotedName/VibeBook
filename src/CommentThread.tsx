@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import type { Timestamp } from "firebase/firestore";
 import { COMMENT_MAX, MAX_DEPTH, type Comment } from "./commentStore";
 import { fetchProfile } from "./profiles";
 import type { Profile } from "./types";
 import Avatar from "./Avatar";
-import { CommentIcon, SendIcon, SmileIcon, ThumbUpIcon, TrashIcon } from "./icons";
+import { CommentIcon, MoreIcon, SendIcon, SmileIcon, ThumbUpIcon, TrashIcon } from "./icons";
 import MediaPicker, { MediaPreview } from "./MediaPicker";
 import { NO_MEDIA, type Media } from "./stickers";
 
@@ -22,17 +22,17 @@ export type CommentActions = {
   remove: (comment: Comment, hasReplies: boolean) => void;
 };
 
-type Node = { comment: Comment; kids: Node[] };
+type ThreadNode = { comment: Comment; kids: ThreadNode[] };
 
 /** Groups a flat, oldest-first list into threads. A reply whose parent is missing is shown at the top level. */
-function buildTree(list: Comment[]): Node[] {
-  const nodes = new Map(list.map((c) => [c.id, { comment: c, kids: [] as Node[] }]));
-  const roots: Node[] = [];
+function buildTree(list: Comment[]): ThreadNode[] {
+  const nodes = new Map(list.map((c) => [c.id, { comment: c, kids: [] as ThreadNode[] }]));
+  const roots: ThreadNode[] = [];
   nodes.forEach((n) => (nodes.get(n.comment.parentId)?.kids ?? roots).push(n));
   return roots;
 }
 
-const countReplies = (n: Node): number => n.kids.reduce((sum, k) => sum + 1 + countReplies(k), 0);
+const countReplies = (n: ThreadNode): number => n.kids.reduce((sum, k) => sum + 1 + countReplies(k), 0);
 
 function useAuthor(uid: string) {
   const [p, setP] = useState<Profile | null | undefined>(undefined);
@@ -42,6 +42,44 @@ function useAuthor(uid: string) {
     return () => { live = false; };
   }, [uid]);
   return p;
+}
+
+/** Three-dot menu at the top right of a comment. Deleting takes a second tap to confirm. */
+function CommentMenu({ onDelete }: { onDelete: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [armed, setArmed] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const close = () => { setOpen(false); setArmed(false); };
+    const onDown = (e: MouseEvent) => { if (!ref.current?.contains(e.target as Node)) close(); };
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && close();
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => { document.removeEventListener("mousedown", onDown); document.removeEventListener("keydown", onKey); };
+  }, [open]);
+
+  useEffect(() => {
+    if (!armed) return;
+    const t = setTimeout(() => setArmed(false), 3500);
+    return () => clearTimeout(t);
+  }, [armed]);
+
+  return (
+    <div className="post-menu comment-menu" ref={ref}>
+      <button type="button" className="icon-btn menu-btn" aria-label="Comment actions" aria-haspopup="menu"
+        aria-expanded={open} onClick={() => { setOpen(!open); setArmed(false); }}><MoreIcon /></button>
+      {open && (
+        <div className="menu" role="menu">
+          <button type="button" role="menuitem" className={`danger${armed ? " armed" : ""}`}
+            onClick={() => { if (armed) { setOpen(false); onDelete(); } else setArmed(true); }}>
+            <TrashIcon />{armed ? "Tap to confirm" : "Delete"}
+          </button>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function ReplyForm({ onSubmit, onCancel }: { onSubmit: (text: string, media: Media) => Promise<boolean>; onCancel: () => void }) {
@@ -75,7 +113,7 @@ function ReplyForm({ onSubmit, onCancel }: { onSubmit: (text: string, media: Med
 }
 
 type NodeProps = {
-  node: Node;
+  node: ThreadNode;
   depth: number;
   actions?: CommentActions;
   replyTo: string | null;
@@ -86,19 +124,12 @@ function CommentNode({ node, depth, actions, replyTo, setReplyTo }: NodeProps) {
   const { comment: c, kids } = node;
   const author = useAuthor(c.authorUid);
   const [open, setOpen] = useState(true);
-  const [armed, setArmed] = useState(false);
   const mine = actions?.myUid === c.authorUid;
   const liked = !!actions && c.likes.includes(actions.myUid);
   const canDelete = !!actions && !c.deleted && (mine || actions.ownerUid === actions.myUid);
   const canReply = !!actions && !c.deleted && depth < MAX_DEPTH;
   const replies = countReplies(node);
   const name = author?.displayName || (author === undefined ? "…" : "VibeBook member");
-
-  useEffect(() => {
-    if (!armed) return;
-    const t = setTimeout(() => setArmed(false), 3500);
-    return () => clearTimeout(t);
-  }, [armed]);
 
   return (
     <li className="comment">
@@ -110,6 +141,7 @@ function CommentNode({ node, depth, actions, replyTo, setReplyTo }: NodeProps) {
               ? <a className="post-name" href={`#/u/${encodeURIComponent(c.authorUid)}`}>{name}</a>
               : <b>{name}</b>}
             <time>{stamp(c.createdAt)}</time>
+            {canDelete && <CommentMenu onDelete={() => actions.remove(c, kids.length > 0)} />}
           </>
         )}
       </div>
@@ -127,12 +159,6 @@ function CommentNode({ node, depth, actions, replyTo, setReplyTo }: NodeProps) {
         {canReply && (
           <button type="button" className="link-act" onClick={() => setReplyTo(replyTo === c.id ? null : c.id)}>
             <CommentIcon />Reply
-          </button>
-        )}
-        {canDelete && (
-          <button type="button" className={`link-act${armed ? " armed" : ""}`}
-            onClick={() => (armed ? actions.remove(c, kids.length > 0) : setArmed(true))}>
-            <TrashIcon />{armed ? "Tap to confirm" : "Delete"}
           </button>
         )}
         {kids.length > 0 && (

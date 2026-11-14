@@ -73,10 +73,19 @@ function render(canvas: HTMLCanvasElement, src: HTMLCanvasElement, ratio: number
   }
 }
 
-type Props = { file: File; onApply: (edited: File) => void; onCancel: () => void };
+type Props = {
+  file: File;
+  onApply: (edited: File) => void;
+  onCancel: () => void;
+  /** Lock the frame to this width / height (1 for a profile photo, 3 for a cover). The shape choices are hidden. */
+  fixedRatio?: number;
+  /** Longest side of the saved image in pixels when the frame is locked. */
+  outSide?: number;
+  title?: string;
+};
 
 /** Crop, rotate, flip and adjust a photo before it is attached to an entry. */
-export default function PhotoEditor({ file, onApply, onCancel }: Props) {
+export default function PhotoEditor({ file, onApply, onCancel, fixedRatio, outSide, title = "Edit photo" }: Props) {
   const [bitmap, setBitmap] = useState<ImageBitmap | null>(null);
   const [loadError, setLoadError] = useState(false);
   const [turns, setTurns] = useState(0);
@@ -107,7 +116,7 @@ export default function PhotoEditor({ file, onApply, onCancel }: Props) {
   }, [onCancel]);
 
   const oriented = useMemo(() => (bitmap ? orient(bitmap, turns, flip) : null), [bitmap, turns, flip]);
-  const ratio = oriented ? ASPECTS.find((a) => a.id === aspect)!.ratio ?? oriented.width / oriented.height : 1;
+  const ratio = fixedRatio ?? (oriented ? ASPECTS.find((a) => a.id === aspect)!.ratio ?? oriented.width / oriented.height : 1);
 
   useEffect(() => {
     if (oriented && canvasRef.current) render(canvasRef.current, oriented, ratio, zoom, pan, look, PREVIEW_SIDE);
@@ -141,7 +150,7 @@ export default function PhotoEditor({ file, onApply, onCancel }: Props) {
     if (!oriented) return;
     setBusy(true);
     const out = document.createElement("canvas");
-    render(out, oriented, ratio, zoom, pan, look, Math.min(OUT_SIDE, Math.max(oriented.width, oriented.height)));
+    render(out, oriented, ratio, zoom, pan, look, fixedRatio ? outSide ?? OUT_SIDE : Math.min(OUT_SIDE, Math.max(oriented.width, oriented.height)));
     out.toBlob((blob) => {
       if (!blob) { setBusy(false); return; }
       onApply(new File([blob], `${file.name.replace(/\.[^.]+$/, "") || "photo"}.jpg`, { type: "image/jpeg" }));
@@ -156,28 +165,28 @@ export default function PhotoEditor({ file, onApply, onCancel }: Props) {
 
   return createPortal(
     <div className="overlay editor">
-      <div className="sheet" role="dialog" aria-modal="true" aria-label="Edit photo">
+      <div className="sheet" role="dialog" aria-modal="true" aria-label={title}>
         <div className="sheet-head">
-          <h2>Edit photo</h2>
+          <h2>{title}</h2>
           <button type="button" className="icon-btn close" aria-label="Close" onClick={onCancel}><CloseIcon /></button>
         </div>
 
         <div className="sheet-body">
           {loadError && <p className="error" role="alert">That photo could not be opened.</p>}
           {!loadError && !oriented && <p className="hint">Loading photo…</p>}
-          <canvas ref={canvasRef} className="editor-canvas" hidden={!oriented}
+          <canvas ref={canvasRef} className={`editor-canvas${fixedRatio === 1 ? " round" : ""}`} hidden={!oriented}
             onPointerDown={onDown} onPointerMove={onMove} onPointerUp={() => (drag.current = null)}
             onPointerCancel={() => (drag.current = null)} />
           {oriented && <p className="hint">Drag the photo to move it inside the frame.</p>}
 
-          <div className="seg four">
+          {!fixedRatio && <div className="seg four">
             {ASPECTS.map((a) => (
               <label key={a.id} className={aspect === a.id ? "on" : ""}>
                 <input type="radio" name="aspect" checked={aspect === a.id} onChange={() => pickAspect(a.id)} />
                 {a.label}
               </label>
             ))}
-          </div>
+          </div>}
 
           <div className="editor-tools">
             <button type="button" className="btn turn-left" onClick={() => turn(-1)}><RotateIcon />Left</button>

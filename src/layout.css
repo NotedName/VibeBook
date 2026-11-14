@@ -1,16 +1,20 @@
 /*
   Responsive layout. Loaded after styles.css, which holds the phone layout's building blocks.
 
-  Phones (under 600px)       Top bar with the brand and actions, and the four sections as a bar at the
-                             bottom of the screen, within thumb's reach. Cover-width column.
-  Tablets and unfolded       A slim navigation rail down the left (icons over labels) and the content
-  foldables (600 to 1023px)  centred beside it. Folded cover screens are under 600px, so they get the
-                             phone layout; the inner screen of a book-style foldable is wider than 600px.
-  Desktop (1024px and up)    A full sidebar (brand, labelled sections, theme and sign out) and a wider
-                             column, with extra breathing room on big monitors.
-  Dual-screen / book fold    Where the browser reports a vertical hinge (viewport segments), the navigation sits
-                             on the left screen and the content on the right, so nothing is drawn across the hinge.
+  Phones (under 600px)       Top bar with the brand and actions; the four sections as a bar at the bottom
+                             of the screen, within thumb's reach. Folded cover screens land here too.
+  Tablets and unfolded       A slim navigation rail down the left (icons over labels) with the content beside
+  foldables (600 to 1023px)  it. The inner screen of a book-style foldable is wider than 600px.
+  Desktop (1024px and up)    A full-width top bar (brand, sections, actions) over a wide two-column page:
+                             the feed in the middle and a column of shortcuts (new entry, waiting requests,
+                             your groups) on the right, so wide screens are used instead of left empty.
+  Book fold (hinge)          Where the browser reports a vertical hinge (viewport segments), navigation sits
+                             on the left screen and the content on the right, so nothing is drawn across it.
+
+  Order matters: the desktop rules come first so the rail rules below can take over on a hinged screen.
 */
+
+.side { display: none; }
 
 /* ---------- phones ---------- */
 @media (max-width: 599.98px) {
@@ -25,13 +29,59 @@
   }
   .tab.on { border-top-color: var(--accent); }
   .badge { position: absolute; top: 4px; left: calc(50% + 6px); }
-  .logbook { padding-bottom: calc(150px + env(safe-area-inset-bottom, 0px)); }
-  .fab { bottom: calc(76px + env(safe-area-inset-bottom, 0px)); }
-  .toast { bottom: calc(136px + env(safe-area-inset-bottom, 0px)); }
+  .logbook { padding-bottom: calc(100px + env(safe-area-inset-bottom, 0px)); }
+  .toast { bottom: calc(76px + env(safe-area-inset-bottom, 0px)); }
 }
 
-/* ---------- tablets, unfolded foldables and desktop: navigation on the left ---------- */
-@media (min-width: 600px) {
+/* ---------- desktop: top bar and a wide two-column page ---------- */
+@media (min-width: 1024px) {
+  :root { --col: 720px; --side: 320px; --gap: 24px; }
+
+  .topbar {
+    display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; column-gap: 16px;
+    padding-left: max(24px, env(safe-area-inset-left, 0px)); padding-right: max(24px, env(safe-area-inset-right, 0px));
+  }
+  .topbar-in { display: contents; }
+  .brand { grid-column: 1; grid-row: 1; justify-self: start; height: 60px; }
+  .tabs { grid-column: 2; grid-row: 1; display: flex; gap: 6px; max-width: none; margin: 0; }
+  .tab { flex-direction: row; gap: 10px; padding: 9px 20px; border-radius: 999px; border-bottom: 0; font-size: 15px; }
+  .tab:hover { background: var(--surface-2); }
+  .tab.on, .tab.on:hover { background: var(--accent-soft); }
+  .badge { position: static; }
+  .top-actions { grid-column: 3; grid-row: 1; justify-self: end; }
+
+  .page {
+    display: grid; grid-template-columns: minmax(0, var(--col)) var(--side); gap: var(--gap);
+    max-width: calc(var(--col) + var(--side) + var(--gap) + 48px); margin: 0 auto; padding: 20px 24px 0;
+    align-items: start;
+  }
+  .logbook { max-width: none; margin: 0; padding-bottom: 72px; }
+  .side { display: grid; gap: 14px; position: sticky; top: 80px; align-content: start; }
+  .side-card { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); padding: 14px 16px; display: grid; gap: 8px; }
+  .side-card h2 { font-family: var(--font-display); font-size: 15px; }
+  .side-card h2 span { color: var(--muted); font-weight: 400; font-size: 13px; }
+  .side-card ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+  .side-card li a {
+    display: flex; align-items: center; gap: 10px; padding: 7px 8px; margin: 0 -8px; border-radius: 8px;
+    color: var(--text); text-decoration: none; font-weight: 500; min-width: 0;
+  }
+  .side-card li a:hover { background: var(--surface-2); }
+  .side-card li a span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .side-card li a .badge { margin-left: auto; }
+  .side-more { color: var(--accent-text); font-weight: 600; font-size: 13px; text-decoration: none; }
+  .side-more:hover { text-decoration: underline; }
+  .tab-new { display: none; }
+  .toast { bottom: 28px; }
+}
+@media (min-width: 1440px) {
+  :root { --col: 760px; --side: 340px; }
+}
+@media (min-width: 1800px) {
+  :root { --col: 820px; --side: 380px; --gap: 32px; }
+}
+
+/* ---------- tablets, unfolded foldables and hinged screens: navigation rail on the left ---------- */
+@media (min-width: 600px) and (max-width: 1023.98px), (horizontal-viewport-segments: 2) {
   :root { --rail: 88px; --col: 680px; }
 
   .topbar {
@@ -41,35 +91,34 @@
     padding: calc(14px + env(safe-area-inset-top, 0px)) 8px calc(14px + env(safe-area-inset-bottom, 0px)) max(8px, env(safe-area-inset-left, 0px));
     overflow-y: auto;
   }
-  /* the brand and the actions become direct children of the sidebar so they can be ordered around the tabs */
+  /* the brand and the actions become direct children of the rail so they can be ordered around the tabs */
   .topbar-in { display: contents; }
-  .brand { order: 0; justify-content: center; }
+  .brand { order: 0; justify-content: center; height: auto; }
   .brand-word { display: none; }
   .tabs { order: 1; display: grid; grid-template-columns: 1fr; gap: 4px; max-width: none; margin: 8px 0 0; }
-  .tab {
-    flex-direction: column; gap: 4px; font-size: 12px; padding: 10px 4px; border-radius: 12px; border-bottom: 0;
-  }
-  .tab.on { background: var(--accent-soft); }
+  .tab { flex-direction: column; gap: 4px; font-size: 12px; padding: 10px 4px; border-radius: 12px; border-bottom: 0; }
+  .tab.on, .tab.on:hover { background: var(--accent-soft); }
   .tab:hover { background: var(--surface-2); }
-  .tab.on:hover { background: var(--accent-soft); }
   .badge { position: absolute; top: 4px; left: calc(50% + 8px); }
   .top-actions { order: 2; margin-top: auto; flex-direction: column; align-items: stretch; }
   .top-actions .btn { padding: 8px 4px; font-size: 12px; }
   .top-actions .icon-btn { align-self: center; }
 
-  .logbook {
-    max-width: var(--col); padding-bottom: 96px;
+  .page {
+    display: block; max-width: var(--col); padding: 0; align-items: normal;
     margin: 0 0 0 calc(var(--rail) + max(0px, (100% - var(--rail) - var(--col)) / 2));
   }
-  .fab { bottom: 24px; right: max(24px, calc((100% - var(--rail) - var(--col)) / 2 + 12px)); }
+  .logbook { max-width: none; margin: 0; padding-bottom: 96px; }
+  .side { display: none; }
+  .tab-new { display: flex; }
   .toast { left: calc(50% + var(--rail) / 2); bottom: 28px; }
-  /* sheets are centred on the whole window; keep them clear of the sidebar */
+  /* sheets are centred on the whole window; keep them clear of the rail */
   .overlay { padding-left: var(--rail); }
   .lightbox { padding-left: 0; }
 }
 
 /* Landscape phones and other short windows: the rail has to fit in very little height. */
-@media (min-width: 600px) and (max-height: 520px) {
+@media (min-width: 600px) and (max-width: 1023.98px) and (max-height: 520px) {
   .topbar { gap: 6px; padding-top: calc(8px + env(safe-area-inset-top, 0px)); padding-bottom: 8px; }
   .brand-mark { width: 28px; height: 28px; }
   .tab { padding: 6px 4px; gap: 2px; }
@@ -78,30 +127,7 @@
   .top-actions .btn { display: none; }
 }
 
-/* ---------- desktop ---------- */
-@media (min-width: 1024px) {
-  :root { --rail: 248px; --col: 720px; }
-  .topbar { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: 16px; }
-  .brand { justify-content: flex-start; padding: 0 8px; }
-  .brand-word { display: inline; }
-  .tab { flex-direction: row; justify-content: flex-start; gap: 12px; font-size: 15px; padding: 12px 14px; }
-  .tab svg { width: 22px; height: 22px; }
-  .badge { position: static; margin-left: auto; }
-  .top-actions { flex-direction: row; justify-content: space-between; align-items: center; }
-  .top-actions .btn { padding: 8px 14px; font-size: 14px; }
-  .top-actions .icon-btn { align-self: auto; }
-  .logbook { padding-bottom: 72px; }
-  .post, .composer, .group-head { border-radius: var(--radius); }
-}
-@media (min-width: 1440px) {
-  :root { --col: 780px; }
-}
-@media (min-width: 600px) and (max-height: 520px) and (min-width: 1024px) {
-  .top-actions .btn { display: inline-flex; }
-}
-
-/* ---------- foldables with a hinge the browser can see ---------- */
-/* Book posture (a vertical hinge): navigation on the left screen, content on the right one. */
+/* ---------- book fold: the rail takes the left screen, the page the right one ---------- */
 @media (horizontal-viewport-segments: 2) {
   :root { --rail: env(viewport-segment-width 0 0, 88px); }
   .topbar { width: env(viewport-segment-width 0 0, 88px); padding-right: 8px; }
@@ -111,11 +137,7 @@
   .badge { position: static; margin-left: auto; }
   .top-actions { flex-direction: row; justify-content: space-between; align-items: center; }
   .top-actions .btn { display: inline-flex; padding: 8px 14px; font-size: 14px; }
-  .logbook {
-    margin-left: env(viewport-segment-left 1 0, 88px);
-    max-width: env(viewport-segment-width 1 0, var(--col));
-  }
-  .fab { right: 24px; }
+  .page { margin-left: env(viewport-segment-left 1 0, 88px); max-width: env(viewport-segment-width 1 0, var(--col)); }
   .toast { left: calc(env(viewport-segment-left 1 0, 88px) + env(viewport-segment-width 1 0, 600px) / 2); }
   .overlay { padding-left: env(viewport-segment-left 1 0, 0px); }
 }

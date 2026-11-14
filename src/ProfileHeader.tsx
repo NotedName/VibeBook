@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ChangeEvent, type ReactNode } from "react";
+import { shareBase } from "./platform";
 import type { Profile } from "./types";
 import { personHash, saveProfile } from "./profiles";
 import { copyText } from "./report";
@@ -119,7 +120,7 @@ export default function ProfileHeader({ profile, children, editable = false, onE
   const { notify, manualCopy } = useSession();
   async function copyLink() {
     setMore(false);
-    const url = `${location.origin}${location.pathname}${personHash(profile.uid, profile)}`;
+    const url = `${shareBase()}${personHash(profile.uid, profile)}`;
     if (await copyText(url)) notify("Profile link copied");
     else manualCopy(url);
   }

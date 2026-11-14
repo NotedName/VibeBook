@@ -2,6 +2,13 @@
 
 VibeBook today is a React + TypeScript web app (about 8,000 lines) on Firebase (Auth and Firestore). "Make it a Rust app" can mean three different things. Pick one before writing code.
 
+## 0. Decisions made
+- **Target:** Android (APK).
+- **Backend:** stay on Firebase. Leaving it is not an option.
+- **Offline:** not supported. The app shows "Unavailable offline" instead.
+
+That settles it: **path A (Tauri shell)**. Follow `ANDROID.md` for the build steps. Everything below is background, and the parts about leaving Firebase are not needed.
+
 ## 1. Pick a path
 
 | Path | What it is | Effort | Keeps Firebase? | Recommended? |
@@ -12,10 +19,6 @@ VibeBook today is a React + TypeScript web app (about 8,000 lines) on Firebase (
 
 Path A is also the first step of B and C: the app stays shippable while pieces move to Rust one at a time.
 
-**Questions to answer first**
-1. Which targets: Windows/macOS/Linux, Android, iOS? (Tauri 2 supports all of these; check that the plugins you need support mobile.)
-2. Must it work offline? Today it needs a connection.
-3. Is leaving Firebase a goal, or only a means?
 
 ## 2. What the code actually depends on
 
@@ -43,7 +46,7 @@ Path A is also the first step of B and C: the app stays shippable while pieces m
 
 **Phase 0: decide** (above).
 
-**Phase 1: shell** (`src-tauri/` is already scaffolded)
+**Phase 1: shell** (done in the code; see `ANDROID.md` for the steps to build it)
 1. `npm i -D @tauri-apps/cli@^2`, install Rust (`rustup`) and your OS build tools from the Tauri prerequisites page.
 2. Put a 1024 px square PNG at `app-icon.png`, then `npm run tauri icon app-icon.png`.
 3. `npm run tauri dev`. Sign in, post an entry, react. Everything should behave like the web app.
@@ -64,6 +67,7 @@ Order: start with `reactions` and `likes` (small), end with `feed` and `sorting`
 **Phase 4 (optional): replace the UI or the backend** with path B or C, one screen or one collection at a time.
 
 ## 5. Done already
+- Offline screen (`OfflineGate.tsx`), public share links in the app (`platform.ts`), Android entry point and `useHttpsScheme` in `src-tauri/`.
 - `src-tauri/`: minimal Tauri 2 project (window, one example command, config pointing at Vite and `dist`). **Not compiled here**, because this environment has no Rust toolchain or network. Expect to fix small version or config errors on the first `tauri dev`.
 - `npm run tauri` script and `.gitignore` entries.
 

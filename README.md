@@ -201,4 +201,4 @@ After pulling these changes run `npm run deploy` so the new rules go live togeth
 
 ## Rust app
 
-See `RUST_PREP.md` for the plan (Tauri shell first), what the code depends on, and what is already scaffolded in `src-tauri/`.
+Android app: see `ANDROID.md` to build the APK. See `RUST_PREP.md` for the plan (Tauri shell first), what the code depends on, and what is already scaffolded in `src-tauri/`.

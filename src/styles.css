@@ -1197,3 +1197,17 @@ html.ptr-on, html.ptr-on body { overscroll-behavior-y: contain; }
 .side-card.side-members li a span:not(.role-badge) { flex: 1 1 0; min-width: 0; overflow: visible; text-overflow: clip; white-space: normal; overflow-wrap: anywhere; line-height: 1.3; }
 .side-members .role-badge { flex: none; margin-left: auto; font-style: normal; }
 .members-inline .people, .members-inline .person { min-width: 0; }
+
+/* ---------- offline screen (Android app only) ---------- */
+.offline-gate {
+  position: fixed; inset: 0; z-index: 1000; background: var(--bg); display: grid; place-items: center;
+  padding: max(24px, env(safe-area-inset-top, 0px)) max(24px, env(safe-area-inset-right, 0px)) max(24px, env(safe-area-inset-bottom, 0px)) max(24px, env(safe-area-inset-left, 0px));
+  overflow-y: auto;
+}
+.offline-card { width: 100%; max-width: 360px; display: grid; gap: 14px; justify-items: center; text-align: center; }
+.offline-icon { display: grid; place-items: center; width: 84px; height: 84px; border-radius: 50%; background: var(--accent-soft); color: var(--accent-text); font-style: normal; margin-top: 8px; }
+.offline-icon svg { width: 40px; height: 40px; }
+.offline-card h1 { font-family: var(--font-display); font-size: calc(24px * var(--ts)); line-height: 1.2; }
+.offline-card p { margin: 0; color: var(--muted); line-height: 1.5; }
+.offline-card .btn { margin-top: 6px; }
+.offline-card .error { min-height: 1.4em; color: var(--danger); }

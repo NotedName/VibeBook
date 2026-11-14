@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { setReaction, useReactions } from "./reactions";
 import { REACTIONS, type ReactionType } from "./types";
-import { HeartIcon, ThumbDownIcon } from "./icons";
+import { ThumbUpIcon, ThumbDownIcon } from "./icons";
 
 type Props = {
   ownerUid: string;
@@ -13,7 +13,7 @@ type Props = {
   onLocked?: () => void;
 };
 
-/** "Vibing" and "Not vibing" buttons with live counts. One reaction per person per entry. */
+/** "Vibing" and "Not vibing" buttons with live counts, for the post's bottom action bar. One reaction per person per entry. */
 export default function ReactionBar({ ownerUid, entryId, myUid, onError, onLocked }: Props) {
   const { summary, error } = useReactions(ownerUid, entryId, myUid);
   const [busy, setBusy] = useState(false);
@@ -33,20 +33,20 @@ export default function ReactionBar({ ownerUid, entryId, myUid, onError, onLocke
   }
 
   return (
-    <div className="reactions" role="group" aria-label="Reactions">
+    <>
       {REACTIONS.map((r) => {
         const on = summary?.mine === r.id;
         const count = summary?.[r.id] ?? 0;
         return (
-          <button key={r.id} type="button" className={`react-btn ${r.id}${on ? " on" : ""}`}
-            aria-pressed={on} disabled={busy}
+          <button key={r.id} type="button" className={`act react-btn ${r.id}${on ? " on" : ""}`}
+            aria-pressed={on} aria-label={r.label} disabled={busy}
             title={myUid ? r.label : "Sign in to react"} onClick={() => pick(r.id)}>
-            {r.id === "vibing" ? <HeartIcon filled={on} /> : <ThumbDownIcon filled={on} />}
-            <span>{r.label}</span>
+            {r.id === "vibing" ? <ThumbUpIcon filled={on} /> : <ThumbDownIcon filled={on} />}
+            <span className="label">{r.label}</span>
             {count > 0 && <b className="count">{count}</b>}
           </button>
         );
       })}
-    </div>
+    </>
   );
 }

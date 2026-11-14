@@ -1,10 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { deleteEntry, loadPhotos, type Entry } from "./entries";
 import { clockTime, copyText, entryText, longDay } from "./report";
 import { useProfile, useSession } from "./session";
 import { VISIBILITY } from "./types";
 import Avatar from "./Avatar";
-import { CloseIcon, CommentIcon, CopyIcon, EditIcon, GlobeIcon, GroupsIcon, LockIcon, ShareIcon, TrashIcon, UsersIcon } from "./icons";
+import { CloseIcon, CommentIcon, CopyIcon, EditIcon, GlobeIcon, GroupsIcon, LockIcon, MoreIcon, ShareIcon, TrashIcon, UsersIcon } from "./icons";
 import { useGroup } from "./groups";
 import Comments from "./Comments";
 import ReactionBar from "./ReactionBar";
@@ -30,6 +30,8 @@ export default function EntryCard({ entry, onEdit }: Props) {
   const [zoom, setZoom] = useState<string | null>(null);
   const [armed, setArmed] = useState(false);
   const [commenting, setCommenting] = useState(false);
+  const [menu, setMenu] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
   const groupIds = (entry.groupIds ?? []).filter((id) => s.groups.ids.has(id));
   const vis = VISIBILITY.find((v) => v.id === (entry.visibility ?? "private"))!;
 
@@ -53,6 +55,16 @@ export default function EntryCard({ entry, onEdit }: Props) {
   }, [armed]);
 
   useEffect(() => {
+    if (!menu) return;
+    const close = () => { setMenu(false); setArmed(false); };
+    const onDown = (e: MouseEvent) => { if (!menuRef.current?.contains(e.target as Node)) close(); };
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && close();
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => { document.removeEventListener("mousedown", onDown); document.removeEventListener("keydown", onKey); };
+  }, [menu]);
+
+  useEffect(() => {
     if (!zoom) return;
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && setZoom(null);
     document.addEventListener("keydown", onKey);
@@ -60,6 +72,7 @@ export default function EntryCard({ entry, onEdit }: Props) {
   }, [zoom]);
 
   async function copy() {
+    setMenu(false);
     const text = entryText(entry);
     if (await copyText(text)) s.notify("Entry copied");
     else s.manualCopy(text);
@@ -100,6 +113,28 @@ export default function EntryCard({ entry, onEdit }: Props) {
           {groupIds.length > 0 && <ul className="group-links" aria-label="Shared to groups">{groupIds.map((id) => <GroupLink key={id} id={id} />)}</ul>}
         </div>
         {mine && <span className={`vis vis-${vis.id}`} title={vis.hint}>{VIS_ICON[vis.id]}{vis.label}</span>}
+        <div className="post-menu" ref={menuRef}>
+          <button type="button" className="icon-btn menu-btn" aria-label="More actions" aria-haspopup="menu"
+            aria-expanded={menu} onClick={() => setMenu(!menu)}><MoreIcon /></button>
+          {menu && (
+            <div className="menu" role="menu">
+              <button type="button" role="menuitem" onClick={copy}><CopyIcon />Copy</button>
+              {mine && onEdit && (
+                <>
+                  <button type="button" role="menuitem" onClick={() => { setMenu(false); onEdit(entry); }}><EditIcon />Edit</button>
+                  <button type="button" role="menuitem" className={`danger${armed ? " armed" : ""}`}
+                    onClick={() => {
+                      if (!armed) return setArmed(true);
+                      setMenu(false);
+                      deleteEntry(ownerUid, entry).then(() => s.notify("Entry deleted"), () => s.notify("Could not delete"));
+                    }}>
+                    <TrashIcon />{armed ? "Tap to confirm" : "Delete"}
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+        </div>
       </header>
 
       <div className="post-body">
@@ -124,26 +159,12 @@ export default function EntryCard({ entry, onEdit }: Props) {
 
       {entry.videoUrl && <VideoPlayer url={entry.videoUrl} title={entry.title} />}
 
-      <ReactionBar ownerUid={ownerUid} entryId={entry.id} myUid={s.uid} onError={s.notify} />
-
       <div className="post-actions">
-        <button type="button" className="act" onClick={copy}><CopyIcon /><span>Copy</span></button>
+        <ReactionBar ownerUid={ownerUid} entryId={entry.id} myUid={s.uid} onError={s.notify} />
         <button type="button" className={`act${commenting ? " on" : ""}`} aria-expanded={commenting}
           onClick={() => setCommenting(!commenting)}><CommentIcon /><span>Comment</span></button>
         {(isPublic || mine) && (
           <button type="button" className="act" onClick={share}><ShareIcon /><span>Share</span></button>
-        )}
-        {mine && onEdit && (
-          <>
-            <button type="button" className="act" onClick={() => onEdit(entry)}><EditIcon /><span>Edit</span></button>
-            <button type="button" className={`act danger${armed ? " armed" : ""}`}
-              onClick={() => {
-                if (armed) deleteEntry(ownerUid, entry).then(() => s.notify("Entry deleted"), () => s.notify("Could not delete"));
-                else setArmed(true);
-              }}>
-              <TrashIcon /><span>{armed ? "Tap to confirm" : "Delete"}</span>
-            </button>
-          </>
         )}
       </div>
 

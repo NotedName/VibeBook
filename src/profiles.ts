@@ -19,6 +19,7 @@ function toProfile(uid: string, d: Stored): Profile {
     bio: d.bio ?? "",
     avatar: d.avatar ?? "",
     cover: (d.cover as CoverId) ?? "amethyst",
+    coverPhoto: d.coverPhoto ?? "",
   };
 }
 export { toProfile };
@@ -53,6 +54,7 @@ export async function saveProfile(uid: string, p: Omit<Profile, "uid">): Promise
     bio: p.bio.trim().slice(0, BIO_MAX),
     avatar: p.avatar,
     cover: p.cover,
+    coverPhoto: p.coverPhoto,
   };
   await setDoc(doc(db, "profiles", uid), {
     ...clean,

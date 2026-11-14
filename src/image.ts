@@ -32,3 +32,23 @@ export async function squareAvatar(file: File, side = 256): Promise<string> {
   while (out.length > 60_000 && quality > 0.4) { quality -= 0.1; out = canvas.toDataURL("image/jpeg", quality); }
   return out;
 }
+
+/** Center-crops to a 3:1 banner and shrinks to a JPEG data URL for the profile cover. */
+export async function coverBanner(file: File, width = 900, maxChars = 100_000): Promise<string> {
+  const height = width / 3;
+  const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
+  const cropH = Math.min(bitmap.height, bitmap.width / 3);
+  const cropW = cropH * 3;
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  canvas.getContext("2d")!.drawImage(
+    bitmap, (bitmap.width - cropW) / 2, (bitmap.height - cropH) / 2, cropW, cropH, 0, 0, width, height,
+  );
+  bitmap.close();
+  let quality = 0.8;
+  let out = canvas.toDataURL("image/jpeg", quality);
+  while (out.length > maxChars && quality > 0.3) { quality -= 0.1; out = canvas.toDataURL("image/jpeg", quality); }
+  if (out.length > maxChars) throw new Error("Cover photo is too detailed to store");
+  return out;
+}

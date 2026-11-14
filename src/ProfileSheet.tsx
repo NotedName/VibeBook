@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { BIO_MAX, HEADLINE_MAX, NAME_MAX, saveProfile } from "./profiles";
-import { squareAvatar } from "./image";
+import { coverBanner, squareAvatar } from "./image";
 import { COVERS, type CoverId, type Profile } from "./types";
 import { useSession } from "./session";
 import Avatar from "./Avatar";
-import { CameraIcon, CloseIcon } from "./icons";
+import { CloseIcon, ImageIcon, CameraIcon } from "./icons";
 
 type Props = {
   /** null = first-time setup, which cannot be dismissed until a name is saved */
@@ -22,6 +22,7 @@ export default function ProfileSheet({ profile, suggestedName = "", onClose }: P
   const [bio, setBio] = useState(profile?.bio ?? "");
   const [avatar, setAvatar] = useState(profile?.avatar ?? "");
   const [cover, setCover] = useState<CoverId>(profile?.cover ?? "amethyst");
+  const [coverPhoto, setCoverPhoto] = useState(profile?.coverPhoto ?? "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const nameRef = useRef<HTMLInputElement>(null);
@@ -42,12 +43,19 @@ export default function ProfileSheet({ profile, suggestedName = "", onClose }: P
     try { setAvatar(await squareAvatar(f)); } catch { setError("That image could not be read."); }
   }
 
+  async function pickCover(e: ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    e.target.value = "";
+    if (!f) return;
+    try { setCoverPhoto(await coverBanner(f)); setError(""); } catch { setError("That image could not be used as a cover."); }
+  }
+
   async function submit(e: FormEvent) {
     e.preventDefault();
     if (!name.trim()) { setError("Add your name so people can find you."); return; }
     setBusy(true); setError("");
     try {
-      await saveProfile(uid, { displayName: name, headline, workplace, bio, avatar, cover });
+      await saveProfile(uid, { displayName: name, headline, workplace, bio, avatar, cover, coverPhoto });
       notify(setup ? "Welcome to VibeBook" : "Profile saved");
       onClose();
     } catch {
@@ -95,8 +103,21 @@ export default function ProfileSheet({ profile, suggestedName = "", onClose }: P
             <small className="count">{bio.length}/{BIO_MAX}</small>
           </label>
 
+          <div className="cover-edit">
+            <span className="field-label">Cover photo</span>
+            <div className={`cover-preview c-${cover}`}>
+              {coverPhoto && <img src={coverPhoto} alt="" />}
+            </div>
+            <div className="avatar-edit-btns">
+              <label className="btn"><ImageIcon /> {coverPhoto ? "Change cover photo" : "Add cover photo"}
+                <input type="file" accept="image/*" hidden onChange={pickCover} />
+              </label>
+              {coverPhoto && <button type="button" className="btn" onClick={() => setCoverPhoto("")}>Remove</button>}
+            </div>
+          </div>
+
           <fieldset className="covers">
-            <legend>Cover color</legend>
+            <legend>Cover color <small>(shown when there is no cover photo)</small></legend>
             {COVERS.map((c) => (
               <label key={c.id} className={`cover-opt${cover === c.id ? " on" : ""}`}>
                 <input type="radio" name="cover" value={c.id} checked={cover === c.id} onChange={() => setCover(c.id)} />

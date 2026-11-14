@@ -20,6 +20,7 @@ import PeoplePage from "./pages/PeoplePage";
 import PersonPage from "./pages/PersonPage";
 import PostPage from "./pages/PostPage";
 import { parsePostHash } from "./share";
+import { BrandName } from "./Logo";
 
 type Route =
   | { name: "me" } | { name: "feed" } | { name: "people" } | { name: "groups" }
@@ -96,7 +97,7 @@ export default function Shell({ user }: { user: User }) {
     <SessionProvider value={session}>
       <header className="topbar">
         <div className="topbar-in">
-          <a className="brand" href="#/"><span className="brand-mark" aria-hidden="true">V</span>VibeBook</a>
+          <a className="brand" href="#/"><BrandName /></a>
           <div className="top-actions">
             <button type="button" className="icon-btn" onClick={toggleTheme}
               aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}>

@@ -65,12 +65,14 @@ export default function MyLogbook() {
           ))}
         </div>
 
-        <div className="report-row">
-          <button type="button" className="btn primary grow" onClick={copyReport}>Copy for Daily Report</button>
-          <button type="button" className="btn grow" onClick={copyDescriptions}>Copy descriptions</button>
-          <label className="report-date">Report date
+        <div className="report">
+          <label className="report-date">Report for
             <input type="date" value={reportDate} onChange={(e) => setReportDate(e.target.value || todayStr())} />
           </label>
+          <div className="report-btns">
+            <button type="button" className="btn primary" onClick={copyReport}>Copy for Daily Report</button>
+            <button type="button" className="btn" onClick={copyDescriptions}>Copy descriptions</button>
+          </div>
         </div>
       </ProfileHeader>
 

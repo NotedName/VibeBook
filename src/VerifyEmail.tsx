@@ -3,6 +3,7 @@ import { sendEmailVerification, signOut, type User } from "firebase/auth";
 import { auth } from "./firebase";
 import { authMessage } from "./authErrors";
 import { MailIcon } from "./icons";
+import { BrandName } from "./Logo";
 
 const RESEND_SECONDS = 30;
 
@@ -63,7 +64,7 @@ export default function VerifyEmail({ user, onVerified }: Props) {
 
   return (
     <main className="auth">
-      <div className="brand big"><span className="brand-mark" aria-hidden="true">V</span>VibeBook</div>
+      <div className="brand big"><BrandName /></div>
       <section className="auth-card verify">
         <div className="verify-icon"><MailIcon /></div>
         <h1>Verify your email</h1>

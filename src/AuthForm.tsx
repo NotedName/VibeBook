@@ -6,6 +6,7 @@ import { auth } from "./firebase";
 import { authMessage } from "./authErrors";
 import { NAME_MAX } from "./profiles";
 import { EyeIcon, EyeOffIcon } from "./icons";
+import { BrandName } from "./Logo";
 
 const MIN_PASSWORD = 8;
 
@@ -61,7 +62,7 @@ export default function AuthForm({ initialMode = "signin", onBack }: Props) {
 
   return (
     <main className="auth">
-      <div className="brand big"><span className="brand-mark" aria-hidden="true">V</span>VibeBook</div>
+      <div className="brand big"><BrandName /></div>
       <p className="auth-sub">Log what you did, share it with the people and groups you choose, and copy it into your daily report.</p>
 
       <div className="auth-tabs" role="tablist" aria-label="Sign in or create an account">

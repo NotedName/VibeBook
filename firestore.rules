@@ -108,7 +108,8 @@ service cloud.firestore {
         && request.resource.data.displayName.size() > 0
         && request.resource.data.displayName.size() <= 60
         && request.resource.data.bio.size() <= 300
-        && request.resource.data.avatar.size() <= 120000;
+        && request.resource.data.avatar.size() <= 120000
+        && request.resource.data.coverPhoto.size() <= 120000;
       allow delete: if signedIn() && request.auth.uid == uid;
     }
 

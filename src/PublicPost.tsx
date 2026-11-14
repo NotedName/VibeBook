@@ -12,6 +12,7 @@ import Avatar from "./Avatar";
 import ReactionBar from "./ReactionBar";
 import VideoPlayer from "./VideoPlayer";
 import { ShareIcon } from "./icons";
+import { BrandName } from "./Logo";
 
 type Props = { uid: string; id: string; onAuth: (mode: "signin" | "signup") => void };
 
@@ -90,7 +91,7 @@ export default function PublicPost({ uid, id, onAuth }: Props) {
     <>
       <header className="topbar">
         <div className="topbar-in">
-          <span className="brand"><span className="brand-mark" aria-hidden="true">V</span>VibeBook</span>
+          <span className="brand"><BrandName /></span>
           <div className="top-actions">
             <button type="button" className="btn small" onClick={() => onAuth("signin")}>Sign in</button>
             <button type="button" className="btn small primary" onClick={() => onAuth("signup")}>Join</button>
@@ -135,14 +136,13 @@ export default function PublicPost({ uid, id, onAuth }: Props) {
             )}
             {entry.videoUrl && <VideoPlayer url={entry.videoUrl} title={entry.title} />}
 
-            <ReactionBar ownerUid={uid} entryId={id} onLocked={() => setLockedHint(true)} />
-            {lockedHint && <p className="locked-hint" role="status">Sign in or join to react and comment.</p>}
-
             <div className="post-actions">
+              <ReactionBar ownerUid={uid} entryId={id} onLocked={() => setLockedHint(true)} />
               <button type="button" className="act" onClick={copyLink}>
                 <ShareIcon /><span>{copied ? "Link copied" : "Share"}</span>
               </button>
             </div>
+            {lockedHint && <p className="locked-hint" role="status">Sign in or join to react and comment.</p>}
 
             {comments && comments.length > 0 && (
               <section className="comments" aria-label="Comments">

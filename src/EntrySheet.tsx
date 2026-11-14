@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { addEntry, loadPhotos, MAX_PHOTOS, updateEntry, type Entry, type Photo } from "./entries";
-import { nowStr, todayStr } from "./report";
-import { CameraIcon, CloseIcon, GlobeIcon, ImageIcon, LockIcon, UsersIcon } from "./icons";
+import { clockTime, longDay, nowStr, todayStr } from "./report";
+import { CameraIcon, ClockIcon, CloseIcon, GlobeIcon, ImageIcon, LockIcon, UsersIcon } from "./icons";
 import { useSession } from "./session";
 import { MAX_GROUPS_PER_ENTRY, VISIBILITY, type Visibility } from "./types";
 import { GroupAvatar } from "./GroupRow";
@@ -18,8 +18,8 @@ type Props = {
 
 export default function EntrySheet({ uid, entry, defaultGroupId, onClose, onSaved }: Props) {
   const s = useSession();
-  const [date, setDate] = useState(entry?.date ?? todayStr());
-  const [time, setTime] = useState(entry?.time ?? nowStr());
+  // Date and time are stamped when the sheet opens and kept as they were when editing; never typed in.
+  const [{ date, time }] = useState(() => ({ date: entry?.date ?? todayStr(), time: entry?.time ?? nowStr() }));
   const [title, setTitle] = useState(entry?.title ?? "");
   const [skills, setSkills] = useState(entry?.skills.join(", ") ?? "");
   const [description, setDescription] = useState(entry?.description ?? "");
@@ -141,14 +141,7 @@ export default function EntrySheet({ uid, entry, defaultGroupId, onClose, onSave
             </div>
           )}
 
-          <div className="row">
-            <label>Date
-              <input type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
-            </label>
-            <label>Time
-              <input type="time" value={time} onChange={(e) => setTime(e.target.value)} required />
-            </label>
-          </div>
+          <p className="stamp"><ClockIcon />{longDay(date)} · {clockTime(time)}<small>{entry ? "Logged" : "Set automatically"}</small></p>
           <label>Activity
             <input ref={titleRef} value={title} onChange={(e) => setTitle(e.target.value)} required
               maxLength={140} placeholder="e.g. Set up a new PC in the engineering office" />

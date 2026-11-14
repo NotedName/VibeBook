@@ -9,10 +9,15 @@
 
 ## Profiles, friends and sharing
 
-- Every person has a public profile at `profiles/{uid}` (name, headline, company or school, bio, photo, cover color). The email address is never stored there.
+- Every person has a public profile at `profiles/{uid}` (name, headline, company or school, bio, photo, cover color, optional cover photo). The email address is never stored there.
 - Each entry is **Only me**, **Friends** or **Public**. Entries made before this feature count as Only me.
 - People can send friend requests (the other person accepts or declines) or follow someone without approval. Friends see Friends and Public entries; followers see Public ones.
 - `npm run deploy` publishes hosting, the Firestore rules and the Firestore index. The new feed query needs that index, which can take a minute or two to build after the first deploy.
+
+## Cover photo, date and time
+
+- **Edit profile > Cover photo** adds a banner photo (centre-cropped to 3:1 and stored as a small JPEG on the profile). It shows over the cover color; removing it brings the color back. `firestore.rules` caps it at 120,000 characters, so redeploy the rules.
+- An entry's date and time are stamped automatically when you open **New entry** and cannot be typed in. Editing an entry keeps its original date and time.
 
 ## Groups
 
@@ -28,7 +33,7 @@
 
 ## Reactions: Vibing / Not vibing
 
-- Every entry you can see has a **Vibing** (heart) and a **Not vibing** (thumbs down) button with live counts. You get one reaction per entry; tap the same one again to take it back, or tap the other to switch.
+- Every entry you can see has a **Vibing** (thumbs up with a sparkle) and a **Not vibing** (thumbs down) button with live counts, in the post's bottom bar next to Comment and Share. The words show on wide screens; phones show just the icons. Copy, Edit and Delete live in the three-dot menu at the top right of the post. You get one reaction per entry; tap the same one again to take it back, or tap the other to switch.
 - Data: `users/{uid}/entries/{id}/reactions/{reactorUid}` with `{ type, createdAt }`. The document id is the reactor's uid, which is what stops double-reacting. Each entry card reads its reaction documents, which is fine for a small app; if the app grows, move to a counter field.
 
 ## Video posts

@@ -5,7 +5,9 @@ import Avatar from "./Avatar";
 export default function ProfileHeader({ profile, children }: { profile: Profile; children?: ReactNode }) {
   return (
     <section className="profile" aria-label="Profile">
-      <div className={`cover c-${profile.cover}`} aria-hidden="true" />
+      <div className={`cover c-${profile.cover}`} aria-hidden="true">
+        {profile.coverPhoto && <img src={profile.coverPhoto} alt="" />}
+      </div>
       <div className="pad">
         <div className="who">
           <Avatar profile={profile} size="lg" />

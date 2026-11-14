@@ -22,6 +22,7 @@ export type Profile = {
   bio: string;
   avatar: string; // small JPEG data URL, "" when none
   cover: CoverId;
+  coverPhoto: string; // JPEG data URL shown over the cover color, "" when none
 };
 
 export type FriendRequest = { id: string; from: string; to: string };

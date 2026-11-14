@@ -48,7 +48,7 @@ Path A is also the first step of B and C: the app stays shippable while pieces m
 
 **Phase 1: shell** (done in the code; see `ANDROID.md` for the steps to build it)
 1. `npm i -D @tauri-apps/cli@^2`, install Rust (`rustup`) and your OS build tools from the Tauri prerequisites page.
-2. Put a 1024 px square PNG at `app-icon.png`, then `npm run tauri icon app-icon.png`.
+2. `app-icon.png` is included, then `npm run tauri icon app-icon.png`.
 3. `npm run tauri dev`. Sign in, post an entry, react. Everything should behave like the web app.
 4. Set a real content security policy in `tauri.conf.json` (Firebase, Giphy and your own domains only) instead of `null`.
 

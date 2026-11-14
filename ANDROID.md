@@ -30,7 +30,7 @@
 ```
 npm install
 npm i -D @tauri-apps/cli@^2
-npm run tauri icon app-icon.png      # a 1024 x 1024 PNG of your logo
+npm run tauri icon app-icon.png      # included: the favicon book mark on the dark app colour
 npm run tauri android init           # creates src-tauri/gen/android; commit that folder
 ```
 Make sure `.env` (your Firebase keys) is present, because the build bakes it into the app.

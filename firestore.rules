@@ -64,19 +64,45 @@ service cloud.firestore {
         allow read: if entryIsPublic(uid, entryId);
       }
 
-      // Anyone who can read the entry can comment. A comment can be deleted by its author or
-      // by the owner of the entry. Comments cannot be edited.
+      // Anyone who can read the entry can comment and reply (parentId is "" or an existing comment)
+      // and like. A comment can be deleted by its author or by the owner of the entry. Text cannot
+      // be edited; the only updates are a like or unlike of your own, or blanking a comment that
+      // has replies to "[deleted]".
       match /comments/{commentId} {
+        // After an update, the likes list differs from before by at most the signed-in person's own uid.
+        function onlyMyLikeChanged() {
+          let before = resource.data.get('likes', []).toSet();
+          let after = request.resource.data.likes.toSet();
+          return request.resource.data.likes is list
+            && request.resource.data.likes.size() == after.size()
+            && after.difference(before).hasOnly([request.auth.uid])
+            && before.difference(after).hasOnly([request.auth.uid]);
+        }
+
         allow read: if isOwner(uid) || (signedIn() && entryReadable(uid, entryId));
         allow read: if entryIsPublic(uid, entryId);
         allow create: if signedIn()
-          && request.resource.data.keys().hasOnly(['authorUid', 'text', 'createdAt'])
+          && request.resource.data.keys().hasOnly(['authorUid', 'text', 'createdAt', 'parentId', 'likes'])
           && request.resource.data.authorUid == request.auth.uid
+          && request.resource.data.parentId is string
+          && request.resource.data.parentId.size() <= 40
+          && (request.resource.data.parentId == ''
+              || exists(/databases/$(database)/documents/users/$(uid)/entries/$(entryId)/comments/$(request.resource.data.parentId)))
+          && request.resource.data.likes == []
           && request.resource.data.text is string
           && request.resource.data.text.size() > 0
           && request.resource.data.text.size() <= 500
           && request.resource.data.createdAt == request.time
           && (request.auth.uid == uid || entryReadable(uid, entryId));
+        allow update: if signedIn() && (
+          (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes'])
+            && (request.auth.uid == uid || entryReadable(uid, entryId))
+            && onlyMyLikeChanged())
+          || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['text', 'deleted'])
+            && request.resource.data.text == ''
+            && request.resource.data.deleted == true
+            && (request.auth.uid == uid || resource.data.authorUid == request.auth.uid))
+        );
         allow delete: if signedIn() && (request.auth.uid == uid || resource.data.authorUid == request.auth.uid);
       }
 

@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { doc, getDoc } from "firebase/firestore";
-import type { Timestamp } from "firebase/firestore";
 import { db } from "./firebase";
 import { loadPhotos, type Entry } from "./entries";
 import { useComments } from "./commentStore";
@@ -10,14 +9,12 @@ import { postLink } from "./share";
 import type { Profile } from "./types";
 import Avatar from "./Avatar";
 import ReactionBar from "./ReactionBar";
+import CommentThread from "./CommentThread";
 import VideoPlayer from "./VideoPlayer";
 import { ShareIcon } from "./icons";
 import { BrandName } from "./Logo";
 
 type Props = { uid: string; id: string; onAuth: (mode: "signin" | "signup") => void };
-
-const stamp = (t: Timestamp | null) =>
-  t ? t.toDate().toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "";
 
 function useOtherProfile(uid: string) {
   const [p, setP] = useState<Profile | null | undefined>(undefined);
@@ -27,22 +24,6 @@ function useOtherProfile(uid: string) {
     return () => { live = false; };
   }, [uid]);
   return p;
-}
-
-function CommentLine({ authorUid, text, at }: { authorUid: string; text: string; at: Timestamp | null }) {
-  const author = useOtherProfile(authorUid);
-  return (
-    <li className="comment">
-      <Avatar profile={author} />
-      <div className="comment-main">
-        <div className="comment-bubble">
-          <b>{author?.displayName || (author === undefined ? "…" : "VibeBook member")}</b>
-          <p>{text}</p>
-        </div>
-        <div className="comment-meta"><time>{stamp(at)}</time></div>
-      </div>
-    </li>
-  );
 }
 
 /**
@@ -146,9 +127,7 @@ export default function PublicPost({ uid, id, onAuth }: Props) {
 
             {comments && comments.length > 0 && (
               <section className="comments" aria-label="Comments">
-                <ul className="comment-list">
-                  {comments.map((c) => <CommentLine key={c.id} authorUid={c.authorUid} text={c.text} at={c.createdAt} />)}
-                </ul>
+                <CommentThread comments={comments} />
               </section>
             )}
 

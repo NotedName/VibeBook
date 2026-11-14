@@ -1,0 +1,160 @@
+import { useEffect, useMemo, useState, type FormEvent } from "react";
+import type { Timestamp } from "firebase/firestore";
+import { COMMENT_MAX, MAX_DEPTH, type Comment } from "./commentStore";
+import { fetchProfile } from "./profiles";
+import type { Profile } from "./types";
+import Avatar from "./Avatar";
+import { CommentIcon, SendIcon, ThumbUpIcon, TrashIcon } from "./icons";
+
+const stamp = (t: Timestamp | null) =>
+  t ? t.toDate().toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "Sending…";
+
+/** What a signed-in viewer can do. Leave it out for the read-only view on shared links. */
+export type CommentActions = {
+  myUid: string;
+  /** owner of the entry, who can delete any comment */
+  ownerUid: string;
+  like: (comment: Comment, liked: boolean) => void;
+  /** resolves true when the reply was posted */
+  reply: (parent: Comment, text: string) => Promise<boolean>;
+  remove: (comment: Comment, hasReplies: boolean) => void;
+};
+
+type Node = { comment: Comment; kids: Node[] };
+
+/** Groups a flat, oldest-first list into threads. A reply whose parent is missing is shown at the top level. */
+function buildTree(list: Comment[]): Node[] {
+  const nodes = new Map(list.map((c) => [c.id, { comment: c, kids: [] as Node[] }]));
+  const roots: Node[] = [];
+  nodes.forEach((n) => (nodes.get(n.comment.parentId)?.kids ?? roots).push(n));
+  return roots;
+}
+
+const countReplies = (n: Node): number => n.kids.reduce((sum, k) => sum + 1 + countReplies(k), 0);
+
+function useAuthor(uid: string) {
+  const [p, setP] = useState<Profile | null | undefined>(undefined);
+  useEffect(() => {
+    let live = true;
+    fetchProfile(uid).then((x) => live && setP(x), () => live && setP(null));
+    return () => { live = false; };
+  }, [uid]);
+  return p;
+}
+
+function ReplyForm({ onSubmit, onCancel }: { onSubmit: (text: string) => Promise<boolean>; onCancel: () => void }) {
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    const clean = text.trim();
+    if (!clean) return;
+    setBusy(true);
+    if (await onSubmit(clean)) onCancel();
+    else setBusy(false);
+  }
+
+  return (
+    <form className="comment-form reply-form" onSubmit={submit}>
+      <input value={text} onChange={(e) => setText(e.target.value)} maxLength={COMMENT_MAX} autoFocus
+        placeholder="Write a reply…" aria-label="Write a reply" />
+      <button type="submit" className="icon-btn send" disabled={busy || !text.trim()} aria-label="Post reply"><SendIcon /></button>
+      <button type="button" className="link-act" onClick={onCancel}>Cancel</button>
+    </form>
+  );
+}
+
+type NodeProps = {
+  node: Node;
+  depth: number;
+  actions?: CommentActions;
+  replyTo: string | null;
+  setReplyTo: (id: string | null) => void;
+};
+
+function CommentNode({ node, depth, actions, replyTo, setReplyTo }: NodeProps) {
+  const { comment: c, kids } = node;
+  const author = useAuthor(c.authorUid);
+  const [open, setOpen] = useState(true);
+  const [armed, setArmed] = useState(false);
+  const mine = actions?.myUid === c.authorUid;
+  const liked = !!actions && c.likes.includes(actions.myUid);
+  const canDelete = !!actions && !c.deleted && (mine || actions.ownerUid === actions.myUid);
+  const canReply = !!actions && !c.deleted && depth < MAX_DEPTH;
+  const replies = countReplies(node);
+  const name = author?.displayName || (author === undefined ? "…" : "VibeBook member");
+
+  useEffect(() => {
+    if (!armed) return;
+    const t = setTimeout(() => setArmed(false), 3500);
+    return () => clearTimeout(t);
+  }, [armed]);
+
+  return (
+    <li className="comment">
+      <div className="comment-head">
+        {c.deleted ? <span className="comment-deleted">[deleted]</span> : (
+          <>
+            <Avatar profile={author} />
+            {actions && !mine
+              ? <a className="post-name" href={`#/u/${encodeURIComponent(c.authorUid)}`}>{name}</a>
+              : <b>{name}</b>}
+            <time>{stamp(c.createdAt)}</time>
+          </>
+        )}
+      </div>
+      {!c.deleted && <p className="comment-text">{c.text}</p>}
+
+      <div className="comment-meta">
+        {!c.deleted && (actions ? (
+          <button type="button" className={`link-act${liked ? " on" : ""}`} aria-pressed={liked}
+            onClick={() => actions.like(c, liked)}>
+            <ThumbUpIcon filled={liked} />{c.likes.length > 0 ? c.likes.length : "Like"}
+          </button>
+        ) : c.likes.length > 0 && <span className="link-act static"><ThumbUpIcon />{c.likes.length}</span>)}
+        {canReply && (
+          <button type="button" className="link-act" onClick={() => setReplyTo(replyTo === c.id ? null : c.id)}>
+            <CommentIcon />Reply
+          </button>
+        )}
+        {canDelete && (
+          <button type="button" className={`link-act${armed ? " armed" : ""}`}
+            onClick={() => (armed ? actions.remove(c, kids.length > 0) : setArmed(true))}>
+            <TrashIcon />{armed ? "Tap to confirm" : "Delete"}
+          </button>
+        )}
+        {kids.length > 0 && (
+          <button type="button" className="link-act" aria-expanded={open} onClick={() => setOpen(!open)}>
+            {open ? "Hide replies" : `Show ${replies} ${replies === 1 ? "reply" : "replies"}`}
+          </button>
+        )}
+      </div>
+
+      {actions && replyTo === c.id && (
+        <ReplyForm onSubmit={(text) => actions.reply(c, text)} onCancel={() => setReplyTo(null)} />
+      )}
+
+      {kids.length > 0 && open && (
+        <ul className="comment-list replies">
+          {kids.map((k) => (
+            <CommentNode key={k.comment.id} node={k} depth={depth + 1} actions={actions} replyTo={replyTo} setReplyTo={setReplyTo} />
+          ))}
+        </ul>
+      )}
+    </li>
+  );
+}
+
+/** Reddit-style comment threads: replies nest under their parent, with likes on every comment. */
+export default function CommentThread({ comments, actions }: { comments: Comment[]; actions?: CommentActions }) {
+  const tree = useMemo(() => buildTree(comments), [comments]);
+  const [replyTo, setReplyTo] = useState<string | null>(null);
+  return (
+    <ul className="comment-list">
+      {tree.map((n) => (
+        <CommentNode key={n.comment.id} node={n} depth={1} actions={actions} replyTo={replyTo} setReplyTo={setReplyTo} />
+      ))}
+    </ul>
+  );
+}

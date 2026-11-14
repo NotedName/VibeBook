@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { addEntry, loadPhotos, MAX_PHOTOS, updateEntry, type Entry, type Photo } from "./entries";
 import { clockTime, longDay, nowStr, todayStr } from "./report";
-import { CameraIcon, ClockIcon, CloseIcon, GlobeIcon, ImageIcon, LockIcon, UsersIcon } from "./icons";
+import { CameraIcon, ClockIcon, CloseIcon, EditIcon, GlobeIcon, ImageIcon, LockIcon, UsersIcon } from "./icons";
 import { useSession } from "./session";
 import { MAX_GROUPS_PER_ENTRY, VISIBILITY, type Visibility } from "./types";
 import { GroupAvatar } from "./GroupRow";
 import { parseVideo, VIDEO_URL_MAX } from "./video";
+import PhotoEditor from "./PhotoEditor";
 
 type Props = {
   uid: string;
@@ -31,6 +32,7 @@ export default function EntrySheet({ uid, entry, defaultGroupId, onClose, onSave
   const [removed, setRemoved] = useState<string[]>([]);
   const [photosReady, setPhotosReady] = useState(!entry || entry.photoCount === 0);
   const [files, setFiles] = useState<File[]>([]);
+  const [editing, setEditing] = useState<number | null>(null); // index in files of the photo being edited
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const titleRef = useRef<HTMLInputElement>(null);
@@ -120,7 +122,7 @@ export default function EntrySheet({ uid, entry, defaultGroupId, onClose, onSave
                 disabled={total >= MAX_PHOTOS} />
             </label>
           </div>
-          <p className="hint">{total}/{MAX_PHOTOS} photos{!photosReady && " · loading saved photos…"}</p>
+          <p className="hint">{total}/{MAX_PHOTOS} photos{!photosReady && " · loading saved photos…"}{files.length > 0 && " · tap the pencil on a new photo to crop or adjust it"}</p>
 
           {(saved.length > 0 || previews.length > 0) && (
             <div className="thumbs">
@@ -136,6 +138,7 @@ export default function EntrySheet({ uid, entry, defaultGroupId, onClose, onSave
                   <img src={src} alt="" />
                   <button type="button" aria-label="Remove photo"
                     onClick={() => setFiles(files.filter((_, j) => j !== i))}>×</button>
+                  <button type="button" className="thumb-edit" aria-label="Edit photo" onClick={() => setEditing(i)}><EditIcon /></button>
                 </div>
               ))}
             </div>
@@ -213,6 +216,10 @@ export default function EntrySheet({ uid, entry, defaultGroupId, onClose, onSave
           </button>
         </div>
       </form>
+      {editing !== null && files[editing] && (
+        <PhotoEditor file={files[editing]} onCancel={() => setEditing(null)}
+          onApply={(edited) => { setFiles(files.map((x, i) => (i === editing ? edited : x))); setEditing(null); }} />
+      )}
     </div>
   );
 }

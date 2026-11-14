@@ -29,7 +29,14 @@
 
 ## Comments
 
-- **Comment** on any entry you can see, your own included. Comments live at `users/{uid}/entries/{id}/comments`. Authors and the entry owner can delete a comment; comments cannot be edited.
+- **Comment** on any entry you can see, your own included. Replies nest under the comment they answer, Reddit-style, up to 5 levels; **Hide replies** collapses a branch.
+- Every comment has a **Like** (one per person; tap again to take it back). Comments are stored at `users/{uid}/entries/{id}/comments` with `parentId` ("" for top level) and a `likes` list of uids. Comments written before replies existed show as top-level, with no likes.
+- Authors and the entry owner can delete a comment. A comment that has replies is blanked to **[deleted]** so the thread keeps its shape; one without replies is removed. Text cannot be edited.
+- Run `npm run deploy` so the new rules (replies, likes) go live with the app.
+
+## Editing photos
+
+- A new photo on an entry has a pencil button: crop to Original, Square, 4:3 or 16:9 (drag to position, Zoom to tighten), rotate, flip, and adjust brightness, contrast and saturation. Photos already saved on an entry cannot be re-edited; remove and add them again.
 
 ## Reactions: Vibing / Not vibing
 

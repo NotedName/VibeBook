@@ -36,3 +36,5 @@ export const ThumbDownIcon = ({ filled = false }: { filled?: boolean }) => (
 export const ShareIcon = () => <Svg><circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4" /></Svg>;
 export const ClockIcon = () => <Svg><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></Svg>;
 export const MoreIcon = () => <Svg><circle cx="12" cy="5" r="1.2" /><circle cx="12" cy="12" r="1.2" /><circle cx="12" cy="19" r="1.2" /></Svg>;
+export const RotateIcon = () => <Svg><path d="M21 4v6h-6" /><path d="M20.5 15a9 9 0 1 1-2.1-9.4L21 10" /></Svg>;
+export const FlipIcon = () => <Svg><path d="M12 3v18" /><path d="M8 7l-5 5 5 5z" /><path d="M16 7l5 5-5 5z" /></Svg>;

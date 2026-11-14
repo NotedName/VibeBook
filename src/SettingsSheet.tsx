@@ -178,12 +178,13 @@ export default function SettingsSheet({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="sheet" role="dialog" aria-modal="true" aria-label="Settings">
+      <div className="sheet settings-sheet" role="dialog" aria-modal="true" aria-label="Settings">
         <div className="sheet-head">
           <h2>Settings</h2>
           <button type="button" className="icon-btn close" aria-label="Close" onClick={onClose}><CloseIcon /></button>
         </div>
-        <div className="settings-tabs" role="tablist" aria-label="Settings categories">
+        <div className="settings-layout">
+        <div className="settings-nav" role="tablist" aria-label="Settings categories" aria-orientation="vertical">
           {CATEGORIES.map((c) => (
             <button key={c} type="button" role="tab" aria-selected={category === c} onClick={() => setCategory(c)}>{c}</button>
           ))}
@@ -196,6 +197,7 @@ export default function SettingsSheet({ onClose }: { onClose: () => void }) {
           {category === "Accessibility" && <Accessibility />}
           {category === "Activity" && <ActivityLog onNavigate={onClose} />}
           {category === "About" && <About />}
+        </div>
         </div>
       </div>
     </div>

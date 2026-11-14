@@ -84,7 +84,9 @@ function Logbook({ onViewAs }: { onViewAs: () => void }) {
         </div>
       </ProfileHeader>
 
-      <ProfileTabs tab={tab} onChange={setTab} showLikes />
+      <ProfileTabs tab={tab} onChange={setTab} showLikes>
+        {shown.length > 1 && <SortMenu mode={mode} onChange={setMode} />}
+      </ProfileTabs>
 
       <div className="composer">
         <Avatar profile={s.me} />
@@ -93,7 +95,6 @@ function Logbook({ onViewAs }: { onViewAs: () => void }) {
             What did you work on today?
           </button>
         ) : <span className="composer-input static">{tab === "reposts" ? "Entries you reposted" : "Entries you gave a Vibing"}</span>}
-        {shown.length > 1 && <SortMenu mode={mode} onChange={setMode} />}
       </div>
 
       {loadError && <p className="error note" role="alert">{loadError}</p>}

@@ -4,7 +4,7 @@ import ProfileTabs, { type ProfileTab } from "../ProfileTabs";
 import { useSharedEntries } from "../feed";
 import { newestFirst } from "../entries";
 import { dateDir, useSortedEntries, useSortMode } from "../sorting";
-import SortBar from "../SortBar";
+import SortMenu from "../SortMenu";
 import { useRepostedEntries } from "../reposts";
 import ProfileHeader from "../ProfileHeader";
 import RelationButtons from "../RelationButtons";
@@ -46,9 +46,10 @@ export default function PersonPage({ uid }: { uid: string }) {
         <div className="profile-actions"><RelationButtons uid={uid} /></div>
         {rel === "incoming" && <p className="hint pad-b">{p.displayName} sent you a friend request.</p>}
       </ProfileHeader>
-      <ProfileTabs tab={tab} onChange={setTab} />
+      <ProfileTabs tab={tab} onChange={setTab}>
+        {entries.length > 1 && <SortMenu mode={mode} onChange={setMode} />}
+      </ProfileTabs>
       <div className="feed">
-        {entries.length > 1 && <SortBar mode={mode} onChange={setMode} />}
         {error && <p className="error note" role="alert">{error}</p>}
         {loading && entries.length === 0 && <FeedSkeleton />}
         {tab === "reposts" && entries.length === 0 && (

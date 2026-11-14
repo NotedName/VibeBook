@@ -141,3 +141,9 @@ After pulling these changes run `npm run deploy` so the new rules go live togeth
 - Likes data: `users/{me}/likes/{ownerUid}_{entryId}` (`src/likes.ts`), a pointer written together with the Vibing in one batch and removed when you take it back or switch to Not vibing. Only you can read it (`firestore.rules`). Vibing given before this list existed is not back-filled, and photo reactions are not included. Run `npm run deploy` so the rules go live.
 - **Buttons:** Find people, Find or create a group, See all groups and the "Use a different account" / "Back to the post" actions are real buttons (bordered, filled), not plain text links.
 - **Activity log:** it can no longer be cleared or deleted from the app (the Clear button and `clearActivity` are gone). It is still stored on this device only, so clearing the browser's site data removes it. The safety cap is now 2000 items.
+
+## Settings sidebar, sort button and corners
+
+- **Settings** now has its categories in a column on the left (narrower on phones) with the options on the right; the dialog keeps one size as you switch categories.
+- **Sort:** the sort button sits at the right end of the Notes / Reposts / Likes bar, on your logbook and on other people's profiles.
+- **Corners:** one scale for every layout (`src/styles.css`): cards `--radius` (22), panels and photos inside them `--radius-md` (16), buttons, fields, tabs and menu items `--radius-sm` (12), dialogs and the floating phone tab bar `--radius-lg` (28), and `--radius-pill` only for small tags (chips, badges, counters, toasts). Search, comment and GIF fields, the sign-in tabs, the desktop and rail navigation tabs and the Back button no longer use pills, and the hard-coded 6, 9, 22 and 28 pixel corners now use the scale.

@@ -29,11 +29,11 @@
     bottom: calc(10px + env(safe-area-inset-bottom, 0px));
     background: color-mix(in srgb, var(--surface) 86%, transparent);
     -webkit-backdrop-filter: blur(18px) saturate(1.5); backdrop-filter: blur(18px) saturate(1.5);
-    border: 1px solid var(--line); border-radius: 28px; box-shadow: var(--shadow-pop);
+    border: 1px solid var(--line); border-radius: var(--radius-lg); box-shadow: var(--shadow-pop);
   }
   .tab {
     flex-direction: column; gap: 2px; font-size: calc(11px * var(--ts)); padding: 8px 2px 7px;
-    border-bottom: 0; border-radius: 22px;
+    border-bottom: 0; border-radius: calc(var(--radius-lg) - 8px);
   }
   .tab.on, .tab.on:hover { background: var(--accent-soft); }
   .badge { position: absolute; top: 3px; left: calc(50% + 6px); }
@@ -85,7 +85,7 @@
   .topbar-in { display: contents; }
   .brand { grid-column: 1; grid-row: 1; justify-self: start; height: 60px; }
   .tabs { grid-column: 2; grid-row: 1; display: flex; gap: 6px; max-width: none; margin: 0; }
-  .tab { flex-direction: row; gap: 10px; padding: 9px 20px; border-radius: 999px; border-bottom: 0; font-size: calc(15px * var(--ts)); }
+  .tab { flex-direction: row; gap: 10px; padding: 9px 20px; border-radius: var(--radius-sm); border-bottom: 0; font-size: calc(15px * var(--ts)); }
   .tab:hover { background: var(--surface-2); }
   .tab.on, .tab.on:hover { background: var(--accent-soft); }
   .badge { position: static; }
@@ -136,7 +136,7 @@
   .brand { order: 0; justify-content: center; height: auto; }
   .brand-word { display: none; }
   .tabs { order: 1; display: grid; grid-template-columns: 1fr; gap: 4px; max-width: none; margin: 8px 0 0; }
-  .tab { flex-direction: column; gap: 4px; font-size: calc(12px * var(--ts)); padding: 10px 4px; border-radius: var(--radius-md); border-bottom: 0; }
+  .tab { flex-direction: column; gap: 4px; font-size: calc(12px * var(--ts)); padding: 10px 4px; border-radius: var(--radius-sm); border-bottom: 0; }
   .tab.on, .tab.on:hover { background: var(--accent-soft); }
   .tab:hover { background: var(--surface-2); }
   .badge { position: absolute; top: 4px; left: calc(50% + 8px); }

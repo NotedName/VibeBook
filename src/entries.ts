@@ -19,7 +19,10 @@ export type Entry = EntryInput & {
   id: string;
   photoCount: number;
   createdAt: Timestamp | null;
+  updatedAt?: Timestamp | null;
 };
+
+export type Photo = { id: string; data: string; order: number };
 
 const entriesRef = (uid: string) => collection(db, "users", uid, "entries");
 
@@ -34,11 +37,38 @@ export async function addEntry(uid: string, input: EntryInput, files: File[]): P
   await batch.commit();
 }
 
-export async function loadPhotos(uid: string, entryId: string): Promise<string[]> {
+export async function loadPhotos(uid: string, entryId: string): Promise<Photo[]> {
   const snap = await getDocs(
     query(collection(db, "users", uid, "entries", entryId, "photos"), orderBy("order")),
   );
-  return snap.docs.map((d) => d.data().data as string);
+  return snap.docs.map((d) => ({ id: d.id, data: d.data().data as string, order: d.data().order as number }));
+}
+
+/** Update text fields, drop the photos listed in removeIds and append newFiles. */
+export async function updateEntry(
+  uid: string,
+  entry: Entry,
+  input: EntryInput,
+  keep: Photo[],
+  removeIds: string[],
+  newFiles: File[],
+): Promise<void> {
+  if (keep.length + newFiles.length > MAX_PHOTOS) throw new Error(`Maximum ${MAX_PHOTOS} photos per entry`);
+  const added = await Promise.all(newFiles.map(compressImage));
+
+  const entryRef = doc(entriesRef(uid), entry.id);
+  const batch = writeBatch(db);
+  batch.update(entryRef, {
+    ...input,
+    photoCount: keep.length + added.length,
+    updatedAt: serverTimestamp(),
+  });
+  removeIds.forEach((id) => batch.delete(doc(collection(entryRef, "photos"), id)));
+  const nextOrder = keep.reduce((max, p) => Math.max(max, p.order), -1) + 1;
+  added.forEach((data, i) =>
+    batch.set(doc(collection(entryRef, "photos")), { data, order: nextOrder + i }),
+  );
+  await batch.commit();
 }
 
 export async function deleteEntry(uid: string, entryId: string): Promise<void> {

@@ -1,0 +1,118 @@
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
+import { BIO_MAX, HEADLINE_MAX, NAME_MAX, saveProfile } from "./profiles";
+import { squareAvatar } from "./image";
+import { COVERS, type CoverId, type Profile } from "./types";
+import { useSession } from "./session";
+import Avatar from "./Avatar";
+import { CameraIcon, CloseIcon } from "./icons";
+
+type Props = {
+  /** null = first-time setup, which cannot be dismissed until a name is saved */
+  profile: Profile | null;
+  suggestedName?: string;
+  onClose: () => void;
+};
+
+export default function ProfileSheet({ profile, suggestedName = "", onClose }: Props) {
+  const { uid, notify } = useSession();
+  const setup = profile === null;
+  const [name, setName] = useState(profile?.displayName ?? suggestedName);
+  const [headline, setHeadline] = useState(profile?.headline ?? "OJT intern");
+  const [workplace, setWorkplace] = useState(profile?.workplace ?? "");
+  const [bio, setBio] = useState(profile?.bio ?? "");
+  const [avatar, setAvatar] = useState(profile?.avatar ?? "");
+  const [cover, setCover] = useState<CoverId>(profile?.cover ?? "amethyst");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const nameRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    nameRef.current?.focus();
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && !setup && onClose();
+    document.addEventListener("keydown", onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.removeEventListener("keydown", onKey); document.body.style.overflow = prev; };
+  }, [onClose, setup]);
+
+  async function pick(e: ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    e.target.value = "";
+    if (!f) return;
+    try { setAvatar(await squareAvatar(f)); } catch { setError("That image could not be read."); }
+  }
+
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    if (!name.trim()) { setError("Add your name so people can find you."); return; }
+    setBusy(true); setError("");
+    try {
+      await saveProfile(uid, { displayName: name, headline, workplace, bio, avatar, cover });
+      notify(setup ? "Welcome to VibeBook" : "Profile saved");
+      onClose();
+    } catch {
+      setError("Could not save your profile. Check your connection and try again.");
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && !setup && onClose()}>
+      <form className="sheet" role="dialog" aria-modal="true" aria-label={setup ? "Set up your profile" : "Edit profile"} onSubmit={submit}>
+        <div className="sheet-head">
+          <h2>{setup ? "Set up your profile" : "Edit profile"}</h2>
+          {!setup && <button type="button" className="icon-btn close" aria-label="Close" onClick={onClose}><CloseIcon /></button>}
+        </div>
+
+        <div className="sheet-body">
+          {setup && <p className="hint">This is what friends see when they find you. Your email address is never shown.</p>}
+
+          <div className="avatar-edit">
+            <Avatar profile={{ displayName: name, avatar }} size="lg" />
+            <div className="avatar-edit-btns">
+              <label className="btn"><CameraIcon /> {avatar ? "Change photo" : "Add photo"}
+                <input type="file" accept="image/*" hidden onChange={pick} />
+              </label>
+              {avatar && <button type="button" className="btn" onClick={() => setAvatar("")}>Remove</button>}
+            </div>
+          </div>
+
+          <label>Name
+            <input ref={nameRef} value={name} onChange={(e) => setName(e.target.value)} maxLength={NAME_MAX} required
+              placeholder="Your full name" autoComplete="name" />
+          </label>
+          <label>Headline
+            <input value={headline} onChange={(e) => setHeadline(e.target.value)} maxLength={HEADLINE_MAX}
+              placeholder="e.g. OJT intern, IT department" />
+          </label>
+          <label>Company or school
+            <input value={workplace} onChange={(e) => setWorkplace(e.target.value)} maxLength={HEADLINE_MAX}
+              placeholder="e.g. St. Mary's College" />
+          </label>
+          <label>About you
+            <textarea rows={4} value={bio} onChange={(e) => setBio(e.target.value)} maxLength={BIO_MAX}
+              placeholder="A line or two about what you are working on." />
+            <small className="count">{bio.length}/{BIO_MAX}</small>
+          </label>
+
+          <fieldset className="covers">
+            <legend>Cover color</legend>
+            {COVERS.map((c) => (
+              <label key={c.id} className={`cover-opt${cover === c.id ? " on" : ""}`}>
+                <input type="radio" name="cover" value={c.id} checked={cover === c.id} onChange={() => setCover(c.id)} />
+                <span className={`swatch c-${c.id}`} /> {c.label}
+              </label>
+            ))}
+          </fieldset>
+
+          {error && <p className="error" role="alert">{error}</p>}
+        </div>
+
+        <div className="sheet-actions">
+          {!setup && <button type="button" className="btn" onClick={onClose}>Cancel</button>}
+          <button type="submit" className="btn primary" disabled={busy}>{busy ? "Saving…" : setup ? "Continue" : "Save profile"}</button>
+        </div>
+      </form>
+    </div>
+  );
+}

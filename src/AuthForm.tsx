@@ -24,7 +24,7 @@ export default function AuthForm() {
 
   return (
     <main className="auth">
-      <div className="brand big"><span className="brand-mark" aria-hidden="true">L</span>OJT Logbook</div>
+      <div className="brand big"><span className="brand-mark" aria-hidden="true">V</span>VibeBook</div>
       <p className="auth-sub">Log what you did, what you learned, and copy it into your daily report.</p>
       <form className="auth-card" onSubmit={submit}>
         <h1>{mode === "signin" ? "Sign in" : "Create account"}</h1>

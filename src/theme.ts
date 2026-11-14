@@ -1,7 +1,7 @@
 import { useCallback, useState } from "react";
 
 type Theme = "light" | "dark";
-const KEY = "ojt-theme";
+const KEY = "vibebook-theme";
 
 function current(): Theme {
   const set = document.documentElement.getAttribute("data-theme");

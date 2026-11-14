@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { addEntry, loadPhotos, MAX_PHOTOS, updateEntry, type Entry, type Photo } from "./entries";
 import { nowStr, todayStr } from "./report";
-import { CameraIcon, CloseIcon, ImageIcon } from "./icons";
+import { CameraIcon, CloseIcon, GlobeIcon, ImageIcon, LockIcon, UsersIcon } from "./icons";
+import { VISIBILITY, type Visibility } from "./types";
 
 type Props = {
   uid: string;
@@ -16,6 +17,7 @@ export default function EntrySheet({ uid, entry, onClose, onSaved }: Props) {
   const [title, setTitle] = useState(entry?.title ?? "");
   const [skills, setSkills] = useState(entry?.skills.join(", ") ?? "");
   const [description, setDescription] = useState(entry?.description ?? "");
+  const [visibility, setVisibility] = useState<Visibility>(entry?.visibility ?? "private");
   const [saved, setSaved] = useState<Photo[]>([]); // photos already stored on the entry
   const [removed, setRemoved] = useState<string[]>([]);
   const [photosReady, setPhotosReady] = useState(!entry || entry.photoCount === 0);
@@ -65,7 +67,7 @@ export default function EntrySheet({ uid, entry, onClose, onSaved }: Props) {
     setBusy(true);
     setError("");
     const input = {
-      date, time, title: title.trim(), description: description.trim(),
+      date, time, title: title.trim(), description: description.trim(), visibility,
       skills: skills.split(",").map((s) => s.trim()).filter(Boolean),
     };
     try {
@@ -141,6 +143,21 @@ export default function EntrySheet({ uid, entry, onClose, onSaved }: Props) {
             <textarea rows={5} value={description} onChange={(e) => setDescription(e.target.value)} required
               placeholder="What happened, what was the problem, how did you solve it?" />
           </label>
+
+          <fieldset className="vis-pick">
+            <legend>Who can see this</legend>
+            <div className="seg">
+              {VISIBILITY.map((v) => (
+                <label key={v.id} className={visibility === v.id ? "on" : ""}>
+                  <input type="radio" name="visibility" value={v.id} checked={visibility === v.id}
+                    onChange={() => setVisibility(v.id)} />
+                  {v.id === "private" ? <LockIcon /> : v.id === "friends" ? <UsersIcon /> : <GlobeIcon />}
+                  {v.label}
+                </label>
+              ))}
+            </div>
+            <p className="hint">{VISIBILITY.find((v) => v.id === visibility)!.hint}</p>
+          </fieldset>
 
           {error && <p className="error" role="alert">{error}</p>}
         </div>

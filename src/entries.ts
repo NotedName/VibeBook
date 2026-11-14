@@ -4,6 +4,7 @@ import {
 } from "firebase/firestore";
 import { db } from "./firebase";
 import { compressImage } from "./image";
+import type { Visibility } from "./types";
 
 export const MAX_PHOTOS = 8;
 
@@ -13,10 +14,15 @@ export type EntryInput = {
   title: string;
   skills: string[];
   description: string;
+  visibility: Visibility;
 };
 
-export type Entry = EntryInput & {
+export type Entry = Omit<EntryInput, "visibility"> & {
   id: string;
+  /** Entries written before visibility existed have none, and count as private. */
+  visibility?: Visibility;
+  /** Whose logbook the entry lives in. Set when loading; not stored. */
+  ownerUid?: string;
   photoCount: number;
   createdAt: Timestamp | null;
   updatedAt?: Timestamp | null;

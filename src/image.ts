@@ -15,3 +15,20 @@ export async function compressImage(file: File): Promise<string> {
   if (dataUrl.length > MAX_CHARS) throw new Error(`${file.name} is too large even after compression`);
   return dataUrl;
 }
+
+/** Center-crops to a square and shrinks to a small JPEG data URL for profile photos. */
+export async function squareAvatar(file: File, side = 256): Promise<string> {
+  const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
+  const size = Math.min(bitmap.width, bitmap.height);
+  const canvas = document.createElement("canvas");
+  canvas.width = side;
+  canvas.height = side;
+  canvas.getContext("2d")!.drawImage(
+    bitmap, (bitmap.width - size) / 2, (bitmap.height - size) / 2, size, size, 0, 0, side, side,
+  );
+  bitmap.close();
+  let quality = 0.85;
+  let out = canvas.toDataURL("image/jpeg", quality);
+  while (out.length > 60_000 && quality > 0.4) { quality -= 0.1; out = canvas.toDataURL("image/jpeg", quality); }
+  return out;
+}

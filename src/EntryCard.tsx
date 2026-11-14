@@ -4,9 +4,12 @@ import { clockTime, copyText, entryText, longDay } from "./report";
 import { useProfile, useSession } from "./session";
 import { VISIBILITY } from "./types";
 import Avatar from "./Avatar";
-import { CloseIcon, CommentIcon, CopyIcon, EditIcon, GlobeIcon, GroupsIcon, LockIcon, TrashIcon, UsersIcon } from "./icons";
+import { CloseIcon, CommentIcon, CopyIcon, EditIcon, GlobeIcon, GroupsIcon, LockIcon, ShareIcon, TrashIcon, UsersIcon } from "./icons";
 import { useGroup } from "./groups";
 import Comments from "./Comments";
+import ReactionBar from "./ReactionBar";
+import VideoPlayer from "./VideoPlayer";
+import { postLink } from "./share";
 
 type Props = { entry: Entry; onEdit?: (entry: Entry) => void };
 
@@ -62,6 +65,26 @@ export default function EntryCard({ entry, onEdit }: Props) {
     else s.manualCopy(text);
   }
 
+  const isPublic = (entry.visibility ?? "private") === "public";
+
+  async function share() {
+    if (!isPublic) {
+      s.notify("Set this entry to Public to share it with a link");
+      return;
+    }
+    const url = postLink(ownerUid, entry.id);
+    if (typeof navigator.share === "function") {
+      try {
+        await navigator.share({ title: entry.title, url });
+        return;
+      } catch (err) {
+        if ((err as DOMException).name === "AbortError") return; // closed the share sheet
+      }
+    }
+    if (await copyText(url)) s.notify("Link copied");
+    else s.manualCopy(url);
+  }
+
   const expecting = entry.photoCount > 0 && photos.length === 0;
   const name = owner?.displayName || (owner === undefined ? "…" : "VibeBook member");
 
@@ -99,10 +122,17 @@ export default function EntryCard({ entry, onEdit }: Props) {
         </div>
       )}
 
-      <div className={`post-actions${mine && onEdit ? "" : " single"}`}>
+      {entry.videoUrl && <VideoPlayer url={entry.videoUrl} title={entry.title} />}
+
+      <ReactionBar ownerUid={ownerUid} entryId={entry.id} myUid={s.uid} onError={s.notify} />
+
+      <div className="post-actions">
         <button type="button" className="act" onClick={copy}><CopyIcon /><span>Copy</span></button>
         <button type="button" className={`act${commenting ? " on" : ""}`} aria-expanded={commenting}
           onClick={() => setCommenting(!commenting)}><CommentIcon /><span>Comment</span></button>
+        {(isPublic || mine) && (
+          <button type="button" className="act" onClick={share}><ShareIcon /><span>Share</span></button>
+        )}
         {mine && onEdit && (
           <>
             <button type="button" className="act" onClick={() => onEdit(entry)}><EditIcon /><span>Edit</span></button>

@@ -26,6 +26,22 @@
 
 - **Comment** on any entry you can see, your own included. Comments live at `users/{uid}/entries/{id}/comments`. Authors and the entry owner can delete a comment; comments cannot be edited.
 
+## Reactions: Vibing / Not vibing
+
+- Every entry you can see has a **Vibing** (heart) and a **Not vibing** (thumbs down) button with live counts. You get one reaction per entry; tap the same one again to take it back, or tap the other to switch.
+- Data: `users/{uid}/entries/{id}/reactions/{reactorUid}` with `{ type, createdAt }`. The document id is the reactor's uid, which is what stops double-reacting. Each entry card reads its reaction documents, which is fine for a small app; if the app grows, move to a counter field.
+
+## Video posts
+
+- An entry can carry a **video link**: an https link to YouTube, Vimeo, or a direct `.mp4` / `.webm` file. It plays inside the entry card (stored as `videoUrl`). Only those hosts are embedded.
+- Uploading video files is **not** possible on the Spark plan: since 3 February 2026 Cloud Storage for Firebase needs the Blaze plan, and Firestore documents are capped at 1 MiB, so clips cannot be stored there. Options if you want uploads later: upgrade to Blaze (it has a free allowance, and you can set a budget alert), or use a free-tier video host and paste its link.
+
+## Sharing and viewing without an account
+
+- **Share** on a Public entry copies (or opens the phone's share sheet for) a link like `https://<site>/#/p/<uid>/<entryId>`. Non-public entries cannot be shared by link; the button tells the owner to set the entry to Public.
+- Someone without an account who opens the link sees the entry, photos, video, reaction counts and comments, read-only. Reacting, commenting, copying and everything else asks them to sign in or join. Signed-in people who open the link get the normal, fully interactive card.
+- Anonymous access is read-only and "by link": signed-out visitors can fetch a single public entry, its photos, comments and reactions, and the author's profile card, but cannot list or search anything. `firestore.rules` enforces this, so run `npm run deploy` (or `firebase deploy --only firestore:rules`) for it to work.
+
 ## Sign-up and email verification
 
 - Create account asks for a name (used as the first profile name), email and a password of 8+ characters with a strength hint.

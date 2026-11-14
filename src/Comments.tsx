@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import type { Timestamp } from "firebase/firestore";
-import { addComment, COMMENT_MAX, deleteComment, useComments, type Comment } from "./comments";
+import { addComment, COMMENT_MAX, deleteComment, useComments, type Comment } from "./commentStore";
 import { useProfile, useSession } from "./session";
 import Avatar from "./Avatar";
 import { SendIcon, TrashIcon } from "./icons";

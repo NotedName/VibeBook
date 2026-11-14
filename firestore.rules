@@ -35,6 +35,14 @@ service cloud.firestore {
         || sharedWithMyGroup(e);
     }
 
+    // Public entries can be opened without signing in, but only by someone who already has the
+    // entry's link (unguessable id). Signed-out visitors get "get" on one entry, and read on its
+    // photos, comments and reactions. They cannot list entries, so nothing can be browsed, and
+    // they cannot write anything.
+    function entryIsPublic(uid, entryId) {
+      return get(/databases/$(database)/documents/users/$(uid)/entries/$(entryId)).data.get('visibility', 'private') == 'public';
+    }
+
     match /users/{uid}/following/{targetId} {
       allow read, write: if isOwner(uid);
     }
@@ -43,6 +51,7 @@ service cloud.firestore {
     // friends, or with a group they are in. Entries with no visibility field are private.
     match /users/{uid}/entries/{entryId} {
       allow read, write: if isOwner(uid);
+      allow get: if resource.data.get('visibility', 'private') == 'public';
       allow read: if signedIn() && (
         resource.data.visibility == 'public' ||
         (resource.data.visibility == 'friends' && isFriend(request.auth.uid, uid)) ||
@@ -52,12 +61,14 @@ service cloud.firestore {
       match /photos/{photoId} {
         allow read, write: if isOwner(uid);
         allow read: if signedIn() && entryReadable(uid, entryId);
+        allow read: if entryIsPublic(uid, entryId);
       }
 
       // Anyone who can read the entry can comment. A comment can be deleted by its author or
       // by the owner of the entry. Comments cannot be edited.
       match /comments/{commentId} {
         allow read: if isOwner(uid) || (signedIn() && entryReadable(uid, entryId));
+        allow read: if entryIsPublic(uid, entryId);
         allow create: if signedIn()
           && request.resource.data.keys().hasOnly(['authorUid', 'text', 'createdAt'])
           && request.resource.data.authorUid == request.auth.uid
@@ -68,12 +79,30 @@ service cloud.firestore {
           && (request.auth.uid == uid || entryReadable(uid, entryId));
         allow delete: if signedIn() && (request.auth.uid == uid || resource.data.authorUid == request.auth.uid);
       }
+
+      // One document per person, named by their uid, so nobody can react twice. "vibing" or
+      // "notvibing". Anyone who can see the entry can react; you can only touch your own reaction,
+      // and the entry's owner can remove any.
+      match /reactions/{reactorId} {
+        allow read: if isOwner(uid) || (signedIn() && entryReadable(uid, entryId));
+        allow read: if entryIsPublic(uid, entryId);
+        allow create, update: if signedIn()
+          && request.auth.uid == reactorId
+          && request.resource.data.keys().hasOnly(['type', 'createdAt'])
+          && request.resource.data.type in ['vibing', 'notvibing']
+          && request.resource.data.createdAt == request.time
+          && (request.auth.uid == uid || entryReadable(uid, entryId));
+        allow delete: if signedIn() && (request.auth.uid == reactorId || request.auth.uid == uid);
+      }
     }
 
     // Public profile cards. Any signed-in person can read them (that is how search works);
     // only the owner can write theirs. The email address is never stored here.
     match /profiles/{uid} {
       allow read: if signedIn();
+      // Lets a share link show the author's name and photo to signed-out visitors. Only a single
+      // profile can be fetched by id; searching and listing still need an account.
+      allow get: if true;
       allow create, update: if signedIn() && request.auth.uid == uid
         && request.resource.data.displayName is string
         && request.resource.data.displayName.size() > 0

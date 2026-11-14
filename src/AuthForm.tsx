@@ -18,8 +18,10 @@ function strength(pw: string): 0 | 1 | 2 | 3 {
 }
 const STRENGTH_LABEL = ["Use at least 8 characters", "Weak", "Okay", "Strong"] as const;
 
-export default function AuthForm() {
-  const [mode, setMode] = useState<"signin" | "signup">("signin");
+type Props = { initialMode?: "signin" | "signup"; onBack?: () => void };
+
+export default function AuthForm({ initialMode = "signin", onBack }: Props) {
+  const [mode, setMode] = useState<"signin" | "signup">(initialMode);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -111,6 +113,7 @@ export default function AuthForm() {
         </button>
         {signup && <p className="hint">We will email you a link to confirm your address before you can start.</p>}
       </form>
+      {onBack && <button type="button" className="link" onClick={onBack}>← Back to the post</button>}
     </main>
   );
 }

@@ -3,7 +3,7 @@ export type Visibility = "private" | "friends" | "public";
 export const VISIBILITY: { id: Visibility; label: string; hint: string }[] = [
   { id: "private", label: "Only me", hint: "Only you can see this entry." },
   { id: "friends", label: "Friends", hint: "You and your friends can see this entry." },
-  { id: "public", label: "Public", hint: "Friends and anyone who follows you can see this entry." },
+  { id: "public", label: "Public", hint: "Friends and followers can see this entry, and anyone with its share link can view it without signing in." },
 ];
 
 export type CoverId = "amethyst" | "dusk" | "steel";
@@ -33,3 +33,9 @@ export type Group = { id: string; name: string; description: string; ownerUid: s
 
 /** firestore.rules only looks at the first five groupIds of an entry. */
 export const MAX_GROUPS_PER_ENTRY = 5;
+
+export type ReactionType = "vibing" | "notvibing";
+export const REACTIONS: { id: ReactionType; label: string }[] = [
+  { id: "vibing", label: "Vibing" },
+  { id: "notvibing", label: "Not vibing" },
+];

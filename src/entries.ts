@@ -18,9 +18,13 @@ export type EntryInput = {
   visibility: Visibility;
   /** Groups whose members can see and comment on this entry. */
   groupIds: string[];
+  /** https link to a YouTube or Vimeo video, or a direct .mp4/.webm file. "" when none. */
+  videoUrl: string;
 };
 
-export type Entry = Omit<EntryInput, "visibility"> & {
+export type Entry = Omit<EntryInput, "visibility" | "videoUrl"> & {
+  /** Entries written before video links existed have none. */
+  videoUrl?: string;
   id: string;
   /** Entries written before visibility existed have none, and count as private. */
   visibility?: Visibility;
@@ -94,13 +98,15 @@ export async function updateEntry(
 
 export async function deleteEntry(uid: string, entry: Entry): Promise<void> {
   const entryRef = doc(entriesRef(uid), entry.id);
-  const [photos, comments] = await Promise.all([
+  const [photos, comments, reactions] = await Promise.all([
     getDocs(collection(entryRef, "photos")),
     getDocs(collection(entryRef, "comments")),
+    getDocs(collection(entryRef, "reactions")),
   ]);
   const batch = writeBatch(db);
   photos.forEach((p) => batch.delete(p.ref));
   comments.forEach((c) => batch.delete(c.ref));
+  reactions.forEach((r) => batch.delete(r.ref));
   (entry.groupIds ?? []).forEach((gid) => batch.delete(groupPostRef(gid, uid, entry.id)));
   batch.delete(entryRef);
   await batch.commit();

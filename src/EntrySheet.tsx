@@ -5,6 +5,7 @@ import { CameraIcon, CloseIcon, GlobeIcon, ImageIcon, LockIcon, UsersIcon } from
 import { useSession } from "./session";
 import { MAX_GROUPS_PER_ENTRY, VISIBILITY, type Visibility } from "./types";
 import { GroupAvatar } from "./GroupRow";
+import { parseVideo, VIDEO_URL_MAX } from "./video";
 
 type Props = {
   uid: string;
@@ -22,6 +23,7 @@ export default function EntrySheet({ uid, entry, defaultGroupId, onClose, onSave
   const [title, setTitle] = useState(entry?.title ?? "");
   const [skills, setSkills] = useState(entry?.skills.join(", ") ?? "");
   const [description, setDescription] = useState(entry?.description ?? "");
+  const [videoUrl, setVideoUrl] = useState(entry?.videoUrl ?? "");
   const [visibility, setVisibility] = useState<Visibility>(entry?.visibility ?? "private");
   const [groupIds, setGroupIds] = useState<string[]>(() =>
     (entry ? entry.groupIds ?? [] : defaultGroupId ? [defaultGroupId] : []).filter((id) => s.groups.ids.has(id)));
@@ -75,10 +77,15 @@ export default function EntrySheet({ uid, entry, defaultGroupId, onClose, onSave
 
   async function submit(e: FormEvent) {
     e.preventDefault();
-    setBusy(true);
     setError("");
+    if (videoUrl.trim() && !parseVideo(videoUrl)) {
+      setError("That video link is not supported. Use an https link to YouTube or Vimeo, or a direct .mp4 or .webm file.");
+      return;
+    }
+    setBusy(true);
     const input = {
       date, time, title: title.trim(), description: description.trim(), visibility, groupIds,
+      videoUrl: videoUrl.trim(),
       skills: skills.split(",").map((s) => s.trim()).filter(Boolean),
     };
     try {
@@ -149,6 +156,10 @@ export default function EntrySheet({ uid, entry, defaultGroupId, onClose, onSave
           <label>Skills acquired <small>(separate with commas)</small>
             <input value={skills} onChange={(e) => setSkills(e.target.value)}
               placeholder="e.g. Hardware troubleshooting, Networking" />
+          </label>
+          <label>Video link <small>(optional)</small>
+            <input type="url" inputMode="url" value={videoUrl} onChange={(e) => setVideoUrl(e.target.value)}
+              maxLength={VIDEO_URL_MAX} placeholder="https://youtu.be/… or a Vimeo / .mp4 link" />
           </label>
           <label>Description
             <textarea rows={5} value={description} onChange={(e) => setDescription(e.target.value)} required

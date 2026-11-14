@@ -1,0 +1,17 @@
+[debug] [2026-11-14T07:46:59.454Z] ----------------------------------------------------------------------
+[debug] [2026-11-14T07:46:59.457Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\skyd3\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js deploy --only hosting,firestore
+[debug] [2026-11-14T07:46:59.458Z] CLI Version:   15.36.0
+[debug] [2026-11-14T07:46:59.458Z] Platform:      win32
+[debug] [2026-11-14T07:46:59.458Z] Node Version:  v24.13.1
+[debug] [2026-11-14T07:46:59.458Z] Detected Agent: unknown
+[debug] [2026-11-14T07:46:59.458Z] Time:          Sat Nov 14 2026 15:46:59 GMT+0800 (Singapore Standard Time)
+[debug] [2026-11-14T07:46:59.458Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2026-11-14T07:47:01.766Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-11-14T07:47:01.766Z] > authorizing via signed-in user (notedname2000@gmail.com)
+[debug] [2026-11-14T07:47:01.766Z] [iam] checking project vibebook-312b6 for permissions ["datastore.indexes.create","datastore.indexes.delete","datastore.indexes.list","datastore.indexes.update","firebase.projects.get","firebasehosting.sites.update"]
+[debug] [2026-11-14T07:47:01.780Z] Checked if tokens are valid: true, expires at: 1794645470740
+[debug] [2026-11-14T07:47:01.780Z] Checked if tokens are valid: true, expires at: 1794645470740
+[debug] [2026-11-14T07:47:01.781Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/vibebook-312b6:testIamPermissions [none]
+[debug] [2026-11-14T07:47:01.781Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/vibebook-312b6:testIamPermissions  x-goog-user-project=vibebook-312b6
+[debug] [2026-11-14T07:47:01.781Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/vibebook-312b6:testIamPermissions {"permissions":["datastore.indexes.create","datastore.indexes.delete","datastore.indexes.list","datastore.indexes.update","firebase.projects.get","firebasehosting.sites.update"]}

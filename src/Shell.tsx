@@ -18,12 +18,16 @@ import GroupsPage from "./pages/GroupsPage";
 import GroupPage from "./pages/GroupPage";
 import PeoplePage from "./pages/PeoplePage";
 import PersonPage from "./pages/PersonPage";
+import PostPage from "./pages/PostPage";
+import { parsePostHash } from "./share";
 
 type Route =
   | { name: "me" } | { name: "feed" } | { name: "people" } | { name: "groups" }
-  | { name: "person"; uid: string } | { name: "group"; id: string };
+  | { name: "person"; uid: string } | { name: "group"; id: string } | { name: "post"; uid: string; id: string };
 
 function parse(hash: string): Route {
+  const post = parsePostHash(hash);
+  if (post) return { name: "post", uid: post.uid, id: post.id };
   if (hash.startsWith("#/u/")) return { name: "person", uid: decodeURIComponent(hash.slice(4)) };
   if (hash.startsWith("#/g/")) return { name: "group", id: decodeURIComponent(hash.slice(4)) };
   if (hash === "#/feed") return { name: "feed" };
@@ -116,6 +120,7 @@ export default function Shell({ user }: { user: User }) {
         {active.name === "group" && <GroupPage key={active.id} gid={active.id} />}
         {active.name === "people" && <PeoplePage />}
         {active.name === "person" && <PersonPage key={active.uid} uid={active.uid} />}
+        {active.name === "post" && <PostPage key={`${active.uid}/${active.id}`} uid={active.uid} id={active.id} />}
       </main>
 
       {me && active.name !== "person" && (

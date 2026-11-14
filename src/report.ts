@@ -1,4 +1,5 @@
 import type { Entry } from "./entries";
+import { firstChar } from "./text";
 
 export const todayStr = () => new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD, local time
 export const nowStr = () => new Date().toTimeString().slice(0, 5); // HH:mm, local time
@@ -18,7 +19,7 @@ export function clockTime(time: string): string {
 export function initials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   if (!parts.length) return "?";
-  return (parts[0][0] + (parts.length > 1 ? parts[parts.length - 1][0] : "")).toUpperCase();
+  return (firstChar(parts[0]) + (parts.length > 1 ? firstChar(parts[parts.length - 1]) : "")).toUpperCase();
 }
 
 const byTime = (a: Entry, b: Entry) => (a.date + a.time).localeCompare(b.date + b.time);
@@ -37,13 +38,18 @@ export function dailyReport(entries: Entry[], date: string): string {
   return out.join("\n").trim();
 }
 
-/** Text for the "Copy descriptions" button: every description, oldest first. */
+/**
+ * Text for the "Copy descriptions" button: one heading per day, oldest day first, with that day's
+ * descriptions under it in the order they were logged.
+ */
 export function allDescriptions(entries: Entry[]): string {
-  return [...entries]
-    .sort(byTime)
-    .filter((e) => e.description)
-    .map((e) => `${longDay(e.date)}\n${e.description}`)
-    .join("\n\n");
+  const days = new Map<string, string[]>();
+  [...entries].sort(byTime).filter((e) => e.description).forEach((e) => {
+    days.set(e.date, [...(days.get(e.date) ?? []), e.description]);
+  });
+  return [...days]
+    .map(([date, list]) => `${longDay(date)}\n${list.join("\n\n")}`)
+    .join("\n\n\n");
 }
 
 export function entryText(e: Entry): string {

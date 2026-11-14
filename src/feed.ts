@@ -9,7 +9,7 @@ export type Source = { uid: string; friend: boolean };
  * Entries other people share with you. Everyone's public entries are visible; a friend's
  * "friends" entries are too. Each is its own query so Firestore can verify access up front.
  */
-export function useSharedEntries(sources: Source[], max = 60) {
+export function useSharedEntries(sources: Source[], max = 60, dir: "asc" | "desc" = "desc") {
   const key = sources.map((s) => `${s.uid}:${s.friend ? 1 : 0}`).sort().join(",");
   const [byQuery, setByQuery] = useState<Record<string, Entry[]>>({});
   const [loaded, setLoaded] = useState<Set<string>>(new Set());
@@ -28,7 +28,7 @@ export function useSharedEntries(sources: Source[], max = 60) {
     const unsubs = keys.map((k) => {
       const [uid, visibility] = k.split(":");
       return onSnapshot(
-        query(collection(db, "users", uid, "entries"), where("visibility", "==", visibility), orderBy("date", "desc"), limit(30)),
+        query(collection(db, "users", uid, "entries"), where("visibility", "==", visibility), orderBy("date", dir), limit(30)),
         (snap) => {
           setByQuery((prev) => ({ ...prev, [k]: snap.docs.map((d) => ({ id: d.id, ownerUid: uid, ...d.data() }) as Entry) }));
           setLoaded((prev) => new Set(prev).add(k));
@@ -40,11 +40,11 @@ export function useSharedEntries(sources: Source[], max = 60) {
       );
     });
     return () => unsubs.forEach((u) => u());
-  }, [keys]);
+  }, [keys, dir]);
 
   const entries = useMemo(
-    () => Object.values(byQuery).flat().sort(newestFirst).slice(0, max),
-    [byQuery, max],
+    () => Object.values(byQuery).flat().sort(dir === "asc" ? (a, b) => -newestFirst(a, b) : newestFirst).slice(0, max),
+    [byQuery, max, dir],
   );
   return { entries, loading: keys.length > 0 && loaded.size < keys.length, error };
 }

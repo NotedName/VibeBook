@@ -2,7 +2,13 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content" />
+    <meta name="theme-color" content="#1e1c23" />
+    <meta name="color-scheme" content="dark light" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="VibeBook" />
+    <meta name="format-detection" content="telephone=no" />
     <title>VibeBook</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -12,14 +18,99 @@
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Poppins:wght@600;700&display=swap"
     />
     <script>
-      // Apply a saved light/dark choice before first paint so the page does not flash.
+      // Apply a saved light/dark choice before first paint so the page does not flash,
+      // and tint the phone's browser/status bar to match.
       try {
         var t = localStorage.getItem("vibebook-theme");
         if (t === "light" || t === "dark") document.documentElement.setAttribute("data-theme", t);
+        var light = t ? t === "light" : window.matchMedia("(prefers-color-scheme: light)").matches;
+        document.querySelector('meta[name="theme-color"]').setAttribute("content", light ? "#f3f2f5" : "#1e1c23");
       } catch (e) {}
     </script>
+
+    <style>
+      /* Splash screen. It lives here, outside React, so it paints before the app bundle has downloaded.
+         src/splash.ts fades it out once the app is ready. */
+      #splash {
+        --sp-bg: #141414; --sp-text: #cfcfcf; --sp-accent: #b58be3; --sp-glow: rgba(126, 73, 179, .5);
+        --sp-ease: cubic-bezier(.22, 1, .36, 1);
+        position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; overflow: hidden;
+        background: var(--sp-bg); color: var(--sp-text);
+        transition: opacity .55s var(--sp-ease), transform .55s var(--sp-ease), visibility 0s linear .55s;
+      }
+      @media (prefers-color-scheme: light) {
+        html:not([data-theme="dark"]) #splash { --sp-bg: #d9d8dc; --sp-text: #141414; --sp-accent: #6a3a9c; --sp-glow: rgba(126, 73, 179, .3); }
+      }
+      html[data-theme="light"] #splash { --sp-bg: #d9d8dc; --sp-text: #141414; --sp-accent: #6a3a9c; --sp-glow: rgba(126, 73, 179, .3); }
+      #splash.out { opacity: 0; visibility: hidden; transform: scale(1.04); pointer-events: none; }
+
+      .sp-glow {
+        position: absolute; inset: 0; margin: auto; width: min(80vw, 460px); height: min(80vw, 460px); border-radius: 50%;
+        background: radial-gradient(circle, var(--sp-glow), transparent 65%); filter: blur(12px);
+        animation: sp-glow 3.2s ease-in-out infinite;
+      }
+      .sp-in { position: relative; display: grid; justify-items: center; gap: 20px; padding: 24px; }
+      .sp-mark { width: 92px; height: 92px; overflow: visible; }
+      .sp-p {
+        fill: none; stroke: currentColor; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round;
+        stroke-dasharray: 1 1; animation: sp-draw .7s cubic-bezier(.65, 0, .35, 1) both;
+        animation-delay: calc(.1s + var(--i) * .08s);
+      }
+      .sp-p.sw { stroke: url(#sp-swoosh); }
+      .sp-word {
+        display: flex; font: 700 40px/1.1 "Poppins", "Inter", system-ui, -apple-system, "Segoe UI", sans-serif; letter-spacing: -.02em;
+      }
+      .sp-word b {
+        display: inline-block; font-weight: 700;
+        animation: sp-rise .6s var(--sp-ease) both, sp-wave 1.5s ease-in-out infinite;
+        animation-delay: calc(.4s + var(--i) * .05s), calc(1.5s + var(--i) * .08s);
+      }
+      .sp-word .a { color: var(--sp-accent); }
+      .sp-bar {
+        width: 120px; height: 4px; border-radius: 4px; overflow: hidden; background: rgba(127, 127, 127, .25);
+        opacity: 0; animation: sp-pop .4s ease 1.2s forwards;
+      }
+      .sp-bar i {
+        display: block; width: 40%; height: 100%; border-radius: 4px;
+        background: linear-gradient(90deg, #b23cff, #ff6aa8, #ffa15a); animation: sp-bar 1.3s ease-in-out infinite;
+      }
+      @keyframes sp-draw { 0% { stroke-dashoffset: 1; opacity: 0; } 8% { opacity: 1; } 100% { stroke-dashoffset: 0; opacity: 1; } }
+      @keyframes sp-rise { from { opacity: 0; transform: translateY(.55em) scale(.9); filter: blur(6px); } to { opacity: 1; transform: none; filter: blur(0); } }
+      @keyframes sp-wave { 0%, 55%, 100% { transform: translateY(0); } 25% { transform: translateY(-.14em); } }
+      @keyframes sp-glow { 0%, 100% { opacity: .55; transform: scale(1); } 50% { opacity: 1; transform: scale(1.12); } }
+      @keyframes sp-bar { from { transform: translateX(-110%); } to { transform: translateX(260%); } }
+      @keyframes sp-pop { from { opacity: 0; transform: scale(.8); } to { opacity: 1; transform: none; } }
+      @media (prefers-reduced-motion: reduce) {
+        #splash *, #splash *::before { animation: none !important; }
+        .sp-p { stroke-dashoffset: 0; }
+        .sp-bar { opacity: 1; }
+        #splash { transition-duration: .2s; }
+      }
+      @media (max-width: 359.98px) { .sp-word { font-size: 32px; } .sp-mark { width: 76px; height: 76px; } }
+    </style>
   </head>
   <body>
+    <div id="splash" role="status" aria-live="polite" aria-label="Loading VibeBook">
+      <div class="sp-glow" aria-hidden="true"></div>
+      <div class="sp-in">
+        <svg class="sp-mark" viewBox="0 0 64 64" aria-hidden="true">
+          <defs>
+            <linearGradient id="sp-swoosh" x1="0" y1="1" x2="1" y2="0">
+              <stop offset="0" stop-color="#b23cff" /><stop offset=".6" stop-color="#ff6aa8" /><stop offset="1" stop-color="#ffa15a" />
+            </linearGradient>
+          </defs>
+          <path class="sp-p" pathLength="1" style="--i:0" d="M32 15C25 11 15 11 7 13v38c8-2 18-2 25 2 7-4 17-4 25-2V13c-8-2-18-2-25 2z" />
+          <path class="sp-p" pathLength="1" style="--i:1" d="M32 15v38" />
+          <path class="sp-p" pathLength="1" style="--i:2" d="M14 21h11M14 27h11M14 33h7" />
+          <path class="sp-p" pathLength="1" style="--i:3" d="M40 24l4 4 8-9" />
+          <rect class="sp-p" pathLength="1" style="--i:4" x="13" y="39" width="12" height="8" rx="2" />
+          <circle class="sp-p" pathLength="1" style="--i:5" cx="19" cy="43" r="2" />
+          <path class="sp-p sw" pathLength="1" style="--i:6" d="M30 46c8-8 18-8 30-20" />
+        </svg>
+        <div class="sp-word" aria-hidden="true"><b class="a" style="--i:0">V</b><b class="a" style="--i:1">i</b><b class="a" style="--i:2">b</b><b class="a" style="--i:3">e</b><b style="--i:4">B</b><b style="--i:5">o</b><b style="--i:6">o</b><b style="--i:7">k</b></div>
+        <div class="sp-bar" aria-hidden="true"><i></i></div>
+      </div>
+    </div>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

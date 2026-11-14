@@ -62,10 +62,10 @@ export function useMyReposts(uid: string): Map<string, Repost> {
 }
 
 /**
- * The entries these people have reposted, newest first. Each original is followed live; one that
+ * The entries these people have reposted, newest first (or the oldest ones, with dir "asc"; the caller sorts). Each original is followed live; one that
  * was deleted or is no longer public simply drops out.
  */
-export function useRepostedEntries(uids: string[], perPerson = 15): Entry[] {
+export function useRepostedEntries(uids: string[], perPerson = 15, dir: "asc" | "desc" = "desc"): Entry[] {
   const key = [...uids].sort().join(",");
   const [byKey, setByKey] = useState<Record<string, Entry>>({});
 
@@ -77,7 +77,7 @@ export function useRepostedEntries(uids: string[], perPerson = 15): Entry[] {
       const follows = new Map<string, () => void>();
       stops.push(() => follows.forEach((s) => s()));
       stops.push(onSnapshot(
-        query(collection(db, "users", who, "reposts"), orderBy("date", "desc"), limit(perPerson)),
+        query(collection(db, "users", who, "reposts"), orderBy("date", dir), limit(perPerson)),
         (snap) => {
           const current = new Set(snap.docs.map((d) => d.id));
           for (const [id, stop] of follows) if (!current.has(id)) { stop(); follows.delete(id); drop(`${who}|${id}`); }
@@ -101,7 +101,7 @@ export function useRepostedEntries(uids: string[], perPerson = 15): Entry[] {
       ));
     });
     return () => stops.forEach((s) => s());
-  }, [key, perPerson]);
+  }, [key, perPerson, dir]);
 
   return useMemo(() => Object.values(byKey).sort(newestFirst), [byKey]);
 }

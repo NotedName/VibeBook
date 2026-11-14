@@ -4,9 +4,12 @@ import { entriesRef, newestFirst, type Entry } from "../entries";
 import { useRepostedEntries } from "../reposts";
 import { allDescriptions, copyText, dailyReport, longDay, todayStr } from "../report";
 import { useSession } from "../session";
+import { useSortedEntries, useSortMode } from "../sorting";
+import SortBar from "../SortBar";
 import ProfileHeader from "../ProfileHeader";
 import Avatar from "../Avatar";
 import EntryList from "../EntryList";
+import { FeedSkeleton } from "../Skeleton";
 import { EditIcon } from "../icons";
 
 export default function MyLogbook() {
@@ -31,7 +34,9 @@ export default function MyLogbook() {
   // Things you reposted sit in your logbook too, but do not count towards your stats or reports.
   const myUid = useMemo(() => [s.uid], [s.uid]);
   const reposts = useRepostedEntries(myUid);
-  const shown = useMemo(() => [...list, ...reposts].sort(newestFirst), [list, reposts]);
+  const pool = useMemo(() => [...list, ...reposts].sort(newestFirst), [list, reposts]);
+  const [mode, setMode] = useSortMode("logbook");
+  const shown = useSortedEntries(pool, mode);
   const stats = useMemo(() => {
     const days = new Set(list.map((e) => e.date));
     const skills = new Set(list.flatMap((e) => e.skills.map((x) => x.toLowerCase())));
@@ -88,7 +93,7 @@ export default function MyLogbook() {
       {loadError && <p className="error note" role="alert">{loadError}</p>}
 
       <div className="feed" aria-live="polite">
-        {entries === null && <p className="note">Loading your logbook…</p>}
+        {entries === null && <FeedSkeleton />}
         {entries !== null && shown.length === 0 && !loadError && (
           <div className="empty">
             <h2>Your logbook is empty</h2>
@@ -96,7 +101,8 @@ export default function MyLogbook() {
             <button type="button" className="btn primary" onClick={() => s.openEntry(null)}>Write the first entry</button>
           </div>
         )}
-        <EntryList entries={shown} onEdit={s.openEntry} />
+        {shown.length > 1 && <SortBar mode={mode} onChange={setMode} />}
+        <EntryList entries={shown} onEdit={s.openEntry} dayHeadings={mode.kind === "newest" || mode.kind === "oldest"} />
       </div>
     </>
   );

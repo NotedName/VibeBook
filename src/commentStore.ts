@@ -28,6 +28,12 @@ export type Comment = {
   deleted: boolean;
 };
 
+/**
+ * What comments and reactions hang off: an entry (its id), or one of its photos ("<entryId>/photos/<photoId>").
+ * Firestore splits the path on "/", so the same functions serve both.
+ */
+export const subjectId = (entryId: string, photoId?: string) => (photoId ? `${entryId}/photos/${photoId}` : entryId);
+
 const commentsRef = (ownerUid: string, entryId: string) =>
   collection(db, "users", ownerUid, "entries", entryId, "comments");
 const commentRef = (ownerUid: string, entryId: string, commentId: string) =>

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { NameSkeleton } from "./Skeleton";
 import { inviteToGroup, loadMembers, loadMyInvitees } from "./groups";
 import { searchProfiles } from "./profiles";
 import { useProfile, useSession } from "./session";
@@ -17,7 +18,7 @@ function Candidate({ uid, checked, disabled, status, onToggle }: {
         <input type="checkbox" checked={checked} disabled={unavailable || (!checked && disabled)} onChange={onToggle} />
         <Avatar profile={p} />
         <span className="invite-name">
-          <b>{p === undefined ? "Loading…" : p?.displayName || "VibeBook member"}</b>
+          <b>{p === undefined ? <NameSkeleton /> : p?.displayName || "VibeBook member"}</b>
           {p?.headline && <small>{p.headline}</small>}
         </span>
         {status && <small className="invite-status">{status}</small>}

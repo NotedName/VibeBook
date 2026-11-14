@@ -1,16 +1,26 @@
-import { useEffect, useState } from "react";
-import { joinGroup, leaveGroup, loadMembers, useGroup } from "../groups";
+import { useEffect, useMemo, useState } from "react";
+import { joinGroup, leaveGroup, useGroup, useGroupMembers, withRoles } from "../groups";
 import { useGroupEntries } from "../groupFeed";
 import { useSession } from "../session";
+import { dateDir, useSortedEntries, useSortMode } from "../sorting";
+import SortBar from "../SortBar";
+import { ROLES, type GroupRole, type Member } from "../types";
 import EntryList from "../EntryList";
 import PersonRow from "../PersonRow";
 import { GroupAvatar } from "../GroupRow";
 import InviteSheet from "../InviteSheet";
-import { PlusIcon } from "../icons";
+import GroupManageSheet from "../GroupManageSheet";
+import { FeedSkeleton, GroupHeadSkeleton, RowsSkeleton } from "../Skeleton";
+import { PlusIcon, SettingsIcon } from "../icons";
 
-function GroupFeed({ gid, name }: { gid: string; name: string }) {
+const roleLabel = (r: GroupRole) => ROLES.find((x) => x.id === r)!.label;
+const RoleBadge = ({ role }: { role: GroupRole }) => role === "member" ? null : <span className={`role-badge role-${role}`}>{roleLabel(role)}</span>;
+
+function GroupFeed({ gid, name, canModerate }: { gid: string; name: string; canModerate: boolean }) {
   const s = useSession();
-  const { entries, loading, error } = useGroupEntries(gid);
+  const [mode, setMode] = useSortMode("group");
+  const { entries: loaded, loading, error } = useGroupEntries(gid, 40, dateDir(mode));
+  const entries = useSortedEntries(loaded, mode);
   return (
     <>
       <div className="composer">
@@ -19,37 +29,33 @@ function GroupFeed({ gid, name }: { gid: string; name: string }) {
         </button>
       </div>
       <div className="feed" aria-live="polite">
+        {entries.length > 1 && <SortBar mode={mode} onChange={setMode} />}
         {error && <p className="error note" role="alert">{error}</p>}
-        {loading && entries.length === 0 && <p className="note">Loading entries…</p>}
+        {loading && entries.length === 0 && <FeedSkeleton />}
         {!loading && entries.length === 0 && !error && (
           <div className="empty">
             <h2>Nothing shared yet</h2>
             <p>Entries that members share with this group show up here. Be the first.</p>
           </div>
         )}
-        <EntryList entries={entries} onEdit={s.openEntry} />
+        <EntryList entries={entries} onEdit={s.openEntry} inGroup={{ id: gid, canModerate }}
+          dayHeadings={mode.kind === "newest" || mode.kind === "oldest"} />
       </div>
     </>
   );
 }
 
-function Members({ gid, member }: { gid: string; member: boolean }) {
-  const [uids, setUids] = useState<string[] | null>(null);
-  const [error, setError] = useState("");
-  useEffect(() => {
-    let live = true;
-    loadMembers(gid).then(
-      (u) => live && setUids(u),
-      () => live && setError("Could not load members."),
-    );
-    return () => { live = false; };
-  }, [gid, member]);
-
+function Members({ members, error }: { members: Member[] | null; error: string }) {
   return (
     <section className="people-section">
-      <h2>Members {uids && <span>{uids.length}</span>}</h2>
+      <h2>Members {members && <span>{members.length}</span>}</h2>
       {error && <p className="error note">{error}</p>}
-      {uids && <ul className="people">{uids.map((id) => <PersonRow key={id} uid={id} />)}</ul>}
+      {!members && !error && <RowsSkeleton />}
+      {members && (
+        <ul className="people">
+          {members.map((m) => <PersonRow key={m.uid} uid={m.uid} badge={<RoleBadge role={m.role} />} />)}
+        </ul>
+      )}
     </section>
   );
 }
@@ -57,9 +63,11 @@ function Members({ gid, member }: { gid: string; member: boolean }) {
 export default function GroupPage({ gid }: { gid: string }) {
   const s = useSession();
   const group = useGroup(gid);
+  const { members: stored, error: membersError } = useGroupMembers(gid);
   const [busy, setBusy] = useState(false);
   const [armed, setArmed] = useState(false);
   const [inviting, setInviting] = useState(false);
+  const [managing, setManaging] = useState(false);
   const member = s.groups.ids.has(gid);
 
   useEffect(() => {
@@ -68,7 +76,9 @@ export default function GroupPage({ gid }: { gid: string }) {
     return () => clearTimeout(t);
   }, [armed]);
 
-  if (group === undefined) return <p className="note">Loading group…</p>;
+  const members = useMemo(() => (stored && group ? withRoles(stored, group.ownerUid) : null), [stored, group]);
+
+  if (group === undefined) return <><GroupHeadSkeleton /><FeedSkeleton /></>;
   if (group === null) {
     return (
       <div className="empty">
@@ -78,6 +88,10 @@ export default function GroupPage({ gid }: { gid: string }) {
       </div>
     );
   }
+
+  const myRole: GroupRole | null = member ? (members?.find((m) => m.uid === s.uid)?.role ?? "member") : null;
+  const isOwner = group.ownerUid === s.uid;
+  const canManage = myRole === "admin" || myRole === "moderator";
 
   async function run(fn: () => Promise<unknown>, ok: string) {
     setBusy(true);
@@ -93,30 +107,36 @@ export default function GroupPage({ gid }: { gid: string }) {
         <div className="group-head-text">
           <h1 className="name">{group.name}</h1>
           {group.description && <p>{group.description}</p>}
+          {myRole && myRole !== "member" && <p><RoleBadge role={myRole} /></p>}
         </div>
-        {member && (
-          <button type="button" className="btn" onClick={() => setInviting(true)}><PlusIcon /> Invite</button>
-        )}
-        {member ? (
-          <button type="button" className={`btn${armed ? " armed" : ""}`} disabled={busy}
-            onClick={() => (armed ? run(() => leaveGroup(s.uid, gid), "You left the group") : setArmed(true))}>
-            {armed ? "Tap to leave" : "Leave"}
-          </button>
-        ) : (
-          <button type="button" className="btn primary" disabled={busy}
-            onClick={() => run(() => joinGroup(s.uid, gid), `Joined ${group.name}`)}>Join group</button>
-        )}
+        <div className="group-head-actions">
+          {member && <button type="button" className="btn" onClick={() => setInviting(true)}><PlusIcon /> Invite</button>}
+          {canManage && <button type="button" className="btn" onClick={() => setManaging(true)}><SettingsIcon /> Manage</button>}
+          {member && !isOwner && (
+            <button type="button" className={`btn${armed ? " armed" : ""}`} disabled={busy}
+              onClick={() => (armed ? run(() => leaveGroup(s.uid, gid), "You left the group") : setArmed(true))}>
+              {armed ? "Tap to leave" : "Leave"}
+            </button>
+          )}
+          {!member && (
+            <button type="button" className="btn primary" disabled={busy}
+              onClick={() => run(() => joinGroup(s.uid, gid), `Joined ${group.name}`)}>Join group</button>
+          )}
+        </div>
       </section>
       {armed && <p className="hint note">Leaving also takes your entries out of this group.</p>}
 
-      {member ? <GroupFeed gid={gid} name={group.name} /> : (
+      {member ? <GroupFeed gid={gid} name={group.name} canModerate={canManage} /> : (
         <div className="empty">
           <h2>Join to see what is shared</h2>
           <p>Entries in {group.name} are only visible to its members.</p>
         </div>
       )}
-      <Members gid={gid} member={member} />
+      <Members members={members} error={membersError} />
       {inviting && <InviteSheet gid={gid} groupName={group.name} onClose={() => setInviting(false)} />}
+      {managing && myRole && canManage && members && (
+        <GroupManageSheet group={group} myRole={myRole} members={members} onClose={() => setManaging(false)} />
+      )}
     </>
   );
 }

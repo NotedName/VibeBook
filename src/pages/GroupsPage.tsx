@@ -5,6 +5,7 @@ import type { Group, GroupInvite } from "../types";
 import GroupRow from "../GroupRow";
 import GroupSheet from "../GroupSheet";
 import { PlusIcon, SearchIcon } from "../icons";
+import { RowsSkeleton } from "../Skeleton";
 import { GroupAvatar } from "../GroupRow";
 import { useProfile } from "../session";
 
@@ -113,6 +114,9 @@ export default function GroupsPage() {
               <h2>Your groups <span>{s.groups.list.length}</span></h2>
               <ul className="people">{s.groups.list.map((g) => <GroupRow key={g.id} group={g} />)}</ul>
             </section>
+          )}
+          {discover === null && !error && (
+            <section className="people-section"><h2>Discover</h2><RowsSkeleton /></section>
           )}
           {others.length > 0 && (
             <section className="people-section">

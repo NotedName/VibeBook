@@ -32,6 +32,21 @@ export type Relation = "self" | "friends" | "incoming" | "outgoing" | "none";
 /** Stored at groups/{id}. Every group is open: anyone signed in can find it and join. */
 export type Group = { id: string; name: string; description: string; ownerUid: string };
 
+/**
+ * What someone can do in a group. Stored on their groupMembers document; people who joined before
+ * roles existed have none and count as members. The person who created the group is always an admin.
+ *  - admin: everything, including changing roles, editing the group and removing anyone but the owner
+ *  - moderator: removes members and takes posts out of the group's feed
+ *  - member: shares and reads
+ */
+export type GroupRole = "admin" | "moderator" | "member";
+export const ROLES: { id: GroupRole; label: string; hint: string }[] = [
+  { id: "admin", label: "Admin", hint: "Manages the group, its roles and its members." },
+  { id: "moderator", label: "Moderator", hint: "Removes members and takes posts out of the feed." },
+  { id: "member", label: "Member", hint: "Shares entries and reads the feed." },
+];
+export type Member = { uid: string; role: GroupRole; joinedAt: number };
+
 /** Stored at groupInvites/{groupId}_{toUid}: one person asking another to join a group. */
 export type GroupInvite = { id: string; groupId: string; from: string; to: string };
 

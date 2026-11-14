@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
+import { FeedSkeleton } from "./Skeleton";
 import { doc, getDoc } from "firebase/firestore";
 import { db } from "./firebase";
-import { loadPhotos, type Entry } from "./entries";
+import { loadPhotos, type Entry, type Photo } from "./entries";
 import { useComments } from "./commentStore";
 import { fetchProfile } from "./profiles";
 import { clockTime, copyText, longDay } from "./report";
@@ -12,6 +13,7 @@ import ReactionBar from "./ReactionBar";
 import CommentThread from "./CommentThread";
 import VideoPlayer from "./VideoPlayer";
 import { ShareIcon } from "./icons";
+import PhotoViewer from "./PhotoViewer";
 import { BrandName } from "./Logo";
 
 type Props = { uid: string; id: string; onAuth: (mode: "signin" | "signup") => void };
@@ -32,8 +34,8 @@ function useOtherProfile(uid: string) {
  */
 export default function PublicPost({ uid, id, onAuth }: Props) {
   const [entry, setEntry] = useState<Entry | null | undefined>(undefined);
-  const [photos, setPhotos] = useState<string[]>([]);
-  const [zoom, setZoom] = useState<string | null>(null);
+  const [photos, setPhotos] = useState<Photo[]>([]);
+  const [viewing, setViewing] = useState<number | null>(null);
   const [lockedHint, setLockedHint] = useState(false);
   const [copied, setCopied] = useState(false);
   const owner = useOtherProfile(uid);
@@ -55,7 +57,7 @@ export default function PublicPost({ uid, id, onAuth }: Props) {
   useEffect(() => {
     if (!entry || entry.photoCount === 0) return;
     let live = true;
-    loadPhotos(uid, id).then((p) => live && setPhotos(p.map((x) => x.data)), () => {});
+    loadPhotos(uid, id).then((p) => live && setPhotos(p), () => {});
     return () => { live = false; };
   }, [entry, uid, id]);
 
@@ -81,7 +83,7 @@ export default function PublicPost({ uid, id, onAuth }: Props) {
       </header>
 
       <main className="logbook">
-        {entry === undefined && <p className="note">Loading…</p>}
+        {entry === undefined && <FeedSkeleton count={1} />}
         {entry === null && (
           <div className="empty">
             <h2>This entry is not available</h2>
@@ -107,10 +109,10 @@ export default function PublicPost({ uid, id, onAuth }: Props) {
 
             {photos.length > 0 && (
               <div className={`photo-grid ${photos.length % 2 ? "odd" : "even"}`}>
-                {photos.map((src, i) => (
-                  <button key={i} type="button" className="photo-btn" onClick={() => setZoom(src)}
+                {photos.map((p, i) => (
+                  <button key={p.id} type="button" className="photo-btn" onClick={() => setViewing(i)}
                     aria-label={`Open photo ${i + 1} of ${entry.title}`}>
-                    <img src={src} alt={`${entry.title} photo ${i + 1}`} loading="lazy" />
+                    <img src={p.data} alt={`${entry.title} photo ${i + 1}`} loading="lazy" />
                   </button>
                 ))}
               </div>
@@ -140,10 +142,10 @@ export default function PublicPost({ uid, id, onAuth }: Props) {
         )}
       </main>
 
-      {zoom && (
-        <div className="overlay lightbox" onClick={() => setZoom(null)}>
-          <img src={zoom} alt={entry?.title ?? ""} />
-        </div>
+      {viewing !== null && entry && photos.length > 0 && (
+        <PhotoViewer ownerUid={uid} entryId={id} title={entry.title} photos={photos}
+          index={viewing} onIndex={setViewing} onClose={() => setViewing(null)}
+          onLocked={() => setLockedHint(true)} />
       )}
     </>
   );

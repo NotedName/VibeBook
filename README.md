@@ -75,3 +75,42 @@ After pulling these changes run `npm run deploy` so the new rules go live togeth
 - Wide screens: the content column grows with the window (up to 1560px) and entries sit side by side from 1280px; people lists go two across.
 
 - Profile and cover photos can be changed, adjusted (crop, zoom, brightness) or removed straight from your own profile page. The cover is shown at the same 3:1 shape the editor crops to.
+
+## Loading screen
+
+- The animated VibeBook splash (the book mark draws itself, then the name rises in, with a loading bar if things take a while) is plain HTML and CSS in `index.html`, outside React, so it shows before the app bundle has downloaded.
+- `src/splash.ts` fades it out once there is something real to show: after the profile has loaded for signed-in people, straight away for the sign-in and verify-email screens. It stays on screen for at least 1.5 seconds so the intro plays once (`MIN_MS`; a slow load adds no extra wait) and never longer than 8 seconds (`MAX_MS`).
+- People who ask their device for reduced motion get a still logo instead of the animation.
+
+## Look and feel
+
+- Rounder, softer shapes: the radius scale lives at the top of `src/styles.css` (`--radius`, `--radius-md`, `--radius-sm`, `--radius-lg`), so one edit changes the whole app. Photos and videos in a post sit inside the card as rounded tiles, and the profile cover is concentric with the card, so no square corners poke out.
+- Glass top bar and a floating, rounded tab bar on phones; softer layered shadows.
+- `src/fluid.css` holds all the motion: eased colour changes, press feedback, cards fading up with a short stagger, sheets and dialogs springing in, menus and toasts popping. Everything that moves is inside `prefers-reduced-motion: no-preference`.
+
+## Devices
+
+- **Phones** (under 600px): top bar plus a floating tab bar. Below 360px (small phones and the outer screen of a Galaxy Fold) the layout tightens: stat tiles go 2x2 and the avatar sits above the name.
+- **Tablets and unfolded foldables** (600 to 1023px): navigation rail on the left.
+- **Book-style foldables with a hinge** (browsers that report two viewport segments): navigation on the left screen, content on the right.
+- **Desktop** (1024px and up): top bar and two columns; wider again from 1440px and 2200px.
+- **Touch screens** (`pointer: coarse`) get roughly 44px tap targets. `index.html` also sets the status-bar colour (it follows the light/dark toggle), safe-area handling for notches, and `interactive-widget=resizes-content` so Android's keyboard resizes the page.
+- The layout rules are in `src/layout.css`.
+
+## Feed first, and the top menu
+
+- The app opens on the **Feed**. The menu reads Feed, Groups, People, Logbook (with **New** between Groups and People on phones). Your logbook is at `#/me`; an empty address, `#/` and `#/feed` all open the feed.
+
+## Sorting
+
+- The Feed, your Logbook, group pages and people's profiles have a **Sort** bar: **Newest**, **Hottest**, **Popular** and **Oldest**. Popular has its own **Today / This week / This month / This year** choice. The choice is remembered on the device, separately for each of those pages.
+- **Hottest** ranks by activity (net Vibing plus comments) divided by the entry's age, so recent entries with a few reactions beat old ones with many. **Popular** ranks by net Vibing plus comments made *inside the chosen period*, whenever the entry was written. Ties fall back to newest first. Day headings only show for Newest and Oldest.
+- Newest and Oldest read from the matching end of the date index, so Oldest really is the oldest. Hottest and Popular order what is already loaded (the feed loads the latest 30 entries per person, up to 80), and follow each entry's reactions and comments live to do it. They count entry-level reactions and comments, not the ones on single photos.
+- `firestore.indexes.json` gained an ascending `visibility + date` index for Oldest; run `npm run deploy` and wait a minute or two for it to build.
+
+## Photo viewer
+
+- Tapping a photo opens a viewer with **Previous / Next** buttons, the left and right arrow keys, or a swipe, plus a `2 / 5` counter.
+- Each photo has its own **Vibing / Not vibing** and **Comment** (replies, likes, stickers and GIFs work as on entries). Data: `users/{uid}/entries/{id}/photos/{photoId}/reactions/{uid}` and `.../photos/{photoId}/comments/{id}`. Deleting an entry, or removing a photo while editing, deletes these too.
+- On share links, signed-out visitors can flip through the photos and read photo comments and counts; reacting and commenting ask them to sign in.
+- Run `npm run deploy` so the new rules go live.

@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   arrayRemove, collection, deleteDoc, doc, getDoc, getDocs, limit, onSnapshot, orderBy, query,
-  serverTimestamp, setDoc, where, writeBatch,
+  serverTimestamp, setDoc, updateDoc, where, writeBatch,
 } from "firebase/firestore";
 import { db } from "./firebase";
 import { nameKeys } from "./profiles";
-import type { Group, GroupInvite } from "./types";
+import { clip } from "./text";
+import type { Group, GroupInvite, GroupRole, Member } from "./types";
 
 export const GROUP_NAME_MAX = 60;
 export const GROUP_DESC_MAX = 300;
@@ -29,6 +30,18 @@ export const repostPostRef = (gid: string, me: string, ownerUid: string, entryId
 
 const cache = new Map<string, Promise<Group | null>>();
 
+/** Bumped when a group is edited, so every place showing its name fetches it again. */
+const editListeners = new Set<() => void>();
+function useGroupRevision(): number {
+  const [rev, setRev] = useState(0);
+  useEffect(() => {
+    const bump = () => setRev((n) => n + 1);
+    editListeners.add(bump);
+    return () => { editListeners.delete(bump); };
+  }, []);
+  return rev;
+}
+
 export function fetchGroup(id: string): Promise<Group | null> {
   let p = cache.get(id);
   if (!p) {
@@ -42,27 +55,28 @@ export function fetchGroup(id: string): Promise<Group | null> {
 /** Group for any id. undefined while loading, null when it does not exist. */
 export function useGroup(id: string): Group | null | undefined {
   const [group, setGroup] = useState<Group | null | undefined>(undefined);
+  const rev = useGroupRevision();
   useEffect(() => {
     let live = true;
-    setGroup(undefined);
     fetchGroup(id).then((g) => live && setGroup(g), () => live && setGroup(null));
     return () => { live = false; };
-  }, [id]);
+  }, [id, rev]);
+  useEffect(() => setGroup(undefined), [id]);
   return group;
 }
 
 export async function createGroup(uid: string, name: string, description: string): Promise<string> {
-  const clean = { name: name.trim().slice(0, GROUP_NAME_MAX), description: description.trim().slice(0, GROUP_DESC_MAX) };
+  const clean = { name: clip(name.trim(), GROUP_NAME_MAX), description: clip(description.trim(), GROUP_DESC_MAX) };
   const ref = doc(collection(db, "groups"));
   const batch = writeBatch(db);
   batch.set(ref, { ...clean, nameKeys: nameKeys(clean.name), ownerUid: uid, createdAt: serverTimestamp() });
-  batch.set(memberRef(ref.id, uid), { groupId: ref.id, uid, joinedAt: serverTimestamp() });
+  batch.set(memberRef(ref.id, uid), { groupId: ref.id, uid, role: "admin", joinedAt: serverTimestamp() });
   await batch.commit();
   return ref.id;
 }
 
 export const joinGroup = (uid: string, gid: string) =>
-  setDoc(memberRef(gid, uid), { groupId: gid, uid, joinedAt: serverTimestamp() });
+  setDoc(memberRef(gid, uid), { groupId: gid, uid, role: "member", joinedAt: serverTimestamp() });
 
 /** Leaving also takes your entries out of the group, so its members stop seeing them. */
 export async function leaveGroup(uid: string, gid: string): Promise<void> {
@@ -101,7 +115,7 @@ export async function inviteToGroup(from: string, gid: string, toUids: string[])
 /** Accepting joins the group and clears the invite in one step. */
 export async function acceptInvite(uid: string, gid: string): Promise<void> {
   const batch = writeBatch(db);
-  batch.set(memberRef(gid, uid), { groupId: gid, uid, joinedAt: serverTimestamp() });
+  batch.set(memberRef(gid, uid), { groupId: gid, uid, role: "member", joinedAt: serverTimestamp() });
   batch.delete(inviteRef(gid, uid));
   await batch.commit();
 }
@@ -131,8 +145,96 @@ export function useGroupInvites(uid: string): GroupInvite[] {
 }
 
 export async function loadMembers(gid: string): Promise<string[]> {
-  const snap = await getDocs(query(collection(db, "groupMembers"), where("groupId", "==", gid), limit(100)));
+  const snap = await getDocs(query(collection(db, "groupMembers"), where("groupId", "==", gid), limit(MEMBERS_MAX)));
   return snap.docs.map((d) => d.data().uid as string);
+}
+
+const MEMBERS_MAX = 200;
+const RANK: Record<GroupRole, number> = { admin: 0, moderator: 1, member: 2 };
+const asRole = (r: unknown): GroupRole => (r === "admin" || r === "moderator" ? r : "member");
+
+/** Live members of a group with their roles. null while loading. */
+export function useGroupMembers(gid: string): { members: Member[] | null; error: string } {
+  const [members, setMembers] = useState<Member[] | null>(null);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    setMembers(null); setError("");
+    return onSnapshot(
+      query(collection(db, "groupMembers"), where("groupId", "==", gid), limit(MEMBERS_MAX)),
+      (snap) => setMembers(snap.docs.map((d) => {
+        const x = d.data();
+        return { uid: x.uid as string, role: asRole(x.role), joinedAt: x.joinedAt?.toMillis?.() ?? Date.now() };
+      })),
+      () => setError("Could not load members."),
+    );
+  }, [gid]);
+  return { members, error };
+}
+
+/** The group's creator is always an admin. Admins first, then moderators, then members, oldest first. */
+export function withRoles(members: Member[], ownerUid: string): Member[] {
+  return members
+    .map((m) => (m.uid === ownerUid ? { ...m, role: "admin" as const } : m))
+    .sort((a, b) => (a.uid === ownerUid ? -1 : b.uid === ownerUid ? 1 : RANK[a.role] - RANK[b.role] || a.joinedAt - b.joinedAt));
+}
+
+/** Admins can change anyone's role except the owner's and their own. */
+export const canChangeRole = (mine: GroupRole | null, target: Member, ownerUid: string, myUid: string) =>
+  mine === "admin" && target.uid !== ownerUid && target.uid !== myUid;
+
+/** Admins can remove anyone but the owner; moderators can remove plain members. Nobody removes themselves here (they leave). */
+export const canRemove = (mine: GroupRole | null, target: Member, ownerUid: string, myUid: string) =>
+  target.uid !== ownerUid && target.uid !== myUid
+  && (mine === "admin" || (mine === "moderator" && target.role === "member"));
+
+export const setMemberRole = (gid: string, uid: string, role: GroupRole) => updateDoc(memberRef(gid, uid), { role });
+
+const banRef = (gid: string, uid: string) => doc(db, "groups", gid, "bans", uid);
+
+/**
+ * Removes someone from a group and takes their posts out of its feed. They are also barred from
+ * joining again (groups are otherwise open) until an admin lets them back in.
+ */
+export async function removeMember(gid: string, uid: string, by: string): Promise<void> {
+  const posts = collection(db, "groups", gid, "posts");
+  const [own, reposts] = await Promise.all([
+    getDocs(query(posts, where("ownerUid", "==", uid))),
+    getDocs(query(posts, where("repostedBy", "==", uid))),
+  ]);
+  // an entry of theirs that someone else reposted into the group is that person's post, so it stays
+  const refs = [...own.docs.filter((d) => !d.data().repostedBy), ...reposts.docs].map((d) => d.ref);
+  for (let i = 0; i < refs.length; i += 200) {
+    const batch = writeBatch(db);
+    refs.slice(i, i + 200).forEach((r) => batch.delete(r));
+    await batch.commit();
+  }
+  const batch = writeBatch(db);
+  batch.set(banRef(gid, uid), { by, createdAt: serverTimestamp() });
+  batch.delete(memberRef(gid, uid));
+  await batch.commit();
+}
+
+/** Takes one post out of the group's feed. The entry itself stays with its author. */
+export const removePostFromGroup = (gid: string, ownerUid: string, entryId: string, repostedBy?: string) =>
+  deleteDoc(repostedBy ? repostPostRef(gid, repostedBy, ownerUid, entryId) : groupPostRef(gid, ownerUid, entryId));
+
+/** People removed from a group who cannot rejoin. Only admins and moderators may read this. */
+export function useBannedUids(gid: string, enabled: boolean): string[] {
+  const [uids, setUids] = useState<string[]>([]);
+  useEffect(() => {
+    if (!enabled) { setUids([]); return; }
+    return onSnapshot(collection(db, "groups", gid, "bans"), (snap) => setUids(snap.docs.map((d) => d.id)), () => setUids([]));
+  }, [gid, enabled]);
+  return uids;
+}
+
+export const allowBack = (gid: string, uid: string) => deleteDoc(banRef(gid, uid));
+
+export async function updateGroup(gid: string, name: string, description: string): Promise<void> {
+  const clean = { name: clip(name.trim(), GROUP_NAME_MAX), description: clip(description.trim(), GROUP_DESC_MAX) };
+  await updateDoc(doc(db, "groups", gid), { ...clean, nameKeys: nameKeys(clean.name) });
+  cache.delete(gid);
+  editListeners.forEach((f) => f());
 }
 
 function prime(groups: Group[]): Group[] {
@@ -150,7 +252,7 @@ export async function discoverGroups(): Promise<Group[]> {
 export async function searchGroups(text: string): Promise<Group[]> {
   const tokens = text.toLowerCase().split(/\s+/).filter(Boolean);
   if (!tokens.length) return [];
-  const main = tokens.reduce((a, b) => (b.length > a.length ? b : a)).slice(0, 20);
+  const main = Array.from(tokens.reduce((a, b) => (b.length > a.length ? b : a))).slice(0, 20).join("");
   const snap = await getDocs(query(collection(db, "groups"), where("nameKeys", "array-contains", main), limit(30)));
   const found = snap.docs
     .map((d) => toGroup(d.id, d.data() as Stored))
@@ -169,6 +271,7 @@ export function useMyGroups(uid: string): MyGroups {
   const [list, setList] = useState<Group[]>([]);
   const [ready, setReady] = useState(false);
   const [error, setError] = useState("");
+  const rev = useGroupRevision();
 
   useEffect(
     () => onSnapshot(
@@ -190,7 +293,7 @@ export function useMyGroups(uid: string): MyGroups {
     return () => { live = false; };
     // ids is represented by key
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key]);
+  }, [key, rev]);
 
   return useMemo(() => ({ list, ids: new Set(ids ?? []), ready, error }), [list, ids, ready, error]);
 }

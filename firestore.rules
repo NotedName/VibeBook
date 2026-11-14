@@ -16,6 +16,17 @@ service cloud.firestore {
       return exists(/databases/$(database)/documents/groupMembers/$(gid + '_' + request.auth.uid));
     }
 
+    // Roles in a group live on the member's document ("admin", "moderator" or "member"; none counts
+    // as member). The group's owner is always an admin, even on documents from before roles existed.
+    function groupOwner(gid) { return get(/databases/$(database)/documents/groups/$(gid)).data.ownerUid; }
+    function roleIn(gid, uid) {
+      return exists(/databases/$(database)/documents/groupMembers/$(gid + '_' + uid))
+        ? get(/databases/$(database)/documents/groupMembers/$(gid + '_' + uid)).data.get('role', 'member')
+        : '';
+    }
+    function isAdminOf(gid) { return signedIn() && (groupOwner(gid) == request.auth.uid || roleIn(gid, request.auth.uid) == 'admin'); }
+    function isModOf(gid) { return signedIn() && roleIn(gid, request.auth.uid) == 'moderator'; }
+
     // An entry lists the groups it is shared to in groupIds. Rules cannot loop, so only the
     // first five are checked (the app never saves more than five).
     function sharedWithMyGroup(entry) {
@@ -85,6 +96,80 @@ service cloud.firestore {
         allow read, write: if isOwner(uid);
         allow read: if signedIn() && entryReadable(uid, entryId);
         allow read: if entryIsPublic(uid, entryId);
+
+        // Each photo has its own reactions and comments, with the same rules as the entry's: whoever can
+        // see the entry can react, comment and reply, and the photo has to exist. Photos are removed
+        // with their entry by the app, so those documents go with them.
+        // Anyone who can read the entry can comment and reply (parentId is "" or an existing comment)
+        // and like. A comment can be deleted by its author or by the owner of the entry. Text cannot
+        // be edited; the only updates are a like or unlike of your own, or blanking a comment that
+        // has replies to "[deleted]". A comment can carry a sticker or GIF instead of, or as well as, text.
+        match /comments/{commentId} {
+          // After an update, the likes list differs from before by at most the signed-in person's own uid.
+          function onlyMyLikeChanged() {
+            let before = resource.data.get('likes', []).toSet();
+            let after = request.resource.data.likes.toSet();
+            return request.resource.data.likes is list
+              && request.resource.data.likes.size() == after.size()
+              && after.difference(before).hasOnly([request.auth.uid])
+              && before.difference(after).hasOnly([request.auth.uid]);
+          }
+
+          allow read: if isOwner(uid) || (signedIn() && entryReadable(uid, entryId));
+          allow read: if entryIsPublic(uid, entryId);
+          allow create: if signedIn()
+            && request.resource.data.keys().hasOnly(['authorUid', 'text', 'sticker', 'gif', 'createdAt', 'parentId', 'likes'])
+            && request.resource.data.authorUid == request.auth.uid
+            && request.resource.data.parentId is string
+            && request.resource.data.parentId.size() <= 40
+            && (request.resource.data.parentId == ''
+                || exists(/databases/$(database)/documents/users/$(uid)/entries/$(entryId)/photos/$(photoId)/comments/$(request.resource.data.parentId)))
+            && request.resource.data.likes == []
+            && request.resource.data.text is string
+            && request.resource.data.text.size() <= 500
+            && request.resource.data.sticker is string
+            && request.resource.data.sticker.size() <= 16
+            && request.resource.data.gif is string
+            && request.resource.data.gif.size() <= 300
+            // GIFs may only be loaded from Giphy or Tenor over https (keep in step with src/stickers.ts).
+            && (request.resource.data.gif == ''
+                || request.resource.data.gif.matches('^https://(media[0-9]*\\.giphy\\.com|i\\.giphy\\.com|media[0-9]*\\.tenor\\.com|c\\.tenor\\.com)/.*'))
+            // a comment needs some text, a sticker or a GIF
+            && (request.resource.data.text.size() > 0
+                || request.resource.data.sticker.size() > 0
+                || request.resource.data.gif.size() > 0)
+            && request.resource.data.createdAt == request.time
+            && exists(/databases/$(database)/documents/users/$(uid)/entries/$(entryId)/photos/$(photoId))
+            && (request.auth.uid == uid || entryReadable(uid, entryId));
+          allow update: if signedIn() && (
+            (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes'])
+              && (request.auth.uid == uid || entryReadable(uid, entryId))
+              && onlyMyLikeChanged())
+            || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['text', 'sticker', 'gif', 'deleted'])
+              && request.resource.data.text == ''
+              && request.resource.data.get('sticker', '') == ''
+              && request.resource.data.get('gif', '') == ''
+              && request.resource.data.deleted == true
+              && (request.auth.uid == uid || resource.data.authorUid == request.auth.uid))
+          );
+          allow delete: if signedIn() && (request.auth.uid == uid || resource.data.authorUid == request.auth.uid);
+        }
+
+        // One document per person, named by their uid, so nobody can react twice. "vibing" or
+        // "notvibing". Anyone who can see the entry can react; you can only touch your own reaction,
+        // and the entry's owner can remove any.
+        match /reactions/{reactorId} {
+          allow read: if isOwner(uid) || (signedIn() && entryReadable(uid, entryId));
+          allow read: if entryIsPublic(uid, entryId);
+          allow create, update: if signedIn()
+            && request.auth.uid == reactorId
+            && request.resource.data.keys().hasOnly(['type', 'createdAt'])
+            && request.resource.data.type in ['vibing', 'notvibing']
+            && request.resource.data.createdAt == request.time
+            && exists(/databases/$(database)/documents/users/$(uid)/entries/$(entryId)/photos/$(photoId))
+            && (request.auth.uid == uid || entryReadable(uid, entryId));
+          allow delete: if signedIn() && (request.auth.uid == reactorId || request.auth.uid == uid);
+        }
       }
 
       // Anyone who can read the entry can comment and reply (parentId is "" or an existing comment)
@@ -185,11 +270,34 @@ service cloud.firestore {
         && request.resource.data.description is string
         && request.resource.data.description.size() <= 300;
 
+      // Only an admin can edit the group's name and description. The owner never changes.
+      allow update: if isAdminOf(gid)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'nameKeys', 'description'])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 60
+        && request.resource.data.description is string
+        && request.resource.data.description.size() <= 300;
+
+      // People removed from the group, named by their uid. They cannot join again until an admin
+      // deletes this. Admins can bar anyone but the owner; moderators only current plain members.
+      match /bans/{bannedUid} {
+        allow read: if isAdminOf(gid) || isModOf(gid) || (signedIn() && request.auth.uid == bannedUid);
+        allow create: if signedIn()
+          && request.resource.data.keys().hasOnly(['by', 'createdAt'])
+          && request.resource.data.by == request.auth.uid
+          && request.resource.data.createdAt == request.time
+          && bannedUid != groupOwner(gid)
+          && bannedUid != request.auth.uid
+          && (isAdminOf(gid) || (isModOf(gid) && roleIn(gid, bannedUid) == 'member'));
+        allow delete: if isAdminOf(gid);
+      }
+
       // Lists an entry in the group's feed. Only members can add to it, in one of two ways:
       //  - their own entry, named "<ownerUid>_<entryId>";
       //  - a repost of someone else's public entry, named "<me>_rp_<ownerUid>_<entryId>", with
       //    repostedBy set to themselves.
-      // Whoever added a post can always take it out again.
+      // Whoever added a post can always take it out again, and so can the group's admins and moderators.
       match /posts/{postId} {
         allow read: if signedIn() && inMyGroup(gid);
         allow create, update: if signedIn() && inMyGroup(gid)
@@ -205,20 +313,41 @@ service cloud.firestore {
               && entryIsPublic(request.resource.data.ownerUid, request.resource.data.entryId))
           );
         allow delete: if signedIn()
-          && (resource.data.ownerUid == request.auth.uid || resource.data.get('repostedBy', '') == request.auth.uid);
+          && (resource.data.ownerUid == request.auth.uid || resource.data.get('repostedBy', '') == request.auth.uid
+              || isAdminOf(gid) || isModOf(gid));
       }
     }
 
-    // Anyone can join for themselves and leave for themselves. Joining requires the group to
-    // exist after the write, so creating a group and its first member can be one batch.
+    // Anyone can join for themselves (as a member, unless barred from the group) and leave for
+    // themselves, except the group's owner, who stays. Joining requires the group to exist after
+    // the write, so creating a group and its first member can be one batch; that first member
+    // is the owner and is the only one who can join as an admin.
+    // Admins change roles (never the owner's, never their own). Admins remove anyone but the
+    // owner, and moderators remove plain members.
     match /groupMembers/{memberId} {
       allow read: if signedIn();
       allow create: if signedIn()
-        && request.resource.data.keys().hasOnly(['groupId', 'uid', 'joinedAt'])
+        && request.resource.data.keys().hasOnly(['groupId', 'uid', 'joinedAt', 'role'])
         && request.resource.data.uid == request.auth.uid
         && memberId == request.resource.data.groupId + '_' + request.auth.uid
-        && existsAfter(/databases/$(database)/documents/groups/$(request.resource.data.groupId));
-      allow delete: if signedIn() && resource.data.uid == request.auth.uid;
+        && existsAfter(/databases/$(database)/documents/groups/$(request.resource.data.groupId))
+        && !exists(/databases/$(database)/documents/groups/$(request.resource.data.groupId)/bans/$(request.auth.uid))
+        && (request.resource.data.get('role', 'member') == 'member'
+            || (request.resource.data.role == 'admin'
+                && getAfter(/databases/$(database)/documents/groups/$(request.resource.data.groupId)).data.ownerUid == request.auth.uid));
+      allow update: if signedIn()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role'])
+        && request.resource.data.role in ['admin', 'moderator', 'member']
+        && resource.data.uid != groupOwner(resource.data.groupId)
+        && resource.data.uid != request.auth.uid
+        && isAdminOf(resource.data.groupId);
+      allow delete: if signedIn() && (
+        (resource.data.uid == request.auth.uid && groupOwner(resource.data.groupId) != request.auth.uid)
+        || (resource.data.uid != groupOwner(resource.data.groupId)
+            && resource.data.uid != request.auth.uid
+            && (isAdminOf(resource.data.groupId)
+                || (isModOf(resource.data.groupId) && resource.data.get('role', 'member') == 'member')))
+      );
     }
 
     // An invitation to a group, named "<groupId>_<toUid>". Only members of the group can send one,

@@ -1,8 +1,9 @@
 /*
   Responsive layout. Loaded after styles.css, which holds the phone layout's building blocks.
 
-  Phones (under 600px)       Top bar with the brand and actions; the four sections as a bar at the bottom
-                             of the screen, within thumb's reach. Folded cover screens land here too.
+  Phones (under 600px)       Top bar with the brand and actions; the sections as a floating, rounded bar at
+                             the bottom of the screen, within thumb's reach. Folded cover screens land here
+                             too, including very narrow ones (under 360px) which get a tighter layout.
   Tablets and unfolded       A slim navigation rail down the left (icons over labels) with the content beside
   foldables (600 to 1023px)  it. The inner screen of a book-style foldable is wider than 600px.
   Desktop (1024px and up)    A full-width top bar (brand, sections, actions) over a wide two-column page:
@@ -11,6 +12,9 @@
   Book fold (hinge)          Where the browser reports a vertical hinge (viewport segments), navigation sits
                              on the left screen and the content on the right, so nothing is drawn across it.
 
+  Ultra-wide (2200px+)       The same two columns, a little wider, so they do not look lost on big monitors.
+  Touch screens              (pointer: coarse) gets larger tap targets, whatever the screen size.
+
   Order matters: the desktop rules come first so the rail rules below can take over on a hinged screen.
 */
 
@@ -18,19 +22,56 @@
 
 /* ---------- phones ---------- */
 @media (max-width: 599.98px) {
+  /* A floating bar with rounded ends instead of a flat strip welded to the screen edge. */
   .tabs {
-    position: fixed; left: 0; right: 0; bottom: 0; z-index: 25; max-width: none; margin: 0;
-    background: var(--surface); border-top: 1px solid var(--line);
-    padding: 0 env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+    position: fixed; z-index: 25; max-width: 460px; margin: 0 auto; padding: 5px; gap: 2px;
+    left: max(10px, env(safe-area-inset-left, 0px)); right: max(10px, env(safe-area-inset-right, 0px));
+    bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+    background: color-mix(in srgb, var(--surface) 86%, transparent);
+    -webkit-backdrop-filter: blur(18px) saturate(1.5); backdrop-filter: blur(18px) saturate(1.5);
+    border: 1px solid var(--line); border-radius: 28px; box-shadow: var(--shadow-pop);
   }
   .tab {
     flex-direction: column; gap: 2px; font-size: 11px; padding: 8px 2px 7px;
-    border-bottom: 0; border-top: 3px solid transparent;
+    border-bottom: 0; border-radius: 22px;
   }
-  .tab.on { border-top-color: var(--accent); }
-  .badge { position: absolute; top: 4px; left: calc(50% + 6px); }
-  .logbook { padding-bottom: calc(100px + env(safe-area-inset-bottom, 0px)); }
-  .toast { bottom: calc(76px + env(safe-area-inset-bottom, 0px)); }
+  .tab.on, .tab.on:hover { background: var(--accent-soft); }
+  .badge { position: absolute; top: 3px; left: calc(50% + 6px); }
+  .logbook { padding-bottom: calc(108px + env(safe-area-inset-bottom, 0px)); }
+  .toast { bottom: calc(92px + env(safe-area-inset-bottom, 0px)); }
+}
+
+/* Very narrow screens: the outer screen of an original Galaxy Fold is about 280px wide, small phones about 320px. */
+@media (max-width: 359.98px) {
+  .topbar { padding-left: max(10px, env(safe-area-inset-left, 0px)); padding-right: max(10px, env(safe-area-inset-right, 0px)); }
+  .topbar-in { gap: 6px; }
+  .brand { font-size: 18px; gap: 6px; }
+  .brand-mark { width: 28px; height: 28px; }
+  .top-actions { gap: 6px; }
+  .top-actions .btn.small { padding: 6px 10px; font-size: 13px; }
+  .tabs { left: max(6px, env(safe-area-inset-left, 0px)); right: max(6px, env(safe-area-inset-right, 0px)); padding: 4px; }
+  .tab { font-size: 10px; letter-spacing: -.01em; }
+  .tab svg { width: 18px; height: 18px; }
+  .stats { grid-template-columns: repeat(2, 1fr); }
+  .row { grid-template-columns: 1fr; }
+  .editor-tools { grid-template-columns: repeat(2, 1fr); }
+  .covers { grid-template-columns: repeat(2, 1fr); }
+  .name { font-size: 19px; }
+  /* avatar above the name, so a two-line name never rides up into the cover photo */
+  .who { flex-direction: column; align-items: flex-start; gap: 6px; margin-top: -36px; }
+  .who-text { padding-bottom: 0; }
+  .av-lg { width: 80px; height: 80px; font-size: 28px; }
+  .auth { padding-left: 12px; padding-right: 12px; }
+  .auth-card { padding: 18px 16px; }
+  .sheet-body { padding: 14px 12px; }
+  .brand.big { font-size: 26px; }
+  .brand.big .brand-mark { width: 44px; height: 44px; }
+}
+/* Phones up to about 430px wide (most iPhones and Androids): tighten the stat tiles so labels such as FOLLOWERS fit. */
+@media (min-width: 360px) and (max-width: 429.98px) {
+  .stat { padding: 9px 8px; }
+  .stat b { font-size: 20px; }
+  .stat span { font-size: 10px; letter-spacing: 0; }
 }
 
 /* ---------- desktop: top bar and a wide two-column page ---------- */
@@ -57,12 +98,12 @@
   }
   .logbook { max-width: none; margin: 0; padding-bottom: 72px; }
   .side { display: grid; gap: 14px; position: sticky; top: 80px; align-content: start; }
-  .side-card { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); padding: 14px 16px; display: grid; gap: 8px; }
+  .side-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 14px 16px; display: grid; gap: 8px; }
   .side-card h2 { font-family: var(--font-display); font-size: 15px; }
   .side-card h2 span { color: var(--muted); font-weight: 400; font-size: 13px; }
   .side-card ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
   .side-card li a {
-    display: flex; align-items: center; gap: 10px; padding: 7px 8px; margin: 0 -8px; border-radius: 8px;
+    display: flex; align-items: center; gap: 10px; padding: 7px 8px; margin: 0 -8px; border-radius: var(--radius-sm);
     color: var(--text); text-decoration: none; font-weight: 500; min-width: 0;
   }
   .side-card li a:hover { background: var(--surface-2); }
@@ -96,7 +137,7 @@
   .brand { order: 0; justify-content: center; height: auto; }
   .brand-word { display: none; }
   .tabs { order: 1; display: grid; grid-template-columns: 1fr; gap: 4px; max-width: none; margin: 8px 0 0; }
-  .tab { flex-direction: column; gap: 4px; font-size: 12px; padding: 10px 4px; border-radius: 12px; border-bottom: 0; }
+  .tab { flex-direction: column; gap: 4px; font-size: 12px; padding: 10px 4px; border-radius: var(--radius-md); border-bottom: 0; }
   .tab.on, .tab.on:hover { background: var(--accent-soft); }
   .tab:hover { background: var(--surface-2); }
   .badge { position: absolute; top: 4px; left: calc(50% + 8px); }
@@ -141,3 +182,28 @@
   .toast { left: calc(env(viewport-segment-left 1 0, 88px) + env(viewport-segment-width 1 0, 600px) / 2); }
   .overlay { padding-left: env(viewport-segment-left 1 0, 0px); }
 }
+
+/* ---------- ultra-wide monitors ---------- */
+@media (min-width: 2200px) {
+  :root { --col: 880px; --side: 420px; --gap: 40px; }
+}
+
+/* ---------- touch screens: comfortable tap targets (about 44px), whatever the screen size ---------- */
+@media (pointer: coarse) {
+  .icon-btn { width: 44px; height: 44px; }
+  .menu-btn, .pw .icon-btn { width: 40px; height: 40px; }
+  .comment-menu .menu-btn { width: 36px; height: 36px; }
+  .comment-form .send { width: 42px; height: 42px; }
+  .btn { min-height: 44px; }
+  .btn.small { min-height: 40px; }
+  .act { min-height: 44px; }
+  .menu button { padding: 13px 14px; }
+  .link-act { padding: 8px 0; }
+  .back-btn { padding-top: 10px; padding-bottom: 10px; }
+  .emoji-grid button, .sticker-grid button { min-height: 44px; }
+}
+
+/* Stop the whole page rubber-banding sideways and double-tap zoom delay on touch devices. */
+html { overscroll-behavior-x: none; }
+button, a, input, textarea, label { touch-action: manipulation; }
+body { -webkit-tap-highlight-color: transparent; min-height: 100vh; min-height: 100dvh; }

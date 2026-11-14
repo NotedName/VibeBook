@@ -1,14 +1,20 @@
-import { useMemo, useState, type FormEvent } from "react";
-import { addComment, COMMENT_MAX, removeComment, setCommentLike, useComments } from "./commentStore";
+import { useMemo, useRef, useState, type FormEvent } from "react";
+import { addComment, COMMENT_MAX, removeComment, setCommentLike, subjectId, useComments } from "./commentStore";
 import { useSession } from "./session";
 import Avatar from "./Avatar";
 import CommentThread, { type CommentActions } from "./CommentThread";
 import { SendIcon, SmileIcon } from "./icons";
 import MediaPicker, { MediaPreview } from "./MediaPicker";
 import { NO_MEDIA, type Media } from "./stickers";
+import { insertEmoji } from "./emoji";
+import { LinesSkeleton } from "./Skeleton";
 
-/** Comment thread under an entry. Anyone who can see the entry can read, like and reply to comments. */
-export default function Comments({ ownerUid, entryId }: { ownerUid: string; entryId: string }) {
+/**
+ * Comment thread under an entry, or under one of its photos when photoId is given. Anyone who can see
+ * the entry can read, like and reply to comments.
+ */
+export default function Comments({ ownerUid, entryId: entry, photoId }: { ownerUid: string; entryId: string; photoId?: string }) {
+  const entryId = subjectId(entry, photoId);
   const { uid, me, notify } = useSession();
   const { comments, error } = useComments(ownerUid, entryId);
   const [text, setText] = useState("");
@@ -16,6 +22,7 @@ export default function Comments({ ownerUid, entryId }: { ownerUid: string; entr
   const [media, setMedia] = useState<Media>(NO_MEDIA);
   const [picking, setPicking] = useState(false);
   const hasMedia = !!(media.sticker || media.gif);
+  const input = useRef<HTMLInputElement>(null);
 
   const actions = useMemo<CommentActions>(() => ({
     myUid: uid,
@@ -46,20 +53,23 @@ export default function Comments({ ownerUid, entryId }: { ownerUid: string; entr
   return (
     <section className="comments" aria-label="Comments">
       {error && <p className="error">{error}</p>}
-      {comments === null && !error && <p className="hint">Loading comments…</p>}
+      {comments === null && !error && <LinesSkeleton label="Loading comments" />}
       {comments?.length === 0 && <p className="hint">No comments yet. Start the conversation.</p>}
       {comments && comments.length > 0 && <CommentThread comments={comments} actions={actions} />}
       <form className="comment-form" onSubmit={submit}>
         <Avatar profile={me} />
-        <input value={text} onChange={(e) => setText(e.target.value)} maxLength={COMMENT_MAX}
+        <input ref={input} value={text} onChange={(e) => setText(e.target.value)} maxLength={COMMENT_MAX}
           placeholder="Write a comment…" aria-label="Write a comment" />
-        <button type="button" className={`icon-btn${picking ? " on" : ""}`} aria-label="Add a sticker or GIF"
+        <button type="button" className={`icon-btn${picking ? " on" : ""}`} aria-label="Add an emoji, sticker or GIF"
           aria-expanded={picking} onClick={() => setPicking(!picking)}><SmileIcon /></button>
         <button type="submit" className="icon-btn send" disabled={busy || (!text.trim() && !hasMedia)} aria-label="Post comment">
           <SendIcon />
         </button>
         {hasMedia && <MediaPreview media={media} onRemove={() => setMedia(NO_MEDIA)} />}
-        {picking && <MediaPicker onPick={(m) => { setMedia(m); setPicking(false); }} />}
+        {picking && (
+          <MediaPicker onPick={(m) => { setMedia(m); setPicking(false); }}
+            onEmoji={(e) => insertEmoji(input.current, text, e, setText, COMMENT_MAX)} />
+        )}
       </form>
     </section>
   );

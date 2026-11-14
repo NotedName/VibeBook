@@ -23,6 +23,8 @@ import PersonPage from "./pages/PersonPage";
 import PostPage from "./pages/PostPage";
 import { parsePostHash } from "./share";
 import { BrandName } from "./Logo";
+import { FeedSkeleton, ProfileSkeleton } from "./Skeleton";
+import { hideSplash } from "./splash";
 
 type Route =
   | { name: "me" } | { name: "feed" } | { name: "people" } | { name: "groups" }
@@ -33,10 +35,11 @@ function parse(hash: string): Route {
   if (post) return { name: "post", uid: post.uid, id: post.id };
   if (hash.startsWith("#/u/")) return { name: "person", uid: decodeURIComponent(hash.slice(4)) };
   if (hash.startsWith("#/g/")) return { name: "group", id: decodeURIComponent(hash.slice(4)) };
-  if (hash === "#/feed") return { name: "feed" };
+  if (hash === "#/me" || hash === "#/logbook") return { name: "me" };
   if (hash === "#/groups") return { name: "groups" };
   if (hash === "#/people") return { name: "people" };
-  return { name: "me" };
+  // The Feed is home: it is what an empty address, "#/" or "#/feed" opens.
+  return { name: "feed" };
 }
 
 export default function Shell({ user }: { user: User }) {
@@ -67,6 +70,11 @@ export default function Shell({ user }: { user: User }) {
     [uid],
   );
 
+  // Profile answered (or failed): there is something to show, so let the splash screen go.
+  useEffect(() => {
+    if (me !== undefined || profileError) hideSplash();
+  }, [me, profileError]);
+
   useEffect(() => {
     const onHash = () => {
       const t = trail.current;
@@ -96,7 +104,7 @@ export default function Shell({ user }: { user: User }) {
   }), [social, groups, invites, reposts, user, uid, me, notify]);
 
   if (profileError) return <p className="center error">{profileError}</p>;
-  if (me === undefined) return <p className="center">Loading…</p>;
+  if (me === undefined) return <div className="page"><main className="logbook"><ProfileSkeleton /><FeedSkeleton /></main></div>;
 
   const active = route.name === "person" && route.uid === uid ? { name: "me" } as Route : route;
   const incomingCount = social.incoming.length;
@@ -114,7 +122,7 @@ export default function Shell({ user }: { user: User }) {
     <SessionProvider value={session}>
       <header className="topbar">
         <div className="topbar-in">
-          <a className="brand" href="#/"><BrandName /></a>
+          <a className="brand" href="#/feed"><BrandName /></a>
           <div className="top-actions">
             <button type="button" className="icon-btn" onClick={toggleTheme}
               aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}>
@@ -124,15 +132,15 @@ export default function Shell({ user }: { user: User }) {
           </div>
         </div>
         <nav className="tabs" aria-label="Sections">
-          {tab("#/", active.name === "me", <BookIcon />, "Logbook")}
           {tab("#/feed", active.name === "feed", <FeedIcon />, "Feed")}
+          {tab("#/groups", active.name === "groups" || active.name === "group", <GroupsIcon />, "Groups", invites.length)}
           {me && (
             <button type="button" className="tab tab-new" onClick={newEntry} aria-label="New entry">
               <i><PlusIcon /></i><span>New</span>
             </button>
           )}
-          {tab("#/groups", active.name === "groups" || active.name === "group", <GroupsIcon />, "Groups", invites.length)}
           {tab("#/people", active.name === "people" || active.name === "person", <UsersIcon />, "People", incomingCount)}
+          {tab("#/me", active.name === "me", <BookIcon />, "Logbook")}
         </nav>
       </header>
 

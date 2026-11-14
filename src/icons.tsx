@@ -41,3 +41,6 @@ export const FlipIcon = () => <Svg><path d="M12 3v18" /><path d="M8 7l-5 5 5 5z"
 export const SmileIcon = () => <Svg><circle cx="12" cy="12" r="9" /><path d="M8 14s1.4 2.2 4 2.2 4-2.2 4-2.2" /><path d="M9 9.5h.01M15 9.5h.01" /></Svg>;
 export const ArrowLeftIcon = () => <Svg><path d="M19 12H5" /><path d="M11 6l-6 6 6 6" /></Svg>;
 export const RepostIcon = () => <Svg><path d="M17 3l4 4-4 4" /><path d="M3 11V9a2 2 0 0 1 2-2h16" /><path d="M7 21l-4-4 4-4" /><path d="M21 13v2a2 2 0 0 1-2 2H3" /></Svg>;
+export const SettingsIcon = () => <Svg><path d="M4 7h9M17 7h3M4 17h3M11 17h9" /><circle cx="15" cy="7" r="2" /><circle cx="9" cy="17" r="2" /></Svg>;
+export const ChevronLeftIcon = () => <Svg><path d="M15 5l-7 7 7 7" /></Svg>;
+export const ChevronRightIcon = () => <Svg><path d="M9 5l7 7-7 7" /></Svg>;

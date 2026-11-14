@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { addEntry, loadPhotos, MAX_PHOTOS, updateEntry, type Entry, type Photo } from "./entries";
 import { clockTime, longDay, nowStr, todayStr } from "./report";
-import { CameraIcon, ClockIcon, CloseIcon, EditIcon, GlobeIcon, ImageIcon, LockIcon, UsersIcon } from "./icons";
+import { CameraIcon, ClockIcon, CloseIcon, EditIcon, GlobeIcon, ImageIcon, LockIcon, SmileIcon, UsersIcon } from "./icons";
 import { useSession } from "./session";
 import { MAX_GROUPS_PER_ENTRY, VISIBILITY, type Visibility } from "./types";
 import { GroupAvatar } from "./GroupRow";
 import { parseVideo, VIDEO_URL_MAX } from "./video";
 import PhotoEditor from "./PhotoEditor";
+import EmojiPicker from "./EmojiPicker";
+import { insertEmoji } from "./emoji";
 
 type Props = {
   uid: string;
@@ -36,6 +38,14 @@ export default function EntrySheet({ uid, entry, defaultGroupId, onClose, onSave
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const titleRef = useRef<HTMLInputElement>(null);
+  const descRef = useRef<HTMLTextAreaElement>(null);
+  // emoji go into whichever of the two text fields was used last
+  const lastField = useRef<"title" | "description">("title");
+  const [emojiOpen, setEmojiOpen] = useState(false);
+  function addEmoji(e: string) {
+    if (lastField.current === "title") insertEmoji(titleRef.current, title, e, setTitle, 140);
+    else insertEmoji(descRef.current, description, e, setDescription);
+  }
 
   // Load once per entry. Depending on the entry object itself would refetch (and undo
   // photo removals) whenever a live snapshot hands us a fresh copy.
@@ -147,7 +157,7 @@ export default function EntrySheet({ uid, entry, defaultGroupId, onClose, onSave
           {/* New entries are stamped silently on save; only an existing entry shows when it was logged. */}
           {entry && <p className="stamp"><ClockIcon />{longDay(date)} · {clockTime(time)}<small>Logged</small></p>}
           <label>Activity
-            <input ref={titleRef} value={title} onChange={(e) => setTitle(e.target.value)} required
+            <input ref={titleRef} value={title} onChange={(e) => setTitle(e.target.value)} required onFocus={() => { lastField.current = "title"; }}
               maxLength={140} placeholder="e.g. Set up a new PC in the engineering office" />
           </label>
           <label>Skills acquired <small>(separate with commas)</small>
@@ -159,9 +169,15 @@ export default function EntrySheet({ uid, entry, defaultGroupId, onClose, onSave
               maxLength={VIDEO_URL_MAX} placeholder="https://youtu.be/… or a Vimeo / .mp4 link" />
           </label>
           <label>Description
-            <textarea rows={5} value={description} onChange={(e) => setDescription(e.target.value)} required
+            <textarea ref={descRef} rows={5} value={description} onChange={(e) => setDescription(e.target.value)} required
+              onFocus={() => { lastField.current = "description"; }}
               placeholder="What happened, what was the problem, how did you solve it?" />
           </label>
+          <div className="emoji-field">
+            <button type="button" className={`btn small${emojiOpen ? " on" : ""}`} aria-expanded={emojiOpen}
+              onClick={() => setEmojiOpen(!emojiOpen)}><SmileIcon /> Emoji</button>
+            {emojiOpen && <div className="media-picker"><EmojiPicker onPick={addEmoji} /></div>}
+          </div>
 
           <fieldset className="vis-pick">
             <legend>Who can see this</legend>

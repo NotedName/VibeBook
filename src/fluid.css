@@ -1,0 +1,92 @@
+/*
+  Fluid feel: soft transitions, press feedback and entrance animations. Loaded last, after layout.css.
+
+  Everything that moves is inside "prefers-reduced-motion: no-preference", so people who ask their device
+  for less motion get the same layout with no animation. Easing curves (--ease, --spring) and the radius and
+  shadow scale are defined in styles.css.
+*/
+
+/* Always on: colour changes ease instead of snapping. These do not move anything. */
+.btn, .icon-btn, .act, .tab, .composer-input, .back-btn, .link, .link-act, .auth-tabs button, .media-tabs button,
+.menu button, .emoji-grid button, .sticker-grid button, .emoji-cats button, .gif-grid button, .seg label, .cover-opt,
+.photo-edit-btn, .side-card li a, .invite-row, .group-pick label, .person-link, .search {
+  transition: background-color .22s var(--ease), color .22s var(--ease), border-color .22s var(--ease),
+    box-shadow .22s var(--ease), filter .22s var(--ease), opacity .22s var(--ease);
+}
+.sheet input:not([type="file"]):focus, .sheet textarea:focus {
+  border-color: var(--accent); outline: none; box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.sheet input:not([type="file"]), .sheet textarea, .comment-form input, .gif-tab input, .search, .auth-card input {
+  transition: border-color .22s var(--ease), box-shadow .22s var(--ease), background-color .22s var(--ease);
+}
+.search:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+
+@media (prefers-reduced-motion: no-preference) {
+  /* ---------- press and hover ---------- */
+  .btn, .icon-btn, .act, .tab, .composer-input, .back-btn, .link, .link-act, .menu button, .seg label, .cover-opt,
+  .photo-edit-btn, .auth-tabs button, .media-tabs button {
+    transition-property: background-color, color, border-color, box-shadow, filter, opacity, transform;
+  }
+  .btn:active:not(:disabled), .icon-btn:active:not(:disabled), .act:active:not(:disabled), .tab:active, .back-btn:active,
+  .composer-input:active, .link:active, .seg label:active, .cover-opt:active, .photo-edit-btn:active:not(:disabled),
+  .auth-tabs button:active, .media-tabs button:active { transform: scale(.96); }
+  .menu button:active { transform: scale(.98); }
+  /* the password eye is vertically centred with a transform, so keep that while pressing */
+  .pw .icon-btn:active { transform: translateY(-50%) scale(.92); }
+
+  .post, .profile, .side-card { transition: box-shadow .3s var(--ease), transform .3s var(--ease); }
+  .photo-btn img { transition: transform .6s var(--ease); }
+  .tab-new i { transition: transform .3s var(--spring), filter .2s var(--ease); }
+  .tab-new:hover i { transform: scale(1.1) rotate(90deg); }
+  .tab-new:active i { transform: scale(.9); }
+  .btn.primary { transition-property: background-color, border-color, box-shadow, filter, transform; }
+
+  @media (hover: hover) {
+    .post:hover, .side-card:hover { box-shadow: var(--shadow-lift); }
+    .photo-btn:hover img { transform: scale(1.04); }
+    .btn.primary:hover { box-shadow: 0 8px 20px -8px var(--accent); }
+  }
+
+  /* ---------- things arrive instead of appearing ---------- */
+  @keyframes fade-up { from { opacity: 0; transform: translateY(16px) scale(.985); } }
+  @keyframes fade-in { from { opacity: 0; } }
+  @keyframes pop-in { from { opacity: 0; transform: scale(.88); } }
+  @keyframes menu-pop { from { opacity: 0; transform: scale(.9) translateY(-6px); } }
+  @keyframes toast-in { from { opacity: 0; transform: translateX(-50%) translateY(16px) scale(.94); } }
+  @keyframes sheet-up { from { opacity: .4; transform: translateY(48px) scale(.985); } }
+  @keyframes dialog-in { from { opacity: 0; transform: translateY(14px) scale(.94); } }
+  @keyframes tab-pop { from { transform: scale(.7); } }
+
+  /* "backwards" fill: the card sits invisible during its stagger delay, then settles into its normal style,
+     so nothing keeps a transform (or a stacking context) after the animation ends. */
+  .profile, .composer, .post, .group-head, .empty, .people-section, .search, .page-title, .title-row, .day-label,
+  .backbar, .side > *, .auth > * {
+    animation: fade-up .55s var(--ease) backwards;
+  }
+  .profile, .group-head, .backbar, .page-title { animation-delay: 0s; }
+  .composer { animation-delay: .06s; }
+  :is(.post, .day-label, .people-section, .empty):nth-child(2) { animation-delay: .06s; }
+  :is(.post, .day-label, .people-section, .empty):nth-child(3) { animation-delay: .11s; }
+  :is(.post, .day-label, .people-section, .empty):nth-child(4) { animation-delay: .16s; }
+  :is(.post, .day-label, .people-section, .empty):nth-child(5) { animation-delay: .2s; }
+  :is(.post, .day-label, .people-section, .empty):nth-child(n+6) { animation-delay: .24s; }
+  .side > :nth-child(2) { animation-delay: .08s; }
+  .side > :nth-child(3) { animation-delay: .16s; }
+  .auth > :nth-child(2) { animation-delay: .07s; }
+  .auth > :nth-child(3) { animation-delay: .14s; }
+  .auth > :nth-child(4) { animation-delay: .21s; }
+  .auth > :nth-child(5) { animation-delay: .28s; }
+
+  .overlay { animation: fade-in .25s ease-out; }
+  .sheet { animation: sheet-up .5s var(--ease); }
+  @media (min-width: 640px) { .sheet { animation: dialog-in .42s var(--spring); } }
+  .lightbox img { animation: pop-in .4s var(--ease); }
+  .editor-canvas { animation: fade-in .3s ease-out; }
+
+  .menu { transform-origin: top right; animation: menu-pop .22s var(--ease); }
+  .avatar-anchor .menu { transform-origin: top left; }
+  .toast { animation: toast-in .45s var(--spring); }
+  .badge { animation: pop-in .45s var(--spring); }
+  .tab.on svg { animation: tab-pop .4s var(--spring); }
+  .comment-list > li, .replies > li { animation: fade-in .35s ease-out backwards; }
+}

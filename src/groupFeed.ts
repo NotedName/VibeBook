@@ -7,7 +7,7 @@ import { newestFirst, type Entry } from "./entries";
  * Entries shared to one group. The group's post index says which entries belong to it; each
  * entry is then followed live, so edits and deletions show up without reloading.
  */
-export function useGroupEntries(gid: string, max = 40) {
+export function useGroupEntries(gid: string, max = 40, dir: "asc" | "desc" = "desc") {
   const [byPost, setByPost] = useState<Record<string, Entry>>({});
   const [pending, setPending] = useState<Set<string>>(new Set());
   const [indexLoaded, setIndexLoaded] = useState(false);
@@ -23,7 +23,7 @@ export function useGroupEntries(gid: string, max = 40) {
     });
 
     const stopIndex = onSnapshot(
-      query(collection(db, "groups", gid, "posts"), orderBy("date", "desc"), limit(max)),
+      query(collection(db, "groups", gid, "posts"), orderBy("date", dir), limit(max)),
       (snap) => {
         const current = new Set(snap.docs.map((d) => d.id));
         for (const [postId, stop] of follows) {
@@ -58,7 +58,7 @@ export function useGroupEntries(gid: string, max = 40) {
       fail,
     );
     return () => { stopIndex(); follows.forEach((stop) => stop()); };
-  }, [gid, max]);
+  }, [gid, max, dir]);
 
   const entries = useMemo(
     () => Object.values(byPost).sort(newestFirst),

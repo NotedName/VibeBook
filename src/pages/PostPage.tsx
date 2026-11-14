@@ -4,6 +4,7 @@ import { db } from "../firebase";
 import type { Entry } from "../entries";
 import { useSession } from "../session";
 import EntryCard from "../EntryCard";
+import { FeedSkeleton } from "../Skeleton";
 
 /** One entry opened from a share link, with full interaction for signed-in people. */
 export default function PostPage({ uid, id }: { uid: string; id: string }) {
@@ -22,7 +23,7 @@ export default function PostPage({ uid, id }: { uid: string; id: string }) {
 
   return (
     <div className="feed">
-      {entry === undefined && <p className="note">Loading…</p>}
+      {entry === undefined && <FeedSkeleton count={1} />}
       {entry === null && (
         <div className="empty">
           <h2>This entry is not available</h2>

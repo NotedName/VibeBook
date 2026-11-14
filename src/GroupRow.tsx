@@ -2,9 +2,10 @@ import { useState } from "react";
 import { joinGroup } from "./groups";
 import { useSession } from "./session";
 import type { Group } from "./types";
+import { firstChar } from "./text";
 
 export function GroupAvatar({ name, size = "md" }: { name: string; size?: "sm" | "md" | "lg" }) {
-  return <div className={`gav gav-${size}`} aria-hidden="true">{name.trim().charAt(0).toUpperCase() || "?"}</div>;
+  return <div className={`gav gav-${size}`} aria-hidden="true">{firstChar(name).toUpperCase() || "?"}</div>;
 }
 
 /** A group in a list: opens its page, and offers Join when you are not a member yet. */

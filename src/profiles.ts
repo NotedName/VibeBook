@@ -3,6 +3,7 @@ import {
 } from "firebase/firestore";
 import { db } from "./firebase";
 import type { CoverId, Profile } from "./types";
+import { clip } from "./text";
 
 export const NAME_MAX = 60;
 export const HEADLINE_MAX = 80;
@@ -41,17 +42,18 @@ export function primeProfile(p: Profile) { cache.set(p.uid, Promise.resolve(p));
 export function nameKeys(name: string): string[] {
   const keys = new Set<string>();
   for (const word of name.toLowerCase().split(/\s+/).filter(Boolean)) {
-    for (let i = 1; i <= Math.min(word.length, 20); i++) keys.add(word.slice(0, i));
+    const chars = Array.from(word); // whole characters, so an emoji is never cut in half
+    for (let i = 1; i <= Math.min(chars.length, 20); i++) keys.add(chars.slice(0, i).join(""));
   }
   return [...keys];
 }
 
 export async function saveProfile(uid: string, p: Omit<Profile, "uid">): Promise<Profile> {
   const clean = {
-    displayName: p.displayName.trim().slice(0, NAME_MAX),
-    headline: p.headline.trim().slice(0, HEADLINE_MAX),
-    workplace: p.workplace.trim().slice(0, HEADLINE_MAX),
-    bio: p.bio.trim().slice(0, BIO_MAX),
+    displayName: clip(p.displayName.trim(), NAME_MAX),
+    headline: clip(p.headline.trim(), HEADLINE_MAX),
+    workplace: clip(p.workplace.trim(), HEADLINE_MAX),
+    bio: clip(p.bio.trim(), BIO_MAX),
     avatar: p.avatar,
     cover: p.cover,
     coverPhoto: p.coverPhoto,
@@ -71,7 +73,7 @@ export async function saveProfile(uid: string, p: Omit<Profile, "uid">): Promise
 export async function searchProfiles(text: string, selfUid: string): Promise<Profile[]> {
   const tokens = text.toLowerCase().split(/\s+/).filter(Boolean);
   if (!tokens.length) return [];
-  const main = tokens.reduce((a, b) => (b.length > a.length ? b : a)).slice(0, 20);
+  const main = Array.from(tokens.reduce((a, b) => (b.length > a.length ? b : a))).slice(0, 20).join("");
   const snap = await getDocs(query(collection(db, "profiles"), where("nameKeys", "array-contains", main), limit(30)));
   const out: Profile[] = [];
   snap.docs.forEach((d) => {

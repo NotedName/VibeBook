@@ -7,6 +7,7 @@ import Avatar from "./Avatar";
 import { CommentIcon, MoreIcon, SendIcon, SmileIcon, ThumbUpIcon, TrashIcon } from "./icons";
 import MediaPicker, { MediaPreview } from "./MediaPicker";
 import { NO_MEDIA, type Media } from "./stickers";
+import { insertEmoji } from "./emoji";
 
 const stamp = (t: Timestamp | null) =>
   t ? t.toDate().toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "Sending…";
@@ -88,6 +89,7 @@ function ReplyForm({ onSubmit, onCancel }: { onSubmit: (text: string, media: Med
   const [media, setMedia] = useState<Media>(NO_MEDIA);
   const [picking, setPicking] = useState(false);
   const hasMedia = !!(media.sticker || media.gif);
+  const input = useRef<HTMLInputElement>(null);
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -100,14 +102,17 @@ function ReplyForm({ onSubmit, onCancel }: { onSubmit: (text: string, media: Med
 
   return (
     <form className="comment-form reply-form" onSubmit={submit}>
-      <input value={text} onChange={(e) => setText(e.target.value)} maxLength={COMMENT_MAX} autoFocus
+      <input ref={input} value={text} onChange={(e) => setText(e.target.value)} maxLength={COMMENT_MAX} autoFocus
         placeholder="Write a reply…" aria-label="Write a reply" />
-      <button type="button" className={`icon-btn${picking ? " on" : ""}`} aria-label="Add a sticker or GIF"
+      <button type="button" className={`icon-btn${picking ? " on" : ""}`} aria-label="Add an emoji, sticker or GIF"
         aria-expanded={picking} onClick={() => setPicking(!picking)}><SmileIcon /></button>
       <button type="submit" className="icon-btn send" disabled={busy || (!text.trim() && !hasMedia)} aria-label="Post reply"><SendIcon /></button>
       <button type="button" className="link-act" onClick={onCancel}>Cancel</button>
       {hasMedia && <MediaPreview media={media} onRemove={() => setMedia(NO_MEDIA)} />}
-      {picking && <MediaPicker onPick={(m) => { setMedia(m); setPicking(false); }} />}
+      {picking && (
+        <MediaPicker onPick={(m) => { setMedia(m); setPicking(false); }}
+          onEmoji={(e) => insertEmoji(input.current, text, e, setText, COMMENT_MAX)} />
+      )}
     </form>
   );
 }

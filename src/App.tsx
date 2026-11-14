@@ -6,6 +6,7 @@ import VerifyEmail from "./VerifyEmail";
 import Shell from "./Shell";
 import PublicPost from "./PublicPost";
 import { parsePostHash } from "./share";
+import { hideSplash } from "./splash";
 
 export default function App() {
   const [user, setUser] = useState<User | null | undefined>(undefined);
@@ -20,7 +21,13 @@ export default function App() {
   }, []);
   // user.reload() updates the same User object in place, so React needs a nudge to re-render.
   const onVerified = useCallback(() => setVerifiedTick((n) => n + 1), []);
+  // The splash stays until there is something real behind it. Signed-in people see the logbook, so Shell
+  // hides it once their profile has loaded; every other screen (sign in, verify email) can show right away.
+  useEffect(() => {
+    if (user !== undefined && !(user && user.emailVerified)) hideSplash();
+  }, [user]);
 
+  // Until auth answers, the splash screen from index.html is showing; this line is only a fallback.
   if (user === undefined) return <p className="center">Loading…</p>;
   if (!user) {
     // A share link shows the post read-only; the visitor has to sign in for anything more.

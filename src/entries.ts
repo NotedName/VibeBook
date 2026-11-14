@@ -1,6 +1,6 @@
 import {
   collection, doc, getDocs, orderBy, query, serverTimestamp, writeBatch,
-  type Timestamp,
+  type DocumentReference, type Timestamp,
 } from "firebase/firestore";
 import { db } from "./firebase";
 import { compressImage } from "./image";
@@ -82,7 +82,9 @@ export async function updateEntry(
   const added = await Promise.all(newFiles.map(compressImage));
 
   const entryRef = doc(entriesRef(uid), entry.id);
+  const extras = (await Promise.all(removeIds.map((id) => photoExtras(doc(collection(entryRef, "photos"), id))))).flat();
   const batch = writeBatch(db);
+  extras.forEach((r) => batch.delete(r));
   batch.update(entryRef, {
     ...input,
     photoCount: keep.length + added.length,
@@ -100,6 +102,15 @@ export async function updateEntry(
   await batch.commit();
 }
 
+/** Every comment and reaction on one photo, so they can be deleted along with it. */
+async function photoExtras(photoRef: DocumentReference) {
+  const [comments, reactions] = await Promise.all([
+    getDocs(collection(photoRef, "comments")),
+    getDocs(collection(photoRef, "reactions")),
+  ]);
+  return [...comments.docs, ...reactions.docs].map((d) => d.ref);
+}
+
 export async function deleteEntry(uid: string, entry: Entry): Promise<void> {
   const entryRef = doc(entriesRef(uid), entry.id);
   const [photos, comments, reactions] = await Promise.all([
@@ -107,7 +118,9 @@ export async function deleteEntry(uid: string, entry: Entry): Promise<void> {
     getDocs(collection(entryRef, "comments")),
     getDocs(collection(entryRef, "reactions")),
   ]);
+  const extras = (await Promise.all(photos.docs.map((p) => photoExtras(p.ref)))).flat();
   const batch = writeBatch(db);
+  extras.forEach((r) => batch.delete(r));
   photos.forEach((p) => batch.delete(p.ref));
   comments.forEach((c) => batch.delete(c.ref));
   reactions.forEach((r) => batch.delete(r.ref));

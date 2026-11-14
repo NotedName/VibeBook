@@ -1,19 +1,22 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { gifSearchEnabled, parseGif, searchGifs, STICKER_PACKS, type GifResult, type Media } from "./stickers";
 import { CloseIcon } from "./icons";
+import EmojiPicker from "./EmojiPicker";
 
-/** Panel for choosing a sticker or a GIF to attach to a comment. */
-export default function MediaPicker({ onPick }: { onPick: (media: Media) => void }) {
-  const [tab, setTab] = useState<"stickers" | "gifs">("stickers");
+/** Panel for adding an emoji to the text, or choosing a sticker or a GIF to attach to a comment. */
+export default function MediaPicker({ onPick, onEmoji }: { onPick: (media: Media) => void; onEmoji: (emoji: string) => void }) {
+  const [tab, setTab] = useState<"emoji" | "stickers" | "gifs">("emoji");
   return (
-    <div className="media-picker" role="group" aria-label="Add a sticker or GIF">
+    <div className="media-picker" role="group" aria-label="Add an emoji, sticker or GIF">
       <div className="media-tabs" role="tablist">
+        <button type="button" role="tab" aria-selected={tab === "emoji"} className={tab === "emoji" ? "on" : ""}
+          onClick={() => setTab("emoji")}>Emoji</button>
         <button type="button" role="tab" aria-selected={tab === "stickers"} className={tab === "stickers" ? "on" : ""}
           onClick={() => setTab("stickers")}>Stickers</button>
         <button type="button" role="tab" aria-selected={tab === "gifs"} className={tab === "gifs" ? "on" : ""}
           onClick={() => setTab("gifs")}>GIFs</button>
       </div>
-      {tab === "stickers" ? (
+      {tab === "emoji" ? <EmojiPicker onPick={onEmoji} /> : tab === "stickers" ? (
         <div className="sticker-packs">
           {STICKER_PACKS.map((pack) => (
             <section key={pack.label}>

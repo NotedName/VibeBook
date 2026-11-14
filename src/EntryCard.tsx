@@ -1,19 +1,25 @@
 import { useEffect, useRef, useState } from "react";
-import { deleteEntry, loadPhotos, type Entry } from "./entries";
+import { deleteEntry, loadPhotos, type Entry, type Photo } from "./entries";
 import { clockTime, copyText, entryText, longDay } from "./report";
 import { useProfile, useSession } from "./session";
 import { VISIBILITY } from "./types";
 import Avatar from "./Avatar";
-import { CloseIcon, CommentIcon, CopyIcon, EditIcon, GlobeIcon, GroupsIcon, LockIcon, MoreIcon, RepostIcon, ShareIcon, TrashIcon, UsersIcon } from "./icons";
+import { CommentIcon, CopyIcon, EditIcon, GlobeIcon, GroupsIcon, LockIcon, MoreIcon, RepostIcon, ShareIcon, TrashIcon, UsersIcon } from "./icons";
 import GroupShareSheet from "./GroupShareSheet";
 import { removeRepost, repostId } from "./reposts";
-import { useGroup } from "./groups";
+import { removePostFromGroup, useGroup } from "./groups";
 import Comments from "./Comments";
 import ReactionBar from "./ReactionBar";
 import VideoPlayer from "./VideoPlayer";
+import PhotoViewer from "./PhotoViewer";
 import { postLink } from "./share";
 
-type Props = { entry: Entry; onEdit?: (entry: Entry) => void };
+type Props = {
+  entry: Entry;
+  onEdit?: (entry: Entry) => void;
+  /** Shown inside this group's feed. Admins and moderators can take posts out of it. */
+  inGroup?: { id: string; canModerate: boolean };
+};
 
 function GroupLink({ id }: { id: string }) {
   const g = useGroup(id);
@@ -23,14 +29,16 @@ function GroupLink({ id }: { id: string }) {
 
 const VIS_ICON = { private: <LockIcon />, friends: <UsersIcon />, public: <GlobeIcon /> };
 
-export default function EntryCard({ entry, onEdit }: Props) {
+export default function EntryCard({ entry, onEdit, inGroup }: Props) {
   const s = useSession();
   const ownerUid = entry.ownerUid ?? s.uid;
   const mine = ownerUid === s.uid;
   const owner = useProfile(ownerUid);
-  const [photos, setPhotos] = useState<string[]>([]);
-  const [zoom, setZoom] = useState<string | null>(null);
+  const [photos, setPhotos] = useState<Photo[]>([]);
+  // Index of the photo open in the viewer, null when it is closed.
+  const [viewing, setViewing] = useState<number | null>(null);
   const [armed, setArmed] = useState(false);
+  const [armedRemove, setArmedRemove] = useState(false);
   const [commenting, setCommenting] = useState(false);
   const [menu, setMenu] = useState(false);
   const [sharing, setSharing] = useState<"own" | "repost" | null>(null);
@@ -45,7 +53,7 @@ export default function EntryCard({ entry, onEdit }: Props) {
   useEffect(() => {
     let live = true;
     if (entry.photoCount > 0) {
-      loadPhotos(ownerUid, entry.id).then((p) => live && setPhotos(p.map((x) => x.data)), () => {});
+      loadPhotos(ownerUid, entry.id).then((p) => live && setPhotos(p), () => {});
     } else {
       setPhotos([]);
     }
@@ -53,27 +61,20 @@ export default function EntryCard({ entry, onEdit }: Props) {
   }, [ownerUid, entry.id, entry.photoCount, stamp]);
 
   useEffect(() => {
-    if (!armed) return;
-    const t = setTimeout(() => setArmed(false), 3500);
+    if (!armed && !armedRemove) return;
+    const t = setTimeout(() => { setArmed(false); setArmedRemove(false); }, 3500);
     return () => clearTimeout(t);
-  }, [armed]);
+  }, [armed, armedRemove]);
 
   useEffect(() => {
     if (!menu) return;
-    const close = () => { setMenu(false); setArmed(false); };
+    const close = () => { setMenu(false); setArmed(false); setArmedRemove(false); };
     const onDown = (e: MouseEvent) => { if (!menuRef.current?.contains(e.target as Node)) close(); };
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && close();
     document.addEventListener("mousedown", onDown);
     document.addEventListener("keydown", onKey);
     return () => { document.removeEventListener("mousedown", onDown); document.removeEventListener("keydown", onKey); };
   }, [menu]);
-
-  useEffect(() => {
-    if (!zoom) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setZoom(null);
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [zoom]);
 
   async function copy() {
     setMenu(false);
@@ -140,6 +141,17 @@ export default function EntryCard({ entry, onEdit }: Props) {
                   removeRepost(s.uid, myRepost).then(() => s.notify("Repost removed"), () => s.notify("Could not remove repost"));
                 }}><RepostIcon />Undo repost</button>
               )}
+              {inGroup?.canModerate && (entry.repostedBy ?? ownerUid) !== s.uid && (
+                <button type="button" role="menuitem" className={`danger${armedRemove ? " armed" : ""}`}
+                  onClick={() => {
+                    if (!armedRemove) return setArmedRemove(true);
+                    setMenu(false); setArmedRemove(false);
+                    removePostFromGroup(inGroup.id, ownerUid, entry.id, entry.repostedBy)
+                      .then(() => s.notify("Removed from the group"), () => s.notify("Could not remove the post"));
+                  }}>
+                  <TrashIcon />{armedRemove ? "Tap to confirm" : "Remove from group"}
+                </button>
+              )}
               {mine && onEdit && (
                 <>
                   <button type="button" role="menuitem" onClick={() => { setMenu(false); onEdit(entry); }}><EditIcon />Edit</button>
@@ -169,10 +181,10 @@ export default function EntryCard({ entry, onEdit }: Props) {
       {expecting && <div className="photo-grid placeholder" aria-hidden="true" />}
       {photos.length > 0 && (
         <div className={`photo-grid ${photos.length % 2 ? "odd" : "even"}`}>
-          {photos.map((src, i) => (
-            <button key={i} type="button" className="photo-btn" onClick={() => setZoom(src)}
+          {photos.map((p, i) => (
+            <button key={p.id} type="button" className="photo-btn" onClick={() => setViewing(i)}
               aria-label={`Open photo ${i + 1} of ${entry.title}`}>
-              <img src={src} alt={`${entry.title} photo ${i + 1}`} loading="lazy" />
+              <img src={p.data} alt={`${entry.title} photo ${i + 1}`} loading="lazy" />
             </button>
           ))}
         </div>
@@ -196,11 +208,9 @@ export default function EntryCard({ entry, onEdit }: Props) {
       {sharing && <GroupShareSheet kind={sharing} entry={entry} onClose={() => setSharing(null)} />}
       {commenting && <Comments ownerUid={ownerUid} entryId={entry.id} />}
 
-      {zoom && (
-        <div className="overlay lightbox" onClick={() => setZoom(null)}>
-          <button type="button" className="icon-btn close" aria-label="Close photo"><CloseIcon /></button>
-          <img src={zoom} alt={entry.title} />
-        </div>
+      {viewing !== null && photos.length > 0 && (
+        <PhotoViewer ownerUid={ownerUid} entryId={entry.id} title={entry.title} photos={photos}
+          index={viewing} onIndex={setViewing} onClose={() => setViewing(null)} myUid={s.uid} onError={s.notify} />
       )}
     </article>
   );

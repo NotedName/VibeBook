@@ -4,9 +4,17 @@ import { clockTime, copyText, entryText, longDay } from "./report";
 import { useProfile, useSession } from "./session";
 import { VISIBILITY } from "./types";
 import Avatar from "./Avatar";
-import { CloseIcon, CopyIcon, EditIcon, GlobeIcon, LockIcon, TrashIcon, UsersIcon } from "./icons";
+import { CloseIcon, CommentIcon, CopyIcon, EditIcon, GlobeIcon, GroupsIcon, LockIcon, TrashIcon, UsersIcon } from "./icons";
+import { useGroup } from "./groups";
+import Comments from "./Comments";
 
 type Props = { entry: Entry; onEdit?: (entry: Entry) => void };
+
+function GroupLink({ id }: { id: string }) {
+  const g = useGroup(id);
+  if (!g) return null;
+  return <li><a href={`#/g/${encodeURIComponent(id)}`}><GroupsIcon />{g.name}</a></li>;
+}
 
 const VIS_ICON = { private: <LockIcon />, friends: <UsersIcon />, public: <GlobeIcon /> };
 
@@ -18,6 +26,8 @@ export default function EntryCard({ entry, onEdit }: Props) {
   const [photos, setPhotos] = useState<string[]>([]);
   const [zoom, setZoom] = useState<string | null>(null);
   const [armed, setArmed] = useState(false);
+  const [commenting, setCommenting] = useState(false);
+  const groupIds = (entry.groupIds ?? []).filter((id) => s.groups.ids.has(id));
   const vis = VISIBILITY.find((v) => v.id === (entry.visibility ?? "private"))!;
 
   // createdAt/updatedAt change once the server confirms a write, which refreshes photos
@@ -64,6 +74,7 @@ export default function EntryCard({ entry, onEdit }: Props) {
         <div className="post-who">
           {mine ? <b>{name}</b> : <a className="post-name" href={`#/u/${encodeURIComponent(ownerUid)}`}>{name}</a>}
           <time>{longDay(entry.date)} · {clockTime(entry.time)}</time>
+          {groupIds.length > 0 && <ul className="group-links" aria-label="Shared to groups">{groupIds.map((id) => <GroupLink key={id} id={id} />)}</ul>}
         </div>
         {mine && <span className={`vis vis-${vis.id}`} title={vis.hint}>{VIS_ICON[vis.id]}{vis.label}</span>}
       </header>
@@ -90,12 +101,14 @@ export default function EntryCard({ entry, onEdit }: Props) {
 
       <div className={`post-actions${mine && onEdit ? "" : " single"}`}>
         <button type="button" className="act" onClick={copy}><CopyIcon /><span>Copy</span></button>
+        <button type="button" className={`act${commenting ? " on" : ""}`} aria-expanded={commenting}
+          onClick={() => setCommenting(!commenting)}><CommentIcon /><span>Comment</span></button>
         {mine && onEdit && (
           <>
             <button type="button" className="act" onClick={() => onEdit(entry)}><EditIcon /><span>Edit</span></button>
             <button type="button" className={`act danger${armed ? " armed" : ""}`}
               onClick={() => {
-                if (armed) deleteEntry(ownerUid, entry.id).then(() => s.notify("Entry deleted"), () => s.notify("Could not delete"));
+                if (armed) deleteEntry(ownerUid, entry).then(() => s.notify("Entry deleted"), () => s.notify("Could not delete"));
                 else setArmed(true);
               }}>
               <TrashIcon /><span>{armed ? "Tap to confirm" : "Delete"}</span>
@@ -103,6 +116,8 @@ export default function EntryCard({ entry, onEdit }: Props) {
           </>
         )}
       </div>
+
+      {commenting && <Comments ownerUid={ownerUid} entryId={entry.id} />}
 
       {zoom && (
         <div className="overlay lightbox" onClick={() => setZoom(null)}>

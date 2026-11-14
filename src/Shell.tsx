@@ -5,22 +5,29 @@ import { auth, db } from "./firebase";
 import type { Entry } from "./entries";
 import { toProfile } from "./profiles";
 import { useSocial } from "./social";
+import { useMyGroups } from "./groups";
 import { SessionProvider, type Session } from "./session";
 import { useTheme } from "./theme";
 import type { Profile } from "./types";
-import { BookIcon, CloseIcon, FeedIcon, MoonIcon, SunIcon, UsersIcon } from "./icons";
+import { BookIcon, CloseIcon, FeedIcon, GroupsIcon, MoonIcon, SunIcon, UsersIcon } from "./icons";
 import EntrySheet from "./EntrySheet";
 import ProfileSheet from "./ProfileSheet";
 import MyLogbook from "./pages/MyLogbook";
 import FeedPage from "./pages/FeedPage";
+import GroupsPage from "./pages/GroupsPage";
+import GroupPage from "./pages/GroupPage";
 import PeoplePage from "./pages/PeoplePage";
 import PersonPage from "./pages/PersonPage";
 
-type Route = { name: "me" } | { name: "feed" } | { name: "people" } | { name: "person"; uid: string };
+type Route =
+  | { name: "me" } | { name: "feed" } | { name: "people" } | { name: "groups" }
+  | { name: "person"; uid: string } | { name: "group"; id: string };
 
 function parse(hash: string): Route {
   if (hash.startsWith("#/u/")) return { name: "person", uid: decodeURIComponent(hash.slice(4)) };
+  if (hash.startsWith("#/g/")) return { name: "group", id: decodeURIComponent(hash.slice(4)) };
   if (hash === "#/feed") return { name: "feed" };
+  if (hash === "#/groups") return { name: "groups" };
   if (hash === "#/people") return { name: "people" };
   return { name: "me" };
 }
@@ -28,10 +35,11 @@ function parse(hash: string): Route {
 export default function Shell({ user }: { user: User }) {
   const uid = user.uid;
   const social = useSocial(uid);
+  const groups = useMyGroups(uid);
   const [me, setMe] = useState<Profile | null | undefined>(undefined);
   const [profileError, setProfileError] = useState("");
   const [route, setRoute] = useState<Route>(() => parse(location.hash));
-  const [entrySheet, setEntrySheet] = useState<{ entry: Entry | null } | null>(null);
+  const [entrySheet, setEntrySheet] = useState<{ entry: Entry | null; groupId?: string } | null>(null);
   const [editingProfile, setEditingProfile] = useState(false);
   const [notice, setNotice] = useState("");
   const [manualCopy, setManualCopy] = useState<string | null>(null);
@@ -63,11 +71,11 @@ export default function Shell({ user }: { user: User }) {
   const entrySaved = useCallback((message: string) => { setEntrySheet(null); notify(message); }, [notify]);
 
   const session = useMemo<Session>(() => ({
-    ...social, user, uid, me, notify,
+    ...social, user, uid, me, groups, notify,
     manualCopy: setManualCopy,
     editProfile: () => setEditingProfile(true),
-    openEntry: (entry) => setEntrySheet({ entry }),
-  }), [social, user, uid, me, notify]);
+    openEntry: (entry, groupId) => setEntrySheet({ entry, groupId }),
+  }), [social, groups, user, uid, me, notify]);
 
   if (profileError) return <p className="center error">{profileError}</p>;
   if (me === undefined) return <p className="center">Loading…</p>;
@@ -96,6 +104,7 @@ export default function Shell({ user }: { user: User }) {
         <nav className="tabs" aria-label="Sections">
           {tab("#/", active.name === "me", <BookIcon />, "Logbook")}
           {tab("#/feed", active.name === "feed", <FeedIcon />, "Feed")}
+          {tab("#/groups", active.name === "groups" || active.name === "group", <GroupsIcon />, "Groups")}
           {tab("#/people", active.name === "people" || active.name === "person", <UsersIcon />, "People", incomingCount)}
         </nav>
       </header>
@@ -103,16 +112,20 @@ export default function Shell({ user }: { user: User }) {
       <main className="logbook">
         {me && active.name === "me" && <MyLogbook />}
         {active.name === "feed" && <FeedPage />}
+        {active.name === "groups" && <GroupsPage />}
+        {active.name === "group" && <GroupPage key={active.id} gid={active.id} />}
         {active.name === "people" && <PeoplePage />}
         {active.name === "person" && <PersonPage key={active.uid} uid={active.uid} />}
       </main>
 
       {me && active.name !== "person" && (
-        <button type="button" className="fab" onClick={() => setEntrySheet({ entry: null })}>+ New entry</button>
+        <button type="button" className="fab"
+          onClick={() => setEntrySheet({ entry: null, groupId: active.name === "group" ? active.id : undefined })}>+ New entry</button>
       )}
 
       {entrySheet && (
-        <EntrySheet key={entrySheet.entry?.id ?? "new"} uid={uid} entry={entrySheet.entry} onClose={closeEntry} onSaved={entrySaved} />
+        <EntrySheet key={entrySheet.entry?.id ?? "new"} uid={uid} entry={entrySheet.entry}
+          defaultGroupId={entrySheet.groupId} onClose={closeEntry} onSaved={entrySaved} />
       )}
       {(me === null || editingProfile) && (
         <ProfileSheet profile={me} suggestedName={user.displayName ?? ""} onClose={closeProfile} />

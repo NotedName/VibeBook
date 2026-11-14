@@ -27,3 +27,9 @@ export type Profile = {
 export type FriendRequest = { id: string; from: string; to: string };
 
 export type Relation = "self" | "friends" | "incoming" | "outgoing" | "none";
+
+/** Stored at groups/{id}. Every group is open: anyone signed in can find it and join. */
+export type Group = { id: string; name: string; description: string; ownerUid: string };
+
+/** firestore.rules only looks at the first five groupIds of an entry. */
+export const MAX_GROUPS_PER_ENTRY = 5;

@@ -2,22 +2,29 @@ import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent 
 import { addEntry, loadPhotos, MAX_PHOTOS, updateEntry, type Entry, type Photo } from "./entries";
 import { nowStr, todayStr } from "./report";
 import { CameraIcon, CloseIcon, GlobeIcon, ImageIcon, LockIcon, UsersIcon } from "./icons";
-import { VISIBILITY, type Visibility } from "./types";
+import { useSession } from "./session";
+import { MAX_GROUPS_PER_ENTRY, VISIBILITY, type Visibility } from "./types";
+import { GroupAvatar } from "./GroupRow";
 
 type Props = {
   uid: string;
   entry: Entry | null; // null = new entry
+  /** Group to tick for a new entry, e.g. when writing from inside that group. */
+  defaultGroupId?: string;
   onClose: () => void;
   onSaved: (message: string) => void;
 };
 
-export default function EntrySheet({ uid, entry, onClose, onSaved }: Props) {
+export default function EntrySheet({ uid, entry, defaultGroupId, onClose, onSaved }: Props) {
+  const s = useSession();
   const [date, setDate] = useState(entry?.date ?? todayStr());
   const [time, setTime] = useState(entry?.time ?? nowStr());
   const [title, setTitle] = useState(entry?.title ?? "");
   const [skills, setSkills] = useState(entry?.skills.join(", ") ?? "");
   const [description, setDescription] = useState(entry?.description ?? "");
   const [visibility, setVisibility] = useState<Visibility>(entry?.visibility ?? "private");
+  const [groupIds, setGroupIds] = useState<string[]>(() =>
+    (entry ? entry.groupIds ?? [] : defaultGroupId ? [defaultGroupId] : []).filter((id) => s.groups.ids.has(id)));
   const [saved, setSaved] = useState<Photo[]>([]); // photos already stored on the entry
   const [removed, setRemoved] = useState<string[]>([]);
   const [photosReady, setPhotosReady] = useState(!entry || entry.photoCount === 0);
@@ -56,6 +63,10 @@ export default function EntrySheet({ uid, entry, onClose, onSaved }: Props) {
 
   const total = saved.length + files.length;
 
+  function toggleGroup(id: string) {
+    setGroupIds((prev) => (prev.includes(id) ? prev.filter((g) => g !== id) : [...prev, id]));
+  }
+
   function addFiles(e: ChangeEvent<HTMLInputElement>) {
     const picked = Array.from(e.target.files ?? []);
     e.target.value = ""; // allow picking the same file again
@@ -67,7 +78,7 @@ export default function EntrySheet({ uid, entry, onClose, onSaved }: Props) {
     setBusy(true);
     setError("");
     const input = {
-      date, time, title: title.trim(), description: description.trim(), visibility,
+      date, time, title: title.trim(), description: description.trim(), visibility, groupIds,
       skills: skills.split(",").map((s) => s.trim()).filter(Boolean),
     };
     try {
@@ -157,6 +168,35 @@ export default function EntrySheet({ uid, entry, onClose, onSaved }: Props) {
               ))}
             </div>
             <p className="hint">{VISIBILITY.find((v) => v.id === visibility)!.hint}</p>
+          </fieldset>
+
+          <fieldset className="group-pick">
+            <legend>Share to groups</legend>
+            {s.groups.list.length === 0 ? (
+              <p className="hint">You have not joined any groups yet. <a href="#/groups" onClick={onClose}>Find or create one</a>.</p>
+            ) : (
+              <>
+                <ul>
+                  {s.groups.list.map((g) => {
+                    const on = groupIds.includes(g.id);
+                    return (
+                      <li key={g.id}>
+                        <label className={on ? "on" : ""}>
+                          <input type="checkbox" checked={on} onChange={() => toggleGroup(g.id)}
+                            disabled={!on && groupIds.length >= MAX_GROUPS_PER_ENTRY} />
+                          <GroupAvatar name={g.name} size="sm" />
+                          <span>{g.name}</span>
+                        </label>
+                      </li>
+                    );
+                  })}
+                </ul>
+                <p className="hint">
+                  Members of the groups you tick can see and comment on this entry, whatever you chose above.
+                  Up to {MAX_GROUPS_PER_ENTRY} groups.
+                </p>
+              </>
+            )}
           </fieldset>
 
           {error && <p className="error" role="alert">{error}</p>}

@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import type { User } from "firebase/auth";
 import type { Entry } from "./entries";
+import type { MyGroups } from "./groups";
 import { fetchProfile } from "./profiles";
 import type { SocialState } from "./social";
 import type { Profile } from "./types";
@@ -10,10 +11,12 @@ export type Session = SocialState & {
   uid: string;
   /** undefined while loading, null when the person has not made a profile yet */
   me: Profile | null | undefined;
+  groups: MyGroups;
   notify: (message: string) => void;
   manualCopy: (text: string) => void;
   editProfile: () => void;
-  openEntry: (entry: Entry | null) => void;
+  /** entry null = new entry; groupId pre-selects a group to share a new entry with. */
+  openEntry: (entry: Entry | null, groupId?: string) => void;
 };
 
 const Ctx = createContext<Session | null>(null);

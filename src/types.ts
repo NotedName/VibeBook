@@ -70,6 +70,6 @@ export const MAX_GROUPS_PER_ENTRY = 5;
 
 export type ReactionType = "vibing" | "notvibing";
 export const REACTIONS: { id: ReactionType; label: string }[] = [
-  { id: "vibing", label: "Vibing" },
-  { id: "notvibing", label: "Not vibing" },
+  { id: "vibing", label: "Vibe" },
+  { id: "notvibing", label: "Pass" },
 ];

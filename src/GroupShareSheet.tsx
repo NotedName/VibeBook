@@ -67,7 +67,7 @@ export default function GroupShareSheet({ kind, entry, onClose }: Props) {
           <fieldset className="group-pick">
             <legend>Groups</legend>
             {s.groups.list.length === 0 ? (
-              <div className="empty-groups"><p className="hint">You have not joined any groups yet.</p><a className="btn small" href="#/groups" onClick={onClose}>Find or create a group</a></div>
+              <div className="empty-groups"><p className="hint">You have not joined any groups yet.</p><a className="btn small primary" href="#/groups" onClick={onClose}>Find or create a group</a></div>
             ) : (
               <ul>
                 {s.groups.list.map((g) => {

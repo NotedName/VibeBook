@@ -62,7 +62,7 @@ export default function ShareSheet({ entry, linkable, onLink, onClose }: Props) 
           <section className="share-block">
             <h3>Send a link</h3>
             {linkable ? (
-              <button type="button" className="btn" onClick={() => onLink().then(onClose)}><ShareIcon /> Copy or share link</button>
+              <button type="button" className="btn primary" onClick={() => onLink().then(onClose)}><ShareIcon /> Copy or share link</button>
             ) : (
               <p className="hint">{mine
                 ? "Set this entry to Public to share it with a link (Edit, then Who can see this)."
@@ -74,7 +74,7 @@ export default function ShareSheet({ entry, linkable, onLink, onClose }: Props) 
             <fieldset className="group-pick">
               <legend>Share to groups</legend>
               {s.groups.list.length === 0 ? (
-                <div className="empty-groups"><p className="hint">You have not joined any groups yet.</p><a className="btn small" href="#/groups" onClick={onClose}>Find or create a group</a></div>
+                <div className="empty-groups"><p className="hint">You have not joined any groups yet.</p><a className="btn small primary" href="#/groups" onClick={onClose}>Find or create a group</a></div>
               ) : (
                 <>
                   <ul>

@@ -1,4 +1,4 @@
-/** Line-art VibeBook mark: an open book with notes, a check, a photo and a vibe swoosh. */
+/** VibeBook mark: a book opening, with a little light rising from its pages. */
 export function LogoMark({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 64 64" fill="none" stroke="currentColor" strokeWidth="3"
@@ -10,13 +10,12 @@ export function LogoMark({ className }: { className?: string }) {
           <stop offset="1" stopColor="#ffa15a" />
         </linearGradient>
       </defs>
-      <path d="M32 15C25 11 15 11 7 13v38c8-2 18-2 25 2 7-4 17-4 25-2V13c-8-2-18-2-25 2z" />
-      <path d="M32 15v38" />
-      <path d="M14 21h11M14 27h11M14 33h7" />
-      <path d="M40 24l4 4 8-9" />
-      <rect x="13" y="39" width="12" height="8" rx="2" />
-      <circle cx="19" cy="43" r="2" />
-      <path d="M30 46c8-8 18-8 30-20" stroke="url(#vb-swoosh)" />
+      <path d="M32 18C26 14 16 13 8 15v34c8-2 18-1 24 3" />
+      <path d="M32 18c6-4 16-5 24-3v34c-8-2-18-1-24 3" />
+      <path d="M32 18v34" />
+      <path d="M7 54c9-2 18-1 25 3 7-4 16-5 25-3" />
+      <path d="M14 24h12M14 30h12M14 36h8M38 24h12M38 30h12M38 36h8" />
+      <path d="M32 11V5M22 13l-3-5M42 13l3-5" stroke="url(#vb-swoosh)" />
     </svg>
   );
 }

@@ -84,7 +84,7 @@ function GifTab({ onPick }: { onPick: (media: Media) => void }) {
         <input type="url" inputMode="url" value={link} aria-label="GIF link"
           onChange={(e) => { setLink(e.target.value); setLinkError(""); }}
           onKeyDown={(e) => { if (e.key === "Enter") submitLink(e); }}
-          placeholder="Paste a Giphy or Tenor GIF link" />
+          placeholder="e.g. https://giphy.com/gifs/…" />
         <button type="button" className="btn small" disabled={!link.trim()} onClick={submitLink}>Use</button>
       </div>
       {linkError && <p className="error">{linkError}</p>}

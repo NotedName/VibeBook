@@ -164,12 +164,12 @@ export default function EntrySheet({ uid, entry, defaultGroupId, onClose, onSave
           </label>
           <label>Skills acquired <small className={skillsOver ? "count-warn" : "count"}>{skillList.length}/{SKILLS_MAX} skills</small>
             <input value={skills} onChange={(e) => setSkills(e.target.value)} maxLength={SKILLS_INPUT_MAX}
-              placeholder="e.g. Hardware troubleshooting, Networking" />
+              placeholder="e.g. Networking, Excel, Teamwork" />
             <small className={skillsOver ? "count-warn" : "count"}>Separate with commas. Each skill: up to {SKILL_WORDS_MAX} words and {SKILL_MAX} letters.</small>
           </label>
           <label>Video link <small>(optional)</small>
             <input type="url" inputMode="url" value={videoUrl} onChange={(e) => setVideoUrl(e.target.value)}
-              maxLength={VIDEO_URL_MAX} placeholder="https://youtu.be/… or a Vimeo / .mp4 link" />
+              maxLength={VIDEO_URL_MAX} placeholder="e.g. https://youtu.be/abc123" />
           </label>
           <label>Description <small className={description.length > DESC_MAX * 0.9 ? "count-warn" : "count"}>{description.length}/{DESC_MAX}</small>
             <textarea ref={descRef} rows={5} value={description} onChange={(e) => setDescription(e.target.value)} required maxLength={DESC_MAX}

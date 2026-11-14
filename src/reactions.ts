@@ -60,7 +60,7 @@ export async function setReaction(
   }
   await batch.commit();
   const about = note?.title ? `“${note.title}”` : "an entry";
-  logActivity(uid, current === next ? `Took back your reaction on ${about}` : next === "vibing" ? `Vibed ${about}` : `Marked ${about} as not vibing`);
+  logActivity(uid, current === next ? `Took back your reaction on ${about}` : next === "vibing" ? `Vibed ${about}` : `Passed on ${about}`);
   if (!note) return;
   const key = `like_${note.entryId}${note.photoId ? `_${note.photoId}` : ""}`;
   if (next === "vibing" && current !== "vibing") await pushNote(ownerUid, uid, key, "like", { ownerUid, ...note });

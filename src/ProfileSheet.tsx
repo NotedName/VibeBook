@@ -156,7 +156,7 @@ export default function ProfileSheet({ profile, suggestedName = "", onClose }: P
             <div className="ps-fields">
               <label>Name
                 <input ref={nameRef} value={name} onChange={(e) => setName(e.target.value)} maxLength={NAME_MAX} required
-                  placeholder="Your full name" autoComplete="name" />
+                  placeholder="e.g. Juan Dela Cruz" autoComplete="name" />
               </label>
               <UsernameField value={username} onChange={setUsername} selfUid={uid} />
               <label>Headline

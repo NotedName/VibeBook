@@ -174,10 +174,10 @@ function Details({ group, onDirty }: { group: Group; onDirty: (dirty: boolean) =
         )}
       </div>
       <label>Name
-        <input value={name} onChange={(e) => setName(e.target.value)} required maxLength={GROUP_NAME_MAX} />
+        <input value={name} onChange={(e) => setName(e.target.value)} required maxLength={GROUP_NAME_MAX} placeholder="e.g. BSIT 4A interns" />
       </label>
       <label>What is it for?
-        <textarea rows={3} value={description} onChange={(e) => setDescription(e.target.value)} maxLength={GROUP_DESC_MAX} />
+        <textarea rows={3} value={description} onChange={(e) => setDescription(e.target.value)} maxLength={GROUP_DESC_MAX} placeholder="Who should join, and what do you share here?" />
       </label>
       {changed && <p className="hint unsaved" role="status">You have changes that are not saved yet. Nothing changes for the group until you press Save changes.</p>}
       <div className="manage-save">

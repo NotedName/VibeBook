@@ -99,7 +99,7 @@ function Logbook({ onViewAs }: { onViewAs: () => void }) {
           <button type="button" className="composer-input" onClick={() => s.openEntry(null)}>
             What did you work on today?
           </button>
-        ) : <span className="composer-input static">{tab === "reposts" ? "Entries you reposted" : "Entries you gave a Vibing"}</span>}
+        ) : <span className="composer-input static">{tab === "reposts" ? "Entries you reposted" : "Entries you gave a Vibe"}</span>}
       </div>
 
       {loadError && <p className="error note" role="alert">{loadError}</p>}
@@ -124,7 +124,7 @@ function Logbook({ onViewAs }: { onViewAs: () => void }) {
         {tab === "likes" && !likes.loading && shown.length === 0 && (
           <div className="empty">
             <h2>Nothing liked yet</h2>
-            <p>Entries you give a Vibing show up here, only for you. Likes from before this list existed are not included.</p>
+            <p>Entries you give a Vibe show up here, only for you. Likes from before this list existed are not included.</p>
           </div>
         )}
         <EntryList entries={shown} onEdit={s.openEntry} dayHeadings={mode.kind === "newest" || mode.kind === "oldest"} />

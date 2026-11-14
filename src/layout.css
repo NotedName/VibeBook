@@ -56,7 +56,7 @@
   .brand-mark { width: 28px; height: 28px; }
   .top-actions { gap: 6px; }
   .tabs { left: max(6px, env(safe-area-inset-left, 0px)); right: max(6px, env(safe-area-inset-right, 0px)); padding: 4px; }
-  .tab { font-size: calc(10px * var(--ts)); letter-spacing: -.01em; }
+  .tab { font-size: calc(10px * var(--ts)); }
   .tab svg { width: 18px; height: 18px; }
   .stats { grid-template-columns: repeat(2, 1fr); }
   .row { grid-template-columns: 1fr; }
@@ -81,7 +81,7 @@
 @media (min-width: 360px) and (max-width: 429.98px) {
   .stat { padding: 9px 8px; }
   .stat b { font-size: calc(20px * var(--ts)); }
-  .stat span { font-size: calc(10px * var(--ts)); letter-spacing: 0; }
+  .stat span { font-size: calc(11px * var(--ts)); }
 }
 
 /* ---------- desktop: top bar and a wide two-column page ---------- */

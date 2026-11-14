@@ -41,9 +41,9 @@
 
 - A new photo on an entry has a pencil button: crop to Original, Square, 4:3 or 16:9 (drag to position, Zoom to tighten), rotate, flip, and adjust brightness, contrast and saturation. Photos already saved on an entry cannot be re-edited; remove and add them again.
 
-## Reactions: Vibing / Not vibing
+## Reactions: Vibe / Pass
 
-- Every entry you can see has a **Vibing** (thumbs up with a sparkle) and a **Not vibing** (thumbs down) button with live counts, in the post's bottom bar next to Comment and Share. The words show on wide screens; phones show just the icons. Copy, Edit and Delete live in the three-dot menu at the top right of the post. You get one reaction per entry; tap the same one again to take it back, or tap the other to switch.
+- Every entry you can see has a **Vibe** (thumbs up with a sparkle) and a **Pass** (thumbs down) button with live counts, in the post's bottom bar next to Comment and Share. The words show on wide screens; phones show just the icons. Copy, Edit and Delete live in the three-dot menu at the top right of the post. You get one reaction per entry; tap the same one again to take it back, or tap the other to switch. The buttons flash green (Vibe) or red (Pass) for a moment when you press them, then go back to the theme colours; a reaction you have given shows as a filled icon.
 - Data: `users/{uid}/entries/{id}/reactions/{reactorUid}` with `{ type, createdAt }`. The document id is the reactor's uid, which is what stops double-reacting. Each entry card reads its reaction documents, which is fine for a small app; if the app grows, move to a counter field.
 
 ## Video posts
@@ -109,20 +109,20 @@ After pulling these changes run `npm run deploy` so the new rules go live togeth
 ## Sorting
 
 - The Feed, your Logbook, group pages and people's profiles have a **Sort** bar: **Newest**, **Hottest**, **Popular** and **Oldest**. Popular has its own **Today / This week / This month / This year** choice. The choice is remembered on the device, separately for each of those pages.
-- **Hottest** ranks by activity (net Vibing plus comments) divided by the entry's age, so recent entries with a few reactions beat old ones with many. **Popular** ranks by net Vibing plus comments made *inside the chosen period*, whenever the entry was written. Ties fall back to newest first. Day headings only show for Newest and Oldest.
+- **Hottest** ranks by activity (net Vibes plus comments) divided by the entry's age, so recent entries with a few reactions beat old ones with many. **Popular** ranks by net Vibes plus comments made *inside the chosen period*, whenever the entry was written. Ties fall back to newest first. Day headings only show for Newest and Oldest.
 - Newest and Oldest read from the matching end of the date index, so Oldest really is the oldest. Hottest and Popular order what is already loaded (the feed loads the latest 30 entries per person, up to 80), and follow each entry's reactions and comments live to do it. They count entry-level reactions and comments, not the ones on single photos.
 - `firestore.indexes.json` gained an ascending `visibility + date` index for Oldest; run `npm run deploy` and wait a minute or two for it to build.
 
 ## Photo viewer
 
 - Tapping a photo opens a viewer with **Previous / Next** buttons, the left and right arrow keys, or a swipe, plus a `2 / 5` counter.
-- Each photo has its own **Vibing / Not vibing** and **Comment** (replies, likes, stickers and GIFs work as on entries). Data: `users/{uid}/entries/{id}/photos/{photoId}/reactions/{uid}` and `.../photos/{photoId}/comments/{id}`. Deleting an entry, or removing a photo while editing, deletes these too.
+- Each photo has its own **Vibe / Pass** and **Comment** (replies, likes, stickers and GIFs work as on entries). Data: `users/{uid}/entries/{id}/photos/{photoId}/reactions/{uid}` and `.../photos/{photoId}/comments/{id}`. Deleting an entry, or removing a photo while editing, deletes these too.
 - On share links, signed-out visitors can flip through the photos and read photo comments and counts; reacting and commenting ask them to sign in.
 - Run `npm run deploy` so the new rules go live.
 
 ## Notifications
 
-- The bell in the top bar counts what you have not seen and opens the list. It tells you about friend requests, accepted requests, new followers, group invitations, Vibing on your entries and photos, comments, replies, likes on your comments, and reposts of your entries. Tapping one opens what it is about and marks it read; **Mark all as read** clears the count.
+- The bell in the top bar counts what you have not seen and opens the list. It tells you about friend requests, accepted requests, new followers, group invitations, Vibes on your entries and photos, comments, replies, likes on your comments, and reposts of your entries. Tapping one opens what it is about and marks it read; **Mark all as read** clears the count.
 - Notifications about the same thing are folded: more than three of one kind become a single line ("Ana, Ben and 4 others sent you friend requests"). The subject is the kind of request for friend requests, follows and invitations, and the kind plus the entry for likes, comments, replies and reposts. Three or fewer stay separate.
 - A friend request or invitation you have already answered stops showing. Undoing a like, cancelling a request, unfollowing or undoing a repost takes the notification back.
 - Data: `users/{recipient}/notifications/{actorUid}_{key}`, written by the person who did the thing (best effort; a failed notification never blocks the like or comment). The newest 100 are loaded. `firestore.rules` lets only the recipient read, mark read and delete them, and only the actor create or retract theirs. Run `npm run deploy` for the rules. Notifications are only created from now on; nothing is back-filled.
@@ -137,8 +137,8 @@ After pulling these changes run `npm run deploy` so the new rules go live togeth
 
 ## Logbook sections, Likes, buttons and the activity log
 
-- **Notes / Reposts / Likes:** every logbook has columns, like the tabs on a Threads profile. **Notes** are the entries a person wrote, **Reposts** are the public entries they reposted. On your own logbook there is a third, **Likes**, listing the entries you gave a Vibing, most recent first. Likes are private: other people's profiles only show Notes and Reposts. Stats and reports count Notes only. The sort menu works on every column.
-- Likes data: `users/{me}/likes/{ownerUid}_{entryId}` (`src/likes.ts`), a pointer written together with the Vibing in one batch and removed when you take it back or switch to Not vibing. Only you can read it (`firestore.rules`). Vibing given before this list existed is not back-filled, and photo reactions are not included. Run `npm run deploy` so the rules go live.
+- **Notes / Reposts / Likes:** every logbook has columns, like the tabs on a Threads profile. **Notes** are the entries a person wrote, **Reposts** are the public entries they reposted. On your own logbook there is a third, **Likes**, listing the entries you gave a Vibe, most recent first. Likes are private: other people's profiles only show Notes and Reposts. Stats and reports count Notes only. The sort menu works on every column.
+- Likes data: `users/{me}/likes/{ownerUid}_{entryId}` (`src/likes.ts`), a pointer written together with the Vibe in one batch and removed when you take it back or switch to Pass. Only you can read it (`firestore.rules`). Vibes given before this list existed are not back-filled, and photo reactions are not included. Run `npm run deploy` so the rules go live.
 - **Buttons:** Find people, Find or create a group, See all groups and the "Use a different account" / "Back to the post" actions are real buttons (bordered, filled), not plain text links.
 - **Activity log:** it can no longer be cleared or deleted from the app (the Clear button and `clearActivity` are gone). It is saved to your account (see below), so it is the same on every device. The safety cap on each device is 2000 items.
 
@@ -180,3 +180,25 @@ After pulling these changes run `npm run deploy` so the new rules go live togeth
 - **Profile photo:** larger (128px, 108px on phones, 92px on very narrow screens) so it balances the name, @username and headline beside it.
 - **Activity log across devices:** every action is also saved to `users/{uid}/activity/{id}` (one small document each: `at`, `text`, optional `who` and `href`). Settings > Activity shows your account's newest 500 items, merged with the copy on the device, so it is the same everywhere. The first time a device opens the app after this update it uploads what it had logged (its newest 500; later visits upload only what is new). Only you can read it, and `firestore.rules` allows only creating items (re-saving an identical one is fine), never editing or deleting. Run `npm run deploy` for the rules.
 - **Spacing:** when the list has no day headings (Hottest, Popular, ...), the first entry under the composer or tab bar now gets the same gap a heading would give it (logbooks, profiles and group feeds).
+
+
+## Sign-up checks and Terms and Conditions
+
+- The sign-in and sign-up forms show what is wrong with a field as soon as you leave it (or press the button), under that field, instead of waiting for the server: name, email format, password length, matching passwords (checked while you type the second one), and the Terms checkbox. An offline notice appears as soon as the connection drops. Username format and availability were already checked live.
+- Creating an account needs the **I have read and agree to the Terms and Conditions** box ticked. The link opens the terms in a dialog (`src/Terms.tsx`). The same text is in **Settings > About > Terms and Conditions**. Edit the wording and `TERMS_UPDATED` in that one file.
+
+
+## Look and feel rules
+
+- **One main action per screen.** `btn primary` has a filled accent colour, a soft glow and bolder text; Cancel and Close in sheets are quiet text buttons beside it.
+- **Placeholders show the format**, e.g. `name@example.com`, `e.g. juan_delacruz`, `e.g. Networking, Excel, Teamwork`, `e.g. https://youtu.be/abc123`. They use one muted colour everywhere so they never look like typed text.
+- **No letter-spacing** (only the logo is slightly tightened) and no tracked all-caps labels. Labels, day headings, stats and badges are sentence case.
+- **Hierarchy:** entry titles and page titles are bigger and bolder, form labels are dark and 14px, and hints stay muted.
+- **Three levels of text:** headings (17px bold, with the count as a small pill), the thing you are looking at (people, group and entry names, 16px bold) and quiet details (@usernames, descriptions, times). The group page title is 26px.
+- **Members never scroll sideways.** The Members card on the group page is as tall as its member list; very long lists stop at the screen height and scroll up and down only. Long names wrap instead of being cut off, and the role badge stays on the right.
+- **Search boxes inside sheets** (`.sheet .search input`) are kept bare, so the icon and text never overlap.
+
+
+## Rust app
+
+See `RUST_PREP.md` for the plan (Tauri shell first), what the code depends on, and what is already scaffolded in `src-tauri/`.

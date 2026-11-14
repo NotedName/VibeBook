@@ -47,7 +47,7 @@ export default function UsernameField({ value, onChange, selfUid, inputRef, hint
         <span className="at" aria-hidden="true">@</span>
         <input ref={inputRef} value={value} onChange={(e) => onChange(e.target.value)} required
           maxLength={USERNAME_MAX + 1} autoComplete="off" autoCapitalize="none" autoCorrect="off" spellCheck={false}
-          placeholder="juandelacruz" aria-describedby="username-status" aria-invalid={state.status === "invalid" || state.status === "taken"} />
+          placeholder="e.g. juan_delacruz" aria-describedby="username-status" aria-invalid={state.status === "invalid" || state.status === "taken"} />
       </span>
       <small id="username-status" className={`username-status ${state.status}`} role="status" aria-live="polite">
         {state.message || hint || `Your profile link will end in /u/${name || "username"}`}

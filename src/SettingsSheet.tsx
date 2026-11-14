@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { TEXT_SIZES, useAppearance, type ThemeMode } from "./theme";
 import { PHOTO_QUALITY, usePreferences } from "./preferences";
 import { ACTIVITY_SHOWN, useActivity } from "./activity";
@@ -7,6 +7,7 @@ import { useProfile, useSession } from "./session";
 import { personHash, setFriendsVisible } from "./profiles";
 import { VISIBILITY } from "./types";
 import { BrandName } from "./Logo";
+import { TermsContent } from "./Terms";
 import { CloseIcon, GlobeIcon, LockIcon, MoonIcon, MonitorIcon, SunIcon, UsersIcon } from "./icons";
 
 const CATEGORIES = ["Appearance", "Media", "Entries", "Notifications", "Privacy", "Accessibility", "Activity", "About"] as const;
@@ -65,11 +66,14 @@ function Appearance() {
         <label htmlFor="text-size" className="setting-title">Text size: {TEXT_SIZES[a.textSize]}</label>
         <div className="size-slider">
           <span className="size-a small" aria-hidden="true">A</span>
-          <input id="text-size" type="range" min={0} max={TEXT_SIZES.length - 1} step={1} value={a.textSize}
-            aria-valuetext={TEXT_SIZES[a.textSize]} onChange={(e) => a.setTextSize(Number(e.target.value))} />
+          <div className="size-track">
+            <input id="text-size" type="range" min={0} max={TEXT_SIZES.length - 1} step={1} value={a.textSize}
+              style={{ "--f": a.textSize / (TEXT_SIZES.length - 1) } as CSSProperties}
+              aria-valuetext={TEXT_SIZES[a.textSize]} onChange={(e) => a.setTextSize(Number(e.target.value))} />
+            <div className="size-ticks" aria-hidden="true">{TEXT_SIZES.map((s, i) => <i key={s} className={i <= a.textSize ? "on" : ""} />)}</div>
+          </div>
           <span className="size-a large" aria-hidden="true">A</span>
         </div>
-        <div className="size-ticks" aria-hidden="true">{TEXT_SIZES.map((s) => <i key={s} />)}</div>
         <p className="size-preview">The quick brown fox jumps over the lazy dog.</p>
       </div>
     </>
@@ -144,13 +148,18 @@ function About() {
   return (
     <>
       <div className="about-brand brand"><BrandName /></div>
-      <p>VibeBook is a logbook for what you did each day. Write an entry with photos, the skills you picked up and a short description, then copy it straight into your daily report.</p>
+      <p>VibeBook is meant to save your OJT entries. Use it to log what you did each day, and to keep a record of everything you worked on throughout your OJT internship.</p>
       <ul className="about-list">
-        <li>Choose who sees each entry: only you, your friends, or the public.</li>
-        <li>Add friends or follow people, and share entries in groups.</li>
-        <li>Comment, reply, vibe, and repost entries you like.</li>
+        <li>Write an entry for each day with photos, the skills you picked up and a short description.</li>
+        <li>Copy an entry straight into your daily report instead of rewriting your day.</li>
+        <li>Choose who sees each entry: only you, your friends, or the public. You can also share entries in groups.</li>
+        <li>Look back through your logbook any time to see your progress from the first day to the last.</li>
       </ul>
-      <p className="hint">Your settings and activity log are saved on this device. Entries, photos and profiles are stored in your VibeBook account with Firebase.</p>
+      <p className="hint">Your entries, photos, profile and activity log are saved in your VibeBook account, so they are there on every device you sign in on. Display settings such as theme and text size are saved on each device.</p>
+      <details className="about-terms">
+        <summary>Terms and Conditions</summary>
+        <TermsContent />
+      </details>
     </>
   );
 }

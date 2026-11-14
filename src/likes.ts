@@ -5,7 +5,7 @@ import type { Entry } from "./entries";
 
 /**
  * Your Likes list: a private pointer at users/{me}/likes/{ownerUid}_{entryId} for every entry you gave a
- * "Vibing". The entry is never copied (its own rules still decide whether you can see it), and nobody else can read the list.
+ * "Vibe". The entry is never copied (its own rules still decide whether you can see it), and nobody else can read the list.
  * Written and removed by setReaction in reactions.ts; likes given before this list existed are not back-filled.
  */
 export const likeId = (ownerUid: string, entryId: string) => `${ownerUid}_${entryId}`;

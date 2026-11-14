@@ -1,6 +1,6 @@
 import { defaultVisibility } from "./preferences";
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from "react";
-import { addEntry, loadPhotos, MAX_PHOTOS, updateEntry, type Entry, type Photo } from "./entries";
+import { addEntry, DESC_MAX, loadPhotos, MAX_PHOTOS, SKILL_MAX, SKILL_WORDS_MAX, SKILLS_INPUT_MAX, SKILLS_MAX, TITLE_MAX, updateEntry, type Entry, type Photo } from "./entries";
 import { clockTime, longDay, nowStr, todayStr } from "./report";
 import { CameraIcon, ClockIcon, CloseIcon, EditIcon, GlobeIcon, ImageIcon, LockIcon, SmileIcon, UsersIcon } from "./icons";
 import { useSession } from "./session";
@@ -9,6 +9,7 @@ import { parseVideo, VIDEO_URL_MAX } from "./video";
 import PhotoEditor from "./PhotoEditor";
 import EmojiPicker from "./EmojiPicker";
 import { insertEmoji } from "./emoji";
+import { canAutoFocus } from "./focus";
 
 type Props = {
   uid: string;
@@ -44,9 +45,12 @@ export default function EntrySheet({ uid, entry, defaultGroupId, onClose, onSave
   // emoji go into whichever of the two text fields was used last
   const lastField = useRef<"title" | "description">("title");
   const [emojiOpen, setEmojiOpen] = useState(false);
+  const skillList = skills.split(",").map((x) => x.trim()).filter(Boolean);
+  const skillsOver = skillList.length > SKILLS_MAX
+    || skillList.some((x) => x.length > SKILL_MAX || x.split(/\s+/).length > SKILL_WORDS_MAX);
   function addEmoji(e: string) {
-    if (lastField.current === "title") insertEmoji(titleRef.current, title, e, setTitle, 140);
-    else insertEmoji(descRef.current, description, e, setDescription);
+    if (lastField.current === "title") insertEmoji(titleRef.current, title, e, setTitle, TITLE_MAX);
+    else insertEmoji(descRef.current, description, e, setDescription, DESC_MAX);
   }
 
   // Load once per entry. Depending on the entry object itself would refetch (and undo
@@ -63,7 +67,7 @@ export default function EntrySheet({ uid, entry, defaultGroupId, onClose, onSave
   }, [uid, entryId, hadPhotos]);
 
   useEffect(() => {
-    titleRef.current?.focus();
+    if (canAutoFocus()) titleRef.current?.focus();
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     document.addEventListener("keydown", onKey);
     const prev = document.body.style.overflow;
@@ -156,18 +160,19 @@ export default function EntrySheet({ uid, entry, defaultGroupId, onClose, onSave
           {entry && <p className="stamp"><ClockIcon />{longDay(date)} · {clockTime(time)}<small>Logged</small></p>}
           <label>Activity
             <input ref={titleRef} value={title} onChange={(e) => setTitle(e.target.value)} required onFocus={() => { lastField.current = "title"; }}
-              maxLength={140} placeholder="e.g. Set up a new PC in the engineering office" />
+              maxLength={TITLE_MAX} placeholder="e.g. Set up a new PC in the engineering office" />
           </label>
-          <label>Skills acquired <small>(separate with commas)</small>
-            <input value={skills} onChange={(e) => setSkills(e.target.value)}
+          <label>Skills acquired <small className={skillsOver ? "count-warn" : "count"}>{skillList.length}/{SKILLS_MAX} skills</small>
+            <input value={skills} onChange={(e) => setSkills(e.target.value)} maxLength={SKILLS_INPUT_MAX}
               placeholder="e.g. Hardware troubleshooting, Networking" />
+            <small className={skillsOver ? "count-warn" : "count"}>Separate with commas. Each skill: up to {SKILL_WORDS_MAX} words and {SKILL_MAX} letters.</small>
           </label>
           <label>Video link <small>(optional)</small>
             <input type="url" inputMode="url" value={videoUrl} onChange={(e) => setVideoUrl(e.target.value)}
               maxLength={VIDEO_URL_MAX} placeholder="https://youtu.be/… or a Vimeo / .mp4 link" />
           </label>
-          <label>Description
-            <textarea ref={descRef} rows={5} value={description} onChange={(e) => setDescription(e.target.value)} required
+          <label>Description <small className={description.length > DESC_MAX * 0.9 ? "count-warn" : "count"}>{description.length}/{DESC_MAX}</small>
+            <textarea ref={descRef} rows={5} value={description} onChange={(e) => setDescription(e.target.value)} required maxLength={DESC_MAX}
               onFocus={() => { lastField.current = "description"; }}
               placeholder="What happened, what was the problem, how did you solve it?" />
           </label>

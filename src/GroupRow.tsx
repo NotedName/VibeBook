@@ -4,8 +4,13 @@ import { useSession } from "./session";
 import type { Group } from "./types";
 import { firstChar } from "./text";
 
-export function GroupAvatar({ name, size = "md" }: { name: string; size?: "sm" | "md" | "lg" }) {
-  return <div className={`gav gav-${size}`} aria-hidden="true">{firstChar(name).toUpperCase() || "?"}</div>;
+/** The group's picture when it has one, otherwise its first letter. */
+export function GroupAvatar({ name, photo = "", size = "md" }: { name: string; photo?: string; size?: "sm" | "md" | "lg" }) {
+  return (
+    <div className={`gav gav-${size}`} aria-hidden="true">
+      {photo ? <img src={photo} alt="" /> : firstChar(name).toUpperCase() || "?"}
+    </div>
+  );
 }
 
 /** A group in a list: opens its page, and offers Join when you are not a member yet. */
@@ -24,7 +29,7 @@ export default function GroupRow({ group }: { group: Group }) {
   return (
     <li className="person">
       <a href={`#/g/${encodeURIComponent(group.id)}`} className="person-link">
-        <GroupAvatar name={group.name} />
+        <GroupAvatar name={group.name} photo={group.avatar} />
         <span className="person-text">
           <b>{group.name}</b>
           {group.description && <span className="clamp">{group.description}</span>}

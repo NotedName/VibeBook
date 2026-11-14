@@ -12,9 +12,11 @@ import Avatar from "./Avatar";
 import ReactionBar from "./ReactionBar";
 import CommentThread from "./CommentThread";
 import VideoPlayer from "./VideoPlayer";
-import { ShareIcon } from "./icons";
+import { CommentIcon, ShareIcon } from "./icons";
 import PhotoViewer from "./PhotoViewer";
 import { BrandName } from "./Logo";
+import ClampedText from "./ClampedText";
+import SkillChips from "./SkillChips";
 
 type Props = { uid: string; id: string; onAuth: (mode: "signin" | "signup") => void };
 
@@ -40,6 +42,7 @@ export default function PublicPost({ uid, id, onAuth }: Props) {
   const [copied, setCopied] = useState(false);
   const owner = useOtherProfile(uid);
   const { comments } = useComments(uid, id);
+  const commentTotal = (comments ?? []).filter((c) => !c.deleted).length;
 
   useEffect(() => {
     let live = true;
@@ -47,7 +50,7 @@ export default function PublicPost({ uid, id, onAuth }: Props) {
       (snap) => {
         if (!live) return;
         const data = snap.exists() ? ({ id: snap.id, ownerUid: uid, ...snap.data() } as Entry) : null;
-        setEntry(data && data.visibility === "public" ? data : null);
+        setEntry(data && data.visibility === "public" && data.archived !== true ? data : null);
       },
       () => live && setEntry(null),
     );
@@ -103,8 +106,8 @@ export default function PublicPost({ uid, id, onAuth }: Props) {
             </header>
             <div className="post-body">
               <h2 className="post-title">{entry.title}</h2>
-              {entry.description && <p className="post-desc">{entry.description}</p>}
-              {entry.skills.length > 0 && <ul className="chips">{entry.skills.map((sk) => <li key={sk}>{sk}</li>)}</ul>}
+              {entry.description && <ClampedText className="post-desc" text={entry.description} />}
+              <SkillChips skills={entry.skills} />
             </div>
 
             {photos.length > 0 && (
@@ -121,6 +124,7 @@ export default function PublicPost({ uid, id, onAuth }: Props) {
 
             <div className="post-actions">
               <ReactionBar ownerUid={uid} entryId={id} onLocked={() => setLockedHint(true)} />
+              <span className="act static" title="Comments"><CommentIcon /><span>Comments</span>{commentTotal > 0 && <b className="count">{commentTotal}</b>}</span>
               <button type="button" className="act" onClick={copyLink}>
                 <ShareIcon /><span>{copied ? "Link copied" : "Share"}</span>
               </button>

@@ -14,12 +14,14 @@ import EntryList from "../EntryList";
 import { FeedSkeleton } from "../Skeleton";
 import PersonPage from "./PersonPage";
 import { EyeIcon } from "../icons";
+import FriendsSheet from "../FriendsSheet";
 
 function Logbook({ onViewAs }: { onViewAs: () => void }) {
   const s = useSession();
   const [entries, setEntries] = useState<Entry[] | null>(null);
   const [loadError, setLoadError] = useState("");
   const [reportDate, setReportDate] = useState(todayStr());
+  const [friendsOpen, setFriendsOpen] = useState(false);
 
   useEffect(
     () => onSnapshot(
@@ -33,7 +35,7 @@ function Logbook({ onViewAs }: { onViewAs: () => void }) {
     [s.uid],
   );
 
-  const list = useMemo(() => [...(entries ?? [])].sort(newestFirst), [entries]);
+  const list = useMemo(() => (entries ?? []).filter((e) => e.archived !== true).sort(newestFirst), [entries]);
   // Notes are what you wrote; Reposts and Likes are other people's entries. Only Notes count towards your stats and reports.
   const [tab, setTab] = useState<ProfileTab>("notes");
   const [mode, setMode] = useSortMode("logbook");
@@ -68,7 +70,9 @@ function Logbook({ onViewAs }: { onViewAs: () => void }) {
     <>
       <ProfileHeader profile={s.me} editable onEditProfile={s.editProfile} onViewAs={onViewAs}>
         <div className="stats">
-          {stats.map(([label, n]) => (
+          {stats.map(([label, n]) => label === "Friends" ? (
+            <button type="button" className="stat stat-btn" key={label} onClick={() => setFriendsOpen(true)}><b>{n}</b><span>{label}</span></button>
+          ) : (
             <div className="stat" key={label}><b>{n}</b><span>{label}</span></div>
           ))}
         </div>
@@ -84,6 +88,7 @@ function Logbook({ onViewAs }: { onViewAs: () => void }) {
         </div>
       </ProfileHeader>
 
+      {friendsOpen && <FriendsSheet uid={s.uid} onClose={() => setFriendsOpen(false)} />}
       <ProfileTabs tab={tab} onChange={setTab} showLikes>
         {shown.length > 1 && <SortMenu mode={mode} onChange={setMode} />}
       </ProfileTabs>

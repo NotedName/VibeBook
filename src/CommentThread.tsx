@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { COMMENT_PAGE, COMMENT_SORTS, useCommentSort, type CommentSort } from "./commentSort";
 import type { Timestamp } from "firebase/firestore";
 import { COMMENT_MAX, MAX_DEPTH, type Comment } from "./commentStore";
 import { fetchProfile, personHash } from "./profiles";
@@ -188,15 +189,52 @@ function CommentNode({ node, depth, actions, replyTo, setReplyTo }: NodeProps) {
   );
 }
 
-/** Reddit-style comment threads: replies nest under their parent, with likes on every comment. */
-export default function CommentThread({ comments, actions }: { comments: Comment[]; actions?: CommentActions }) {
-  const tree = useMemo(() => buildTree(comments), [comments]);
+const when = (c: Comment) => c.createdAt?.toMillis?.() ?? Number.MAX_SAFE_INTEGER; // a comment still sending goes last
+const COMPARE: Record<CommentSort, (a: ThreadNode, b: ThreadNode) => number> = {
+  oldest: (a, b) => when(a.comment) - when(b.comment),
+  newest: (a, b) => when(b.comment) - when(a.comment),
+  top: (a, b) => b.comment.likes.length - a.comment.likes.length || countReplies(b) - countReplies(a) || when(a.comment) - when(b.comment),
+  replies: (a, b) => countReplies(b) - countReplies(a) || b.comment.likes.length - a.comment.likes.length || when(a.comment) - when(b.comment),
+};
+/** The same order at every level: replies are sorted the way the comments above them are. */
+function sortTree(nodes: ThreadNode[], sort: CommentSort): ThreadNode[] {
+  return [...nodes].sort(COMPARE[sort]).map((n) => ({ ...n, kids: sortTree(n.kids, sort) }));
+}
+
+/**
+ * Reddit-style comment threads: replies nest under their parent, with likes on every comment. Shows 10 top-level
+ * comments (with all their replies) at a time and a "Show more comments" button for the rest, and a Sort menu.
+ * Raise `showAllSignal` (e.g. after posting) to reveal everything so a new comment is never hidden below the fold.
+ */
+export default function CommentThread({ comments, actions, showAllSignal = 0 }: { comments: Comment[]; actions?: CommentActions; showAllSignal?: number }) {
+  const [sort, setSort] = useCommentSort();
+  const tree = useMemo(() => sortTree(buildTree(comments), sort), [comments, sort]);
   const [replyTo, setReplyTo] = useState<string | null>(null);
+  const [shown, setShown] = useState(COMMENT_PAGE);
+  useEffect(() => { if (showAllSignal > 0) setShown(Number.MAX_SAFE_INTEGER); }, [showAllSignal]);
+  const left = tree.length - shown;
   return (
-    <ul className="comment-list">
-      {tree.map((n) => (
-        <CommentNode key={n.comment.id} node={n} depth={1} actions={actions} replyTo={replyTo} setReplyTo={setReplyTo} />
-      ))}
-    </ul>
+    <>
+      <div className="comment-bar">
+        <span>{comments.length} {comments.length === 1 ? "comment" : "comments"}</span>
+        {tree.length > 1 && (
+          <label className="comment-sort">Sort
+            <select value={sort} onChange={(e) => setSort(e.target.value as CommentSort)} aria-label="Sort comments by">
+              {COMMENT_SORTS.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
+            </select>
+          </label>
+        )}
+      </div>
+      <ul className="comment-list">
+        {tree.slice(0, shown).map((n) => (
+          <CommentNode key={n.comment.id} node={n} depth={1} actions={actions} replyTo={replyTo} setReplyTo={setReplyTo} />
+        ))}
+      </ul>
+      {left > 0 && (
+        <button type="button" className="btn small more-comments" onClick={() => setShown(shown + COMMENT_PAGE)}>
+          Show more comments <span>({left} more)</span>
+        </button>
+      )}
+    </>
   );
 }

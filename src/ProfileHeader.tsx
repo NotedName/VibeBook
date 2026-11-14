@@ -6,6 +6,7 @@ import { coverBanner, squareAvatar } from "./image";
 import { useSession } from "./session";
 import Avatar from "./Avatar";
 import PhotoEditor from "./PhotoEditor";
+import ImageViewer from "./ImageViewer";
 import { CameraIcon, CopyIcon, EditIcon, EyeIcon, ImageIcon, MoreIcon, TrashIcon } from "./icons";
 
 type Kind = "avatar" | "cover";
@@ -106,6 +107,7 @@ function usePhotoEditing(profile: Profile) {
 
 export default function ProfileHeader({ profile, children, editable = false, onEditProfile, onViewAs }: Props) {
   const photos = usePhotoEditing(profile);
+  const [viewing, setViewing] = useState<Kind | null>(null);
   const [more, setMore] = useState(false);
   useEffect(() => {
     if (!more) return;
@@ -128,6 +130,9 @@ export default function ProfileHeader({ profile, children, editable = false, onE
         <div className={`cover c-${profile.cover}`} aria-hidden="true">
           {profile.coverPhoto && <img src={profile.coverPhoto} alt="" />}
         </div>
+        {profile.coverPhoto && (
+          <button type="button" className="photo-view cover-view" aria-label={`View ${profile.displayName}'s cover photo`} onClick={() => setViewing("cover")} />
+        )}
         {editable && (
           <button type="button" className="photo-edit-btn cover-edit-btn" disabled={busy} aria-haspopup="menu"
             aria-expanded={menu === "cover"} onClick={() => setMenu(menu === "cover" ? null : "cover")}>
@@ -154,6 +159,9 @@ export default function ProfileHeader({ profile, children, editable = false, onE
         <div className="who">
           <div className="avatar-wrap">
             <Avatar profile={profile} size="lg" />
+            {profile.avatar && (
+              <button type="button" className="photo-view avatar-view" aria-label={`View ${profile.displayName}'s profile photo`} onClick={() => setViewing("avatar")} />
+            )}
             {editable && (
               <button type="button" className="avatar-edit-badge" disabled={busy} aria-label="Edit profile photo"
                 aria-haspopup="menu" aria-expanded={menu === "avatar"} onClick={() => setMenu(menu === "avatar" ? null : "avatar")}>
@@ -177,6 +185,10 @@ export default function ProfileHeader({ profile, children, editable = false, onE
         {children}
       </div>
       {editable && editor}
+      {viewing && (viewing === "avatar" ? profile.avatar : profile.coverPhoto) && (
+        <ImageViewer src={viewing === "avatar" ? profile.avatar : profile.coverPhoto}
+          label={viewing === "avatar" ? `${profile.displayName}'s profile photo` : `${profile.displayName}'s cover photo`} onClose={() => setViewing(null)} />
+      )}
     </section>
   );
 }

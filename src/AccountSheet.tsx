@@ -3,7 +3,7 @@ import { signOut } from "firebase/auth";
 import { auth } from "./firebase";
 import { useSession } from "./session";
 import Avatar from "./Avatar";
-import { CloseIcon } from "./icons";
+import { ArchiveIcon, BookIcon, CloseIcon } from "./icons";
 
 /** Opened from the profile picture in the top bar: who you are signed in as, a way to your profile, and Sign out. */
 export default function AccountSheet({ email, onClose }: { email: string; onClose: () => void }) {
@@ -30,7 +30,8 @@ export default function AccountSheet({ email, onClose }: { email: string; onClos
               <span className="hint">{email}</span>
             </div>
           </div>
-          <a className="btn" href="#/me" onClick={onClose}>View my logbook</a>
+          <a className="btn" href="#/me" onClick={onClose}><BookIcon />View my logbook</a>
+          <a className="btn" href="#/archived" onClick={onClose}><ArchiveIcon />Archived entries</a>
           <button type="button" className="btn primary" onClick={() => signOut(auth)}>Sign out</button>
         </div>
       </div>

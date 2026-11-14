@@ -36,7 +36,7 @@ export function useLikedEntries(uid: string, enabled = true, max = 50): { entrie
           follows.set(d.id, onSnapshot(
             doc(db, "users", ownerUid, "entries", entryId),
             (s) => {
-              if (!s.exists()) return drop(d.id);
+              if (!s.exists() || s.data().archived === true) return drop(d.id);
               setByKey((prev) => ({ ...prev, [d.id]: { id: s.id, ownerUid, ...s.data() } as Entry }));
             },
             () => drop(d.id),

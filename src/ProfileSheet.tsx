@@ -10,6 +10,7 @@ import { useSession } from "./session";
 import Avatar from "./Avatar";
 import PhotoEditor from "./PhotoEditor";
 import { CloseIcon, ImageIcon, CameraIcon, EditIcon } from "./icons";
+import { canAutoFocus } from "./focus";
 
 type Props = {
   /** null = first-time setup, which cannot be dismissed until a name and username are saved. An older profile with no username is treated the same way. */
@@ -37,7 +38,7 @@ export default function ProfileSheet({ profile, suggestedName = "", onClose }: P
   const nameRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    nameRef.current?.focus();
+    if (canAutoFocus()) nameRef.current?.focus();
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && !locked && onClose();
     document.addEventListener("keydown", onKey);
     const prev = document.body.style.overflow;
@@ -92,7 +93,7 @@ export default function ProfileSheet({ profile, suggestedName = "", onClose }: P
     if (problem) { setError(problem); return; }
     setBusy(true); setError("");
     try {
-      await saveProfile(uid, { displayName: name, username: normalizeUsername(username), headline, workplace, bio, avatar, cover, coverPhoto });
+      await saveProfile(uid, { displayName: name, username: normalizeUsername(username), headline, workplace, bio, avatar, cover, coverPhoto, friendsVisible: profile?.friendsVisible ?? true });
       notify(setup ? "Welcome to VibeBook" : "Profile saved");
       onClose();
     } catch (err) {

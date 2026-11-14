@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { collection, limit, onSnapshot, orderBy, query, where } from "firebase/firestore";
 import { db } from "./firebase";
 import { newestFirst, type Entry } from "./entries";
@@ -9,7 +9,8 @@ export type Source = { uid: string; friend: boolean };
  * Entries other people share with you. Everyone's public entries are visible; a friend's
  * "friends" entries are too. Each is its own query so Firestore can verify access up front.
  */
-export function useSharedEntries(sources: Source[], max = 60, dir: "asc" | "desc" = "desc") {
+export function useSharedEntries(sources: Source[], max = 60, dir: "asc" | "desc" = "desc", refreshKey = 0) {
+  const lastSig = useRef("");
   const key = sources.map((s) => `${s.uid}:${s.friend ? 1 : 0}`).sort().join(",");
   const [byQuery, setByQuery] = useState<Record<string, Entry[]>>({});
   const [loaded, setLoaded] = useState<Set<string>>(new Set());
@@ -24,13 +25,16 @@ export function useSharedEntries(sources: Source[], max = 60, dir: "asc" | "desc
   );
 
   useEffect(() => {
-    setByQuery({}); setLoaded(new Set()); setError("");
+    // A new list of people (or direction) starts from nothing; a refresh keeps what is on screen while it re-reads.
+    const sig = `${keys.join(",")}|${dir}`;
+    if (sig !== lastSig.current) { setByQuery({}); lastSig.current = sig; }
+    setLoaded(new Set()); setError("");
     const unsubs = keys.map((k) => {
       const [uid, visibility] = k.split(":");
       return onSnapshot(
         query(collection(db, "users", uid, "entries"), where("visibility", "==", visibility), orderBy("date", dir), limit(30)),
         (snap) => {
-          setByQuery((prev) => ({ ...prev, [k]: snap.docs.map((d) => ({ id: d.id, ownerUid: uid, ...d.data() }) as Entry) }));
+          setByQuery((prev) => ({ ...prev, [k]: snap.docs.filter((d) => d.data().archived !== true).map((d) => ({ id: d.id, ownerUid: uid, ...d.data() }) as Entry) }));
           setLoaded((prev) => new Set(prev).add(k));
         },
         () => {
@@ -40,7 +44,7 @@ export function useSharedEntries(sources: Source[], max = 60, dir: "asc" | "desc
       );
     });
     return () => unsubs.forEach((u) => u());
-  }, [keys, dir]);
+  }, [keys, dir, refreshKey]);
 
   const entries = useMemo(
     () => Object.values(byQuery).flat().sort(dir === "asc" ? (a, b) => -newestFirst(a, b) : newestFirst).slice(0, max),

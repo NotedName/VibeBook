@@ -3,7 +3,10 @@ import { NameSkeleton } from "./Skeleton";
 import { inviteToGroup, loadMembers, loadMyInvitees } from "./groups";
 import { searchProfiles } from "./profiles";
 import { useProfile, useSession } from "./session";
-import { MAX_INVITES_AT_ONCE } from "./types";
+import { canAutoFocus } from "./focus";
+import { useNotes } from "./notifications";
+import { useClosestFriends } from "./closeFriends";
+import { INVITE_LIST_LIMIT, MAX_INVITES_AT_ONCE } from "./types";
 import Avatar from "./Avatar";
 import { CloseIcon, SearchIcon } from "./icons";
 
@@ -70,8 +73,17 @@ export default function InviteSheet({ gid, groupName, onClose }: { gid: string; 
     return () => { live = false; clearTimeout(t); };
   }, [text, s.uid]);
 
-  const friends = useMemo(() => [...s.friends], [s.friends]);
-  const list = found ?? friends;
+  // Friends ranked by how much you interact with them (most interacted first, then most recent).
+  const notes = useNotes(s.uid);
+  const ranked = useClosestFriends(s.uid, s.friends, notes, Infinity);
+  const rank = useMemo(() => new Map(ranked.map((id, i) => [id, i])), [ranked]);
+  // Search results use the same order (people you are close to first, everyone else by name), and only the top few are shown.
+  const pool = useMemo(
+    () => (found === null ? ranked : [...found].sort((a, b) => (rank.get(a) ?? ranked.length) - (rank.get(b) ?? ranked.length))),
+    [found, ranked, rank],
+  );
+  const list = pool.slice(0, INVITE_LIST_LIMIT);
+  const trimmed = pool.length > list.length;
   const atLimit = picked.length >= MAX_INVITES_AT_ONCE;
   const statusOf = (id: string) => (members?.has(id) ? "In group" : invited?.has(id) ? "Invited" : "");
 
@@ -102,23 +114,29 @@ export default function InviteSheet({ gid, groupName, onClose }: { gid: string; 
         <div className="sheet-body">
           <div className="search sheet-search">
             <SearchIcon />
-            <input type="search" value={text} onChange={(e) => setText(e.target.value)} autoFocus
+            <input type="search" value={text} onChange={(e) => setText(e.target.value)} autoFocus={canAutoFocus()}
               placeholder="Search anyone by name" aria-label="Search people by name"
               onKeyDown={(e) => e.key === "Enter" && e.preventDefault()} />
           </div>
-          <p className="hint">
-            {found === null ? "Your friends. Search to invite anyone else." : searching ? "Searching…" : `${list.length} found`}
-            {" · "}Tick as many people as you like.
-          </p>
-          {found === null && friends.length === 0 && <p className="hint">You have no friends on VibeBook yet. Search for people by name above.</p>}
-          {found !== null && !searching && found.length === 0 && <p className="hint">No one found. Try the start of a first or last name.</p>}
-          <ul className="invite-list">
-            {list.map((id) => (
-              <Candidate key={id} uid={id} checked={picked.includes(id)} disabled={atLimit}
-                status={statusOf(id)} onToggle={() => toggle(id)} />
-            ))}
-          </ul>
-          {atLimit && <p className="hint">You can invite up to {MAX_INVITES_AT_ONCE} people at a time.</p>}
+          <div className="invite-section">
+            <div className="invite-label-row">
+              <h3 className="invite-label">{found === null ? "Closest friends" : "Search results"}</h3>
+              <span className="invite-count" aria-live="polite">
+                {searching ? "Searching…" : picked.length > 0 ? `${picked.length} selected` : ""}
+              </span>
+            </div>
+            <ul className="invite-list">
+              {list.map((id) => (
+                <Candidate key={id} uid={id} checked={picked.includes(id)} disabled={atLimit}
+                  status={statusOf(id)} onToggle={() => toggle(id)} />
+              ))}
+            </ul>
+            {found === null && s.friends.size === 0 && <p className="hint">You have no friends on VibeBook yet. Search for people by name above.</p>}
+            {found === null && trimmed && <p className="hint">Showing your {INVITE_LIST_LIMIT} closest friends. Search to find anyone else.</p>}
+            {found !== null && !searching && found.length === 0 && <p className="hint">No one found. Try the start of a first or last name.</p>}
+            {found !== null && trimmed && <p className="hint">Showing the top {INVITE_LIST_LIMIT}. Type more of the name to narrow it down.</p>}
+            {atLimit && <p className="hint">You can invite up to {MAX_INVITES_AT_ONCE} people at a time.</p>}
+          </div>
           {error && <p className="error" role="alert">{error}</p>}
         </div>
         <div className="sheet-actions">

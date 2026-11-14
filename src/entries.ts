@@ -1,6 +1,6 @@
 import { logActivity } from "./activity";
 import {
-  collection, doc, getDocs, orderBy, query, serverTimestamp, writeBatch,
+  collection, doc, getDocs, orderBy, query, serverTimestamp, updateDoc, writeBatch,
   type DocumentReference, type Timestamp,
 } from "firebase/firestore";
 import { db } from "./firebase";
@@ -9,6 +9,27 @@ import { groupPostRef } from "./groups";
 import type { Visibility } from "./types";
 
 export const MAX_PHOTOS = 8;
+/** Longest text an entry can hold. Longer descriptions show a few lines with a Show more button. */
+export const TITLE_MAX = 140;
+export const DESC_MAX = 2000;
+export const SKILL_MAX = 40;
+/** Each skill is a short phrase, not a sentence. */
+export const SKILL_WORDS_MAX = 4;
+export const SKILLS_MAX = 15;
+/** Room in the skills box for the maximum number of skills plus their commas. */
+export const SKILLS_INPUT_MAX = SKILLS_MAX * (SKILL_MAX + 2);
+
+/** What is wrong with an entry's text, or "" when it fits the limits. */
+export function entryTextProblem(i: Pick<EntryInput, "title" | "description" | "skills">): string {
+  if (i.title.length > TITLE_MAX) return `The activity is ${i.title.length - TITLE_MAX} characters too long (limit ${TITLE_MAX}).`;
+  if (i.description.length > DESC_MAX) return `The description is ${i.description.length - DESC_MAX} characters too long (limit ${DESC_MAX}).`;
+  if (i.skills.length > SKILLS_MAX) return `Add at most ${SKILLS_MAX} skills.`;
+  const wordy = i.skills.find((s) => s.split(/\s+/).filter(Boolean).length > SKILL_WORDS_MAX);
+  if (wordy) return `"${wordy.slice(0, 24)}…" has too many words for a skill (limit ${SKILL_WORDS_MAX} words each). Separate skills with commas.`;
+  const long = i.skills.find((s) => s.length > SKILL_MAX);
+  if (long) return `"${long.slice(0, 20)}…" is too long for a skill (limit ${SKILL_MAX} characters each).`;
+  return "";
+}
 
 export type EntryInput = {
   date: string; // YYYY-MM-DD
@@ -31,6 +52,8 @@ export type Entry = Omit<EntryInput, "visibility" | "videoUrl"> & {
   visibility?: Visibility;
   /** Entries written before groups existed have none. */
   groupIds?: string[];
+  /** Tucked away by its owner: hidden from the logbook, feeds, groups and share links, listed under Archived entries. */
+  archived?: boolean;
   /** Whose logbook the entry lives in. Set when loading; not stored. */
   ownerUid?: string;
   /** Set when this card is someone's repost of the entry: who reposted it, and when. Not stored on the entry. */
@@ -53,6 +76,8 @@ const groupPost = (uid: string, entryId: string, input: EntryInput) => ({
 
 export async function addEntry(uid: string, input: EntryInput, files: File[]): Promise<void> {
   if (files.length > MAX_PHOTOS) throw new Error(`Maximum ${MAX_PHOTOS} photos per entry`);
+  const problem = entryTextProblem(input);
+  if (problem) throw new Error(problem);
   const photos = await Promise.all(files.map(compressImage));
 
   const entryRef = doc(entriesRef(uid));
@@ -81,6 +106,8 @@ export async function updateEntry(
   newFiles: File[],
 ): Promise<void> {
   if (keep.length + newFiles.length > MAX_PHOTOS) throw new Error(`Maximum ${MAX_PHOTOS} photos per entry`);
+  const problem = entryTextProblem(input);
+  if (problem) throw new Error(problem);
   const added = await Promise.all(newFiles.map(compressImage));
 
   const entryRef = doc(entriesRef(uid), entry.id);
@@ -137,6 +164,12 @@ export async function deleteEntry(uid: string, entry: Entry): Promise<void> {
 export const stampOf = (e: Pick<Entry, "date" | "time" | "repostDate" | "repostTime">) =>
   `${e.repostDate ?? e.date} ${e.repostTime ?? e.time}`;
 export const newestFirst = (a: Entry, b: Entry) => (stampOf(a) < stampOf(b) ? 1 : -1);
+
+/** Archives an entry, or brings it back. Nothing is deleted: photos, comments and reactions stay where they are. */
+export async function setEntryArchived(uid: string, entry: Entry, archived: boolean): Promise<void> {
+  await updateDoc(doc(entriesRef(uid), entry.id), { archived });
+  logActivity(uid, `${archived ? "Archived" : "Unarchived"} the entry “${entry.title}”`);
+}
 
 /** Changes which groups an existing entry is shared to, without touching anything else. */
 export async function setEntryGroups(uid: string, entry: Entry, groupIds: string[]): Promise<void> {

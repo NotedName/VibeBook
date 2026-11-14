@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from "react";
+import ZoomImage from "./ZoomImage";
 import type { Photo } from "./entries";
 import { subjectId, useComments } from "./commentStore";
 import Comments from "./Comments";
 import CommentThread from "./CommentThread";
 import ReactionBar from "./ReactionBar";
 import { useScrollLock } from "./scrollLock";
-import { ChevronLeftIcon, ChevronRightIcon, CloseIcon, CommentIcon } from "./icons";
+import { ChevronLeftIcon, ChevronRightIcon, CloseIcon, CommentIcon, DownloadIcon } from "./icons";
+import { downloadPhoto } from "./download";
 
 type Props = {
   ownerUid: string;
@@ -48,6 +50,7 @@ export default function PhotoViewer({ ownerUid, entryId, title, photos, index, o
   const [showComments, setShowComments] = useState(false);
   const [locked, setLocked] = useState(false);
   const touchX = useRef<number | null>(null);
+  const zoomed = useRef(false);
   const last = photos.length - 1;
   const at = Math.min(index, last);
   const photo = photos[at];
@@ -77,11 +80,14 @@ export default function PhotoViewer({ ownerUid, entryId, title, photos, index, o
         onTouchEnd={(e) => {
           const from = touchX.current;
           touchX.current = null;
-          if (from === null) return;
+          if (from === null || zoomed.current) return; // zoomed in: dragging moves the picture instead
           const dx = e.changedTouches[0].clientX - from;
           if (Math.abs(dx) > 50) go(at + (dx < 0 ? 1 : -1));
         }}>
-        <img key={photo.id} src={photo.data} alt={`${title} photo ${at + 1} of ${photos.length}`} draggable={false} />
+        <ZoomImage src={photo.data} alt={`${title} photo ${at + 1} of ${photos.length}`} onBackdrop={onClose}
+          onZoomed={(z) => { zoomed.current = z; }} />
+        <button type="button" className="icon-btn viewer-download" aria-label="Download this photo" title="Download this photo"
+          onClick={() => { downloadPhoto(photo.data, title, at + 1).then((ok) => { if (!ok) onError?.("Could not download the photo"); }); }}><DownloadIcon /></button>
         <button type="button" className="icon-btn close" aria-label="Close photo" onClick={onClose}><CloseIcon /></button>
         {photos.length > 1 && (
           <>

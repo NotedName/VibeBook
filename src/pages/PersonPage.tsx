@@ -8,9 +8,12 @@ import SortMenu from "../SortMenu";
 import { useRepostedEntries } from "../reposts";
 import ProfileHeader from "../ProfileHeader";
 import RelationButtons from "../RelationButtons";
+import FriendsSheet from "../FriendsSheet";
+import { LockIcon, UsersIcon } from "../icons";
 import EntryList from "../EntryList";
 import { FeedSkeleton, ProfileSkeleton } from "../Skeleton";
 import { resolveUserRef } from "../profiles";
+import { useMutualFriends } from "../friendList";
 
 export default function PersonPage({ uid }: { uid: string }) {
   const s = useSession();
@@ -29,6 +32,8 @@ export default function PersonPage({ uid }: { uid: string }) {
   );
   const entries = useSortedEntries(pool, mode);
   const rel = s.relationOf(uid);
+  const [friendsOpen, setFriendsOpen] = useState<"all" | "mutual" | null>(null);
+  const { mutual } = useMutualFriends(uid, s.friends, uid !== s.uid && p?.friendsVisible !== false);
 
   if (p === undefined) return <><ProfileSkeleton /><FeedSkeleton /></>;
   if (p === null) {
@@ -43,12 +48,24 @@ export default function PersonPage({ uid }: { uid: string }) {
   return (
     <>
       <ProfileHeader profile={p}>
-        <div className="profile-actions"><RelationButtons uid={uid} /></div>
+        <div className="profile-actions">
+          <RelationButtons uid={uid} />
+          <button type="button" className="btn" onClick={() => setFriendsOpen("all")}
+            title={p.friendsVisible === false && uid !== s.uid ? "Friends list is private" : undefined}>
+            {p.friendsVisible === false && uid !== s.uid ? <LockIcon /> : <UsersIcon />} Friends
+          </button>
+        </div>
+        {mutual && mutual.length > 0 && (
+          <button type="button" className="mutual-link" onClick={() => setFriendsOpen("mutual")}>
+            <UsersIcon />{mutual.length} mutual friend{mutual.length === 1 ? "" : "s"}
+          </button>
+        )}
         {rel === "incoming" && <p className="hint pad-b">{p.displayName} sent you a friend request.</p>}
       </ProfileHeader>
       <ProfileTabs tab={tab} onChange={setTab}>
         {entries.length > 1 && <SortMenu mode={mode} onChange={setMode} />}
       </ProfileTabs>
+      {friendsOpen && <FriendsSheet uid={uid} initialView={friendsOpen} onClose={() => setFriendsOpen(null)} />}
       <div className="feed">
         {error && <p className="error note" role="alert">{error}</p>}
         {loading && entries.length === 0 && <FeedSkeleton />}

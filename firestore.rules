@@ -92,6 +92,21 @@ service cloud.firestore {
       allow delete: if isOwner(uid);
     }
 
+    // Friends list others can open: one pointer per friend at users/{uid}/friendList/{friendUid}. Each person
+    // keeps their own list in step with their real friendships (the app does it), and a pointer can only be
+    // written for someone you are friends with. Anyone signed in can read it unless the owner turned off
+    // "friendsVisible" on their profile (Settings > Privacy); the owner always can. A friend can remove
+    // themselves from your list, so unfriending cannot leave a stale entry behind.
+    match /users/{uid}/friendList/{friendId} {
+      allow read: if isOwner(uid)
+        || (signedIn() && get(/databases/$(database)/documents/profiles/$(uid)).data.get('friendsVisible', true) == true);
+      allow create: if isOwner(uid)
+        && request.resource.data.keys().hasOnly(['createdAt'])
+        && request.resource.data.createdAt == request.time
+        && isFriend(uid, friendId);
+      allow delete: if isOwner(uid) || (signedIn() && request.auth.uid == friendId);
+    }
+
     // Notifications for {uid}: requests, likes, comments, reposts and the like. The person who did the
     // thing writes it (so it is created by someone else, as themselves), and its id starts with their
     // uid so nobody can overwrite another person's. The recipient reads them, marks them read and
@@ -117,14 +132,46 @@ service cloud.firestore {
       allow delete: if isOwner(uid) || (signedIn() && resource.data.actorUid == request.auth.uid);
     }
 
+    // Activity log: one small document per action you take, at users/{uid}/activity/{id}, so the log follows you to every
+    // device. Only you can read it. It is append-only: nothing can be changed or deleted, and re-saving an item that is
+    // already there with the same content is allowed so a device can safely upload its older log again.
+    match /users/{uid}/activity/{itemId} {
+      allow read: if isOwner(uid);
+      allow create: if isOwner(uid)
+        && itemId.size() <= 60
+        && request.resource.data.keys().hasAll(['at', 'text'])
+        && request.resource.data.keys().hasOnly(['at', 'text', 'who', 'href'])
+        && request.resource.data.at is number
+        && request.resource.data.text is string
+        && request.resource.data.text.size() <= 300
+        && request.resource.data.get('who', '') is string
+        && request.resource.data.get('who', '').size() <= 128
+        && request.resource.data.get('href', '') is string
+        && request.resource.data.get('href', '').size() <= 200;
+      allow update: if isOwner(uid) && request.resource.data == resource.data;
+      allow delete: if false;
+    }
+
     match /users/{uid}/following/{targetId} {
       allow read, write: if isOwner(uid);
     }
 
     // Other people can read an entry only when its owner shared it with them: publicly, with
     // friends, or with a group they are in. Entries with no visibility field are private.
+    // Text limits for an entry: activity 140, description 2000, at most 15 skills. An edit that does not touch the
+    // text (sharing to a group, say) is never blocked, so entries written before the limits stay editable.
+    function entryTextOk(d) {
+      return d.get('title', '').size() <= 140
+        && d.get('description', '').size() <= 2000
+        && d.get('skills', []).size() <= 15;
+    }
+
     match /users/{uid}/entries/{entryId} {
-      allow read, write: if isOwner(uid);
+      allow read, delete: if isOwner(uid);
+      allow create: if isOwner(uid) && entryTextOk(request.resource.data);
+      allow update: if isOwner(uid)
+        && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['title', 'description', 'skills'])
+            || entryTextOk(request.resource.data));
       allow get: if resource.data.get('visibility', 'private') == 'public';
       allow read: if signedIn() && (
         resource.data.visibility == 'public' ||
@@ -326,7 +373,8 @@ service cloud.firestore {
         && usernameOk(uid)
         && request.resource.data.bio.size() <= 300
         && request.resource.data.avatar.size() <= 120000
-        && request.resource.data.coverPhoto.size() <= 120000;
+        && request.resource.data.coverPhoto.size() <= 120000
+        && request.resource.data.get('friendsVisible', true) is bool;
       allow delete: if signedIn() && request.auth.uid == uid;
     }
 
@@ -339,11 +387,15 @@ service cloud.firestore {
         && request.resource.data.name.size() > 0
         && request.resource.data.name.size() <= 60
         && request.resource.data.description is string
-        && request.resource.data.description.size() <= 300;
+        && request.resource.data.description.size() <= 300
+        && request.resource.data.get('avatar', '').size() <= 120000
+        && request.resource.data.get('coverPhoto', '').size() <= 120000;
 
-      // Only an admin can edit the group's name and description. The owner never changes.
+      // Only an admin can edit the group's name, description and photos. The owner never changes.
       allow update: if isAdminOf(gid)
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'nameKeys', 'description'])
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'nameKeys', 'description', 'avatar', 'coverPhoto'])
+        && request.resource.data.get('avatar', '').size() <= 120000
+        && request.resource.data.get('coverPhoto', '').size() <= 120000
         && request.resource.data.name is string
         && request.resource.data.name.size() > 0
         && request.resource.data.name.size() <= 60

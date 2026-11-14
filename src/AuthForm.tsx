@@ -6,10 +6,15 @@ import { auth } from "./firebase";
 import { authMessage } from "./authErrors";
 import { NAME_MAX, isUsernameAvailable, normalizeUsername, rememberPendingUsername, suggestUsername, usernameProblem } from "./profiles";
 import UsernameField from "./UsernameField";
-import { EyeIcon, EyeOffIcon } from "./icons";
+import { CopyIcon, EyeIcon, EyeOffIcon, GroupsIcon, NoteIcon } from "./icons";
 import { BrandName } from "./Logo";
 
 const MIN_PASSWORD = 8;
+
+/** Skill chips that float beside the sign-in form; the classes place each one (see .fx-chip in layout.css). */
+const FX_CHIPS: [string, string][] = [
+  ["React", "c1"], ["Writing", "c2"], ["Figma", "c3"], ["Public speaking", "c4"], ["SQL", "c5"], ["Photography", "c6"],
+];
 
 /** 0 = too short, 1 = weak, 2 = okay, 3 = strong. */
 function strength(pw: string): 0 | 1 | 2 | 3 {
@@ -75,67 +80,82 @@ export default function AuthForm({ initialMode = "signin", onBack }: Props) {
   }
 
   return (
-    <main className="auth">
-      <div className="brand big"><BrandName /></div>
-      <p className="auth-sub">Log what you did, share it with the people and groups you choose, and copy it into your daily report.</p>
-
-      <div className="auth-tabs" role="tablist" aria-label="Sign in or create an account">
-        <button type="button" role="tab" aria-selected={!signup} className={!signup ? "on" : ""} onClick={() => switchMode("signin")}>Sign in</button>
-        <button type="button" role="tab" aria-selected={signup} className={signup ? "on" : ""} onClick={() => switchMode("signup")}>Create account</button>
+    <main className="auth split">
+      {/* Decorative only: drifting glows, a faint grid and floating skill chips down the sides. */}
+      <div className="auth-fx" aria-hidden="true">
+        <i className="fx-orb o1" /><i className="fx-orb o2" /><i className="fx-orb o3" /><i className="fx-grid" />
+        {FX_CHIPS.map(([label, cls]) => <span key={label} className={`fx-chip ${cls}`}>{label}</span>)}
       </div>
 
-      <form className="auth-card" onSubmit={submit}>
-        <h1>{signup ? "Join VibeBook" : "Welcome back"}</h1>
-        {signup && (
-          <label>Your name
-            <input value={name} autoComplete="name" required
-              minLength={2} maxLength={NAME_MAX} placeholder="Juan Dela Cruz"
-              onChange={(e) => {
-                setName(e.target.value);
-                if (!usernameTouched) setUsername(suggestUsername(e.target.value)); // follows the name until they type their own
-              }} />
-          </label>
-        )}
-        {signup && (
-          <UsernameField value={username} onChange={(v) => { setUsername(v); setUsernameTouched(true); }} />
-        )}
-        <label>Email
-          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" required
-            placeholder="you@example.com" />
-        </label>
-        <label>Password
-          <span className="pw">
-            <input type={show ? "text" : "password"} value={password} required
-              minLength={signup ? MIN_PASSWORD : undefined}
-              autoComplete={signup ? "new-password" : "current-password"}
-              onChange={(e) => setPassword(e.target.value)} />
-            <button type="button" className="icon-btn" aria-label={show ? "Hide password" : "Show password"}
-              aria-pressed={show} onClick={() => setShow(!show)}>
-              {show ? <EyeOffIcon /> : <EyeIcon />}
-            </button>
-          </span>
-        </label>
-        {signup && (
-          <>
-            {password && (
-              <div className={`meter lvl-${level}`} aria-live="polite">
-                <i /><i /><i />
-                <span>{STRENGTH_LABEL[level]}</span>
-              </div>
-            )}
-            <label>Confirm password
-              <input type={show ? "text" : "password"} value={confirm} required autoComplete="new-password"
-                onChange={(e) => setConfirm(e.target.value)} />
+      <section className="auth-hero">
+        <div className="brand big"><BrandName /></div>
+        <p className="auth-sub">Log what you did, share it with the people and groups you choose, and copy it into your daily report.</p>
+        <ul className="auth-points">
+          <li><i><NoteIcon /></i><span><b>Log your day</b>A photo, the skills you picked up and a short description.</span></li>
+          <li><i><GroupsIcon /></i><span><b>Share on your terms</b>Keep it private, or share with friends, groups or everyone.</span></li>
+          <li><i><CopyIcon /></i><span><b>Report in one tap</b>Copy a finished daily report instead of rewriting your day.</span></li>
+        </ul>
+      </section>
+
+      <div className="auth-panel">
+        <div className="auth-tabs" role="tablist" aria-label="Sign in or create an account">
+          <button type="button" role="tab" aria-selected={!signup} className={!signup ? "on" : ""} onClick={() => switchMode("signin")}>Sign in</button>
+          <button type="button" role="tab" aria-selected={signup} className={signup ? "on" : ""} onClick={() => switchMode("signup")}>Create account</button>
+        </div>
+
+        <form className="auth-card" onSubmit={submit}>
+          <h1>{signup ? "Join VibeBook" : "Welcome back"}</h1>
+          {signup && (
+            <label>Your name
+              <input value={name} autoComplete="name" required
+                minLength={2} maxLength={NAME_MAX} placeholder="Juan Dela Cruz"
+                onChange={(e) => {
+                  setName(e.target.value);
+                  if (!usernameTouched) setUsername(suggestUsername(e.target.value)); // follows the name until they type their own
+                }} />
             </label>
-          </>
-        )}
-        {error && <p className="error" role="alert">{error}</p>}
-        <button type="submit" className="btn primary wide" disabled={busy}>
-          {busy ? "Please wait…" : signup ? "Create account" : "Sign in"}
-        </button>
-        {signup && <p className="hint">We will email you a link to confirm your address before you can start. Your username is reserved once you confirm.</p>}
-      </form>
-      {onBack && <button type="button" className="btn" onClick={onBack}>← Back to the post</button>}
+          )}
+          {signup && (
+            <UsernameField value={username} onChange={(v) => { setUsername(v); setUsernameTouched(true); }} />
+          )}
+          <label>Email
+            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" required
+              placeholder="you@example.com" />
+          </label>
+          <label>Password
+            <span className="pw">
+              <input type={show ? "text" : "password"} value={password} required
+                minLength={signup ? MIN_PASSWORD : undefined}
+                autoComplete={signup ? "new-password" : "current-password"}
+                onChange={(e) => setPassword(e.target.value)} />
+              <button type="button" className="icon-btn" aria-label={show ? "Hide password" : "Show password"}
+                aria-pressed={show} onClick={() => setShow(!show)}>
+                {show ? <EyeOffIcon /> : <EyeIcon />}
+              </button>
+            </span>
+          </label>
+          {signup && (
+            <>
+              {password && (
+                <div className={`meter lvl-${level}`} aria-live="polite">
+                  <i /><i /><i />
+                  <span>{STRENGTH_LABEL[level]}</span>
+                </div>
+              )}
+              <label>Confirm password
+                <input type={show ? "text" : "password"} value={confirm} required autoComplete="new-password"
+                  onChange={(e) => setConfirm(e.target.value)} />
+              </label>
+            </>
+          )}
+          {error && <p className="error" role="alert">{error}</p>}
+          <button type="submit" className="btn primary wide" disabled={busy}>
+            {busy ? "Please wait…" : signup ? "Create account" : "Sign in"}
+          </button>
+          {signup && <p className="hint">We will email you a link to confirm your address before you can start. Your username is reserved once you confirm.</p>}
+        </form>
+        {onBack && <button type="button" className="btn" onClick={onBack}>← Back to the post</button>}
+      </div>
     </main>
   );
 }

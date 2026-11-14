@@ -194,6 +194,11 @@ a.btn { text-decoration: none; }
 /* Only the photo rides up over the cover. The name starts where the cover ends, so a light cover photo never hides it. */
 .profile .who { align-items: flex-start; }
 .profile .who-text { margin-top: 44px; padding: 8px 0 0; }
+/* A bigger photo, so it balances the name, @username and headline beside it. Half of it rides up over the cover; the text starts where the cover ends. */
+.profile .who { margin-top: -64px; gap: 18px; }
+.profile .who-text { margin-top: 64px; }
+.profile .av-lg { width: 128px; height: 128px; font-size: calc(44px * var(--ts)); border-width: 5px; }
+.profile .avatar-edit-badge { width: 36px; height: 36px; right: 2px; bottom: 6px; }
 .name { font-family: var(--font-display); font-weight: 700; font-size: calc(22px * var(--ts)); line-height: 1.2; overflow-wrap: anywhere; }
 .role { color: var(--muted); font-size: calc(14px * var(--ts)); }
 .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; padding-block: 16px; }
@@ -257,8 +262,19 @@ a.btn { text-decoration: none; }
 .post-body { padding: 4px 14px 14px; }
 .post-title { font-family: var(--font-display); font-weight: 600; font-size: calc(18px * var(--ts)); line-height: 1.3; margin-bottom: 6px; overflow-wrap: anywhere; }
 .post-desc { white-space: pre-wrap; overflow-wrap: anywhere; }
-.chips { display: flex; flex-wrap: wrap; gap: 6px; list-style: none; margin: 10px 0 0; padding: 0; }
-.chips li { background: var(--accent-soft); color: var(--accent-text); border-radius: var(--radius-pill); padding: 3px 10px; font-size: calc(13px * var(--ts)); font-weight: 500; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; list-style: none; margin: 10px 0 0; padding: 0; min-width: 0; max-width: 100%; }
+.chips li {
+  display: inline-flex; min-width: 0; max-width: 100%; background: var(--accent-soft); color: var(--accent-text);
+  border-radius: var(--radius-pill); padding: 3px 10px; font-size: calc(13px * var(--ts)); font-weight: 500;
+}
+/* A skill never runs past the card: a long one is cut with an ellipsis (its full name is the tooltip). */
+.chips li span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chips li.chip-more { background: none; padding: 0; }
+.chip-more button {
+  border: 1px dashed var(--accent); background: none; color: var(--accent-text); border-radius: var(--radius-pill);
+  padding: 2px 10px; font: inherit; font-size: calc(13px * var(--ts)); font-weight: 600;
+}
+.chip-more button:hover { background: var(--accent-soft); }
 
 .photo-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; padding: 0 14px 12px; }
 .photo-grid.placeholder { aspect-ratio: 4 / 3; background: var(--surface-2); margin: 0 14px 12px; padding: 0; border-radius: var(--radius-md); }
@@ -504,6 +520,11 @@ a.btn { text-decoration: none; }
 .group-links svg { width: 12px; height: 12px; }
 /* invite people to a group */
 .sheet .sheet-search { margin: 0; box-shadow: none; background: var(--surface-2); border: 1px solid var(--line); }
+.invite-section { display: grid; gap: 8px; }
+.invite-label-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; min-height: 1.4em; }
+.invite-label { margin: 0; font-size: calc(12px * var(--ts)); font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.invite-count { font-size: calc(12px * var(--ts)); font-weight: 600; color: var(--accent-text); }
+.invite-section .hint { margin: 0; }
 .invite-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
 .sheet label.invite-row {
   display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: var(--radius-sm); cursor: pointer;
@@ -949,16 +970,24 @@ a.btn { text-decoration: none; }
 .overlay { overscroll-behavior: contain; }
 
 /* ---------- logbook sections: Notes / Reposts / Likes ---------- */
-.profile-tabs { display: flex; align-items: center; gap: 6px; margin: 14px var(--gutter) 0; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-md); box-shadow: var(--shadow); padding: 4px; }
-.profile-tablist { flex: 1; min-width: 0; display: flex; gap: 4px; }
+.profile-bar { container-type: inline-size; display: flex; align-items: stretch; gap: 8px; margin: 14px var(--gutter) 0; }
+.profile-tabs, .profile-sort { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-md); box-shadow: var(--shadow); padding: 4px; }
+.profile-tabs { flex: 1; min-width: 0; }
+.profile-sort { flex: none; display: grid; place-items: center; }
+.profile-sort .post-menu { display: grid; }
+.profile-sort .sort-btn { width: 40px; height: 40px; color: var(--text); }
+.profile-tablist { display: flex; gap: 4px; min-width: 0; }
 .profile-tablist button {
-  flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 40px; padding: 8px 10px;
+  flex: 1 1 0; min-width: 0; display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 40px; padding: 8px 6px;
   background: none; border: 0; border-radius: var(--radius-sm); color: var(--muted); font-weight: 600; font-size: calc(14px * var(--ts));
 }
+.profile-tablist button span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .profile-tablist button svg { width: 17px; height: 17px; flex: none; }
 .profile-tablist button:hover { background: var(--surface-2); color: var(--text); }
 .profile-tablist button[aria-selected="true"] { background: var(--accent-soft); color: var(--accent-text); }
-.profile-tabs .sort-btn { flex: none; }
+/* Narrow cards (a folded phone's cover screen): smaller gaps first, then icons give way to the labels. */
+@container (max-width: 380px) { .profile-tablist button { gap: 5px; padding-inline: 4px; font-size: calc(13px * var(--ts)); } .profile-tablist button svg { width: 15px; height: 15px; } }
+@container (max-width: 300px) { .profile-tablist button svg { display: none; } .profile-tablist { gap: 2px; } }
 .composer-input.static { cursor: default; }
 .composer-input.static:hover { background: inherit; }
 .empty-groups { display: grid; gap: 8px; justify-items: start; }
@@ -967,3 +996,110 @@ a.btn { text-decoration: none; }
 /* Links that act as buttons (Find people, Find or create a group) read as real buttons. */
 .side-card .btn { border-color: var(--accent); color: var(--accent-text); box-shadow: var(--shadow); }
 .side-card .btn:hover { background: var(--accent-soft); }
+
+/* ---------- viewing photos, friends button, group pictures ---------- */
+.photo-view { position: absolute; inset: 0; padding: 0; border: 0; background: none; cursor: zoom-in; z-index: 1; }
+.cover-view { border-radius: calc(var(--radius) - 1px) calc(var(--radius) - 1px) 0 0; }
+.avatar-view { border-radius: 50%; }
+.photo-view:focus-visible, .group-cover:focus-visible, .group-avatar-btn:focus-visible { outline: 2px solid var(--accent-text); outline-offset: 2px; }
+.profile-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.stat-btn { text-align: left; font: inherit; color: inherit; cursor: pointer; }
+.stat-btn:hover { background: var(--line); }
+.gav img { width: 100%; height: 100%; object-fit: cover; display: block; border-radius: inherit; }
+.gav { overflow: hidden; }
+.group-avatar-btn { padding: 0; border: 0; background: none; border-radius: var(--radius); cursor: zoom-in; flex: none; }
+.group-head.has-cover { padding-top: 0; overflow: hidden; }
+.group-cover { flex: 1 1 100%; display: block; margin: 0 -16px; padding: 0; border: 0; background: var(--surface-2); aspect-ratio: 3 / 1; overflow: hidden; cursor: zoom-in; }
+.group-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.group-head.has-cover { gap: 14px; }
+.manage-photos { display: grid; gap: 14px; }
+.manage-photo-row { display: flex; align-items: center; gap: 14px; }
+.manage-photo-cover { display: grid; gap: 8px; }
+.manage-photo-actions { display: grid; gap: 6px; }
+.manage-photo-actions > div { display: flex; flex-wrap: wrap; gap: 8px; }
+.avatar-edit-badge, .profile-more { z-index: 2; }
+
+/* ---------- zoomable pictures ---------- */
+.zoom-box { position: relative; flex: 1; align-self: stretch; min-width: 0; min-height: 0; display: flex; align-items: center; justify-content: center; overflow: hidden; touch-action: none; cursor: zoom-in; }
+.zoom-box.zoomed { cursor: grab; }
+.zoom-box:active.zoomed { cursor: grabbing; }
+.zoom-box img { max-width: 100%; max-height: 100%; min-height: 0; object-fit: contain; transform-origin: center; will-change: transform; user-select: none; -webkit-user-select: none; -webkit-user-drag: none; }
+.lightbox > .zoom-box { position: absolute; inset: calc(56px + env(safe-area-inset-top, 0px)) 12px 12px; }
+.zoom-controls {
+  position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%); z-index: 2; display: flex; align-items: center; gap: 4px;
+  padding: 4px; border-radius: var(--radius-pill); background: rgba(20, 20, 20, .66); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+}
+.zoom-controls .icon-btn { width: 36px; height: 36px; background: transparent; color: #fff; }
+.zoom-controls .icon-btn:hover:not(:disabled) { background: rgba(255, 255, 255, .2); }
+.zoom-controls .icon-btn:disabled, .zoom-level:disabled { opacity: .4; }
+.zoom-level { min-width: 52px; height: 36px; border: 0; background: none; color: #fff; font: inherit; font-size: calc(13px * var(--ts)); font-weight: 600; font-variant-numeric: tabular-nums; border-radius: var(--radius-pill); }
+
+/* ---------- long text, and members in the side column ---------- */
+.post-desc.is-clamped { display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden; }
+.show-more { background: none; border: 0; padding: 6px 0 0; color: var(--accent-text); font-weight: 600; font-size: calc(14px * var(--ts)); }
+.show-more:hover { text-decoration: underline; }
+.sheet label small.count-warn { color: var(--danger); }
+.side-members ul { max-height: 60vh; overflow-y: auto; }
+.side-members .role-badge { margin-left: auto; font-style: normal; }
+@media (min-width: 1024px) { .members-inline { display: none; } }
+
+/* ---------- comment sorting and paging, opening a post ---------- */
+.comment-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; color: var(--muted); font-size: calc(13px * var(--ts)); font-weight: 600; }
+.comment-sort { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; letter-spacing: 0; }
+.comment-sort select {
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius-sm); color: var(--text);
+  padding: 6px 10px; font: inherit; font-size: calc(13px * var(--ts));
+}
+.more-comments { justify-self: start; }
+.more-comments span { color: var(--muted); font-weight: 500; }
+.post-title a { color: inherit; text-decoration: none; }
+.post-title a:hover { text-decoration: underline; }
+.menu a.menu-link {
+  display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: var(--radius-sm); color: var(--text);
+  text-decoration: none; font-weight: 600; font-size: calc(14px * var(--ts));
+}
+.menu a.menu-link:hover { background: var(--surface-2); }
+.menu a.menu-link svg { width: 18px; height: 18px; }
+.sheet label small.count { color: var(--muted); }
+
+/* ---------- archived entries, comment counts ---------- */
+.archived-tag { display: inline-flex; align-items: center; gap: 4px; margin-top: 2px; font-size: calc(12px * var(--ts)); font-weight: 600; color: var(--muted); }
+.archived-tag svg { width: 13px; height: 13px; flex: none; }
+.post-who .archived-tag { display: flex; }
+.archived-note { display: flex; gap: 8px; align-items: flex-start; margin: 4px var(--gutter) 6px; padding: 0 4px; }
+.archived-note svg { width: 16px; height: 16px; flex: none; margin-top: 2px; }
+.act .count { font-weight: 700; font-variant-numeric: tabular-nums; }
+.act.static { cursor: default; }
+.act.static:hover { background: none; color: var(--muted); }
+
+/* ---------- downloading photos, mutual friends, unsaved group changes ---------- */
+.lightbox .viewer-download {
+  position: absolute; right: calc(max(12px, env(safe-area-inset-right, 0px)) + 52px); top: calc(12px + env(safe-area-inset-top, 0px));
+  background: rgba(255, 255, 255, .18); color: #fff; z-index: 3;
+}
+.lightbox .viewer-download:hover { background: rgba(255, 255, 255, .3); }
+.mutual-badge {
+  display: inline-flex; align-items: center; margin-left: 8px; padding: 1px 8px; border-radius: var(--radius-pill); vertical-align: middle; font-style: normal;
+  font-size: calc(11px * var(--ts)); font-weight: 700; letter-spacing: .03em; text-transform: uppercase; background: var(--accent-soft); color: var(--accent-text);
+}
+.mutual-link {
+  display: inline-flex; align-items: center; gap: 6px; margin: -4px 0 12px; padding: 6px 0; border: 0; background: none;
+  color: var(--accent-text); font: inherit; font-size: calc(14px * var(--ts)); font-weight: 600; text-align: left;
+}
+.mutual-link:hover { text-decoration: underline; }
+.mutual-link svg { width: 16px; height: 16px; flex: none; }
+.manage-save { display: flex; flex-wrap: wrap; gap: 8px; }
+.manage-details .manage-save .btn { justify-self: auto; }
+.hint.unsaved { color: var(--accent-text); background: var(--accent-soft); border-radius: var(--radius-sm); padding: 8px 12px; margin: 0; }
+
+/* ---------- pull to refresh (feed) ---------- */
+/* While the feed is open the browser's own pull-to-refresh, which reloads the whole site, is off. */
+html.ptr-on, html.ptr-on body { overscroll-behavior-y: contain; }
+.ptr { display: grid; place-items: center; overflow: hidden; color: var(--accent-text); transition: height .25s var(--ease, ease); }
+.ptr.dragging { transition: none; }
+.ptr-icon { flex: none; transition: opacity .15s; }
+.ptr-icon.ready { color: var(--accent); }
+.ptr-icon.spin { animation: ptr-spin .8s linear infinite; }
+@keyframes ptr-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .ptr, .ptr-icon.spin { transition: none; animation: none; } }
+.sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }

@@ -22,6 +22,7 @@ export default function Comments({ ownerUid, entryId: entry, photoId, title }: {
   const [busy, setBusy] = useState(false);
   const [media, setMedia] = useState<Media>(NO_MEDIA);
   const [picking, setPicking] = useState(false);
+  const [revealAll, setRevealAll] = useState(0);
   const hasMedia = !!(media.sticker || media.gif);
   const input = useRef<HTMLInputElement>(null);
 
@@ -47,6 +48,7 @@ export default function Comments({ ownerUid, entryId: entry, photoId, title }: {
       setText("");
       setMedia(NO_MEDIA);
       setPicking(false);
+      setRevealAll((n) => n + 1);
     } catch {
       notify("Could not post your comment");
     } finally {
@@ -59,7 +61,7 @@ export default function Comments({ ownerUid, entryId: entry, photoId, title }: {
       {error && <p className="error">{error}</p>}
       {comments === null && !error && <LinesSkeleton label="Loading comments" />}
       {comments?.length === 0 && <p className="hint">No comments yet. Start the conversation.</p>}
-      {comments && comments.length > 0 && <CommentThread comments={comments} actions={actions} />}
+      {comments && comments.length > 0 && <CommentThread comments={comments} actions={actions} showAllSignal={revealAll} />}
       <form className="comment-form" onSubmit={submit}>
         <Avatar profile={me} />
         <input ref={input} value={text} onChange={(e) => setText(e.target.value)} maxLength={COMMENT_MAX}

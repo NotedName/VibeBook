@@ -85,7 +85,7 @@ export default function ShareSheet({ entry, linkable, onLink, onClose }: Props) 
                           <label className={on ? "on" : ""}>
                             <input type="checkbox" checked={on} onChange={() => toggle(g.id)}
                               disabled={!on && groupIds.length >= MAX_GROUPS_PER_ENTRY} />
-                            <GroupAvatar name={g.name} size="sm" />
+                            <GroupAvatar name={g.name} photo={g.avatar} size="sm" />
                             <span>{g.name}</span>
                           </label>
                         </li>

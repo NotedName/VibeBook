@@ -5,6 +5,8 @@ import { db } from "./firebase";
 import type { Entry } from "./entries";
 import { toProfile } from "./profiles";
 import { useSocial } from "./social";
+import { syncFriendList } from "./friendList";
+import { syncActivity } from "./activity";
 import { useGroupInvites, useMyGroups } from "./groups";
 import { useMyReposts } from "./reposts";
 import { useGroupAlerts } from "./groupAlerts";
@@ -22,6 +24,7 @@ import FeedPage from "./pages/FeedPage";
 import GroupsPage from "./pages/GroupsPage";
 import GroupPage from "./pages/GroupPage";
 import PeoplePage from "./pages/PeoplePage";
+import ArchivedPage from "./pages/ArchivedPage";
 import { PersonRoute } from "./pages/PersonPage";
 import PostPage from "./pages/PostPage";
 import { parsePostHash } from "./share";
@@ -31,7 +34,7 @@ import { FeedSkeleton, ProfileSkeleton } from "./Skeleton";
 import { hideSplash } from "./splash";
 
 type Route =
-  | { name: "me" } | { name: "feed" } | { name: "people" } | { name: "groups" }
+  | { name: "me" } | { name: "archived" } | { name: "feed" } | { name: "people" } | { name: "groups" }
   | { name: "person"; handle: string } | { name: "group"; id: string } | { name: "post"; uid: string; id: string };
 
 function parse(hash: string): Route {
@@ -40,15 +43,49 @@ function parse(hash: string): Route {
   if (hash.startsWith("#/u/")) return { name: "person", handle: decodeURIComponent(hash.slice(4)) }; // a username, or a uid from an older link
   if (hash.startsWith("#/g/")) return { name: "group", id: decodeURIComponent(hash.slice(4)) };
   if (hash === "#/me" || hash === "#/logbook") return { name: "me" };
+  if (hash === "#/archived") return { name: "archived" };
   if (hash === "#/groups") return { name: "groups" };
   if (hash === "#/people") return { name: "people" };
   // The Feed is home: it is what an empty address, "#/" or "#/feed" opens.
   return { name: "feed" };
 }
 
+/**
+ * Tells the CSS which way the page is being scrolled (html[data-scroll] = top | down | up), so the side panel can
+ * make room while someone reads downwards and open again when they scroll back up or reach the top.
+ */
+function useScrollDirection() {
+  useEffect(() => {
+    const root = document.documentElement;
+    let last = window.scrollY;
+    let queued = false;
+    const set = (v: string) => { if (root.dataset.scroll !== v) root.dataset.scroll = v; };
+    const update = () => {
+      queued = false;
+      const y = window.scrollY;
+      if (y < 24) { set("top"); last = y; }
+      else if (y - last > 8) { set("down"); last = y; }
+      else if (last - y > 8) { set("up"); last = y; }
+    };
+    const onScroll = () => { if (!queued) { queued = true; requestAnimationFrame(update); } };
+    set("top");
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => { window.removeEventListener("scroll", onScroll); delete root.dataset.scroll; };
+  }, []);
+}
+
 export default function Shell({ user }: { user: User }) {
   const uid = user.uid;
+  useScrollDirection();
   const social = useSocial(uid);
+  // Keeps the friends list other people can open in step with your real friendships (best effort).
+  const friendKey = [...social.friends].sort().join(",");
+  useEffect(() => {
+    if (social.ready) syncFriendList(uid, social.friends).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [uid, social.ready, friendKey]);
+  // Uploads this device's activity log to your account once per visit, so it shows on your other devices too (best effort).
+  useEffect(() => { syncActivity(uid).catch(() => {}); }, [uid]);
   const groups = useMyGroups(uid);
   const reposts = useMyReposts(uid);
   const allInvites = useGroupInvites(uid);
@@ -118,12 +155,12 @@ export default function Shell({ user }: { user: User }) {
   const isMe = route.name === "person" && (route.handle === uid || route.handle.toLowerCase() === me?.username);
   const active = isMe ? { name: "me" } as Route : route;
   const incomingCount = social.incoming.length;
-  const subPage = active.name === "person" || active.name === "group" || active.name === "post";
-  const backTo = active.name === "group" ? "#/groups" : active.name === "person" ? "#/people" : "#/feed";
+  const subPage = active.name === "person" || active.name === "group" || active.name === "post" || active.name === "archived";
+  const backTo = active.name === "group" ? "#/groups" : active.name === "person" ? "#/people" : active.name === "archived" ? "#/me" : "#/feed";
   const newEntry = () => setEntrySheet({ entry: null, groupId: active.name === "group" ? active.id : undefined });
   const goBack = () => { if (trail.current.length > 1) history.back(); else location.hash = backTo; };
   const tab = (href: string, on: boolean, icon: React.ReactNode, label: string, badge = 0) => (
-    <a href={href} className={`tab${on ? " on" : ""}`} aria-current={on ? "page" : undefined}>
+    <a href={href} className={`tab${on ? " on" : ""}`} aria-current={on ? "page" : undefined} title={label}>
       {icon}<span>{label}</span>{badge > 0 && <i className="badge" aria-label={`${badge} new`}>{badge}</i>}
     </a>
   );
@@ -149,12 +186,12 @@ export default function Shell({ user }: { user: User }) {
           {tab("#/feed", active.name === "feed", <FeedIcon />, "Feed")}
           {tab("#/groups", active.name === "groups" || active.name === "group", <GroupsIcon />, "Groups", invites.length)}
           {me && (
-            <button type="button" className="tab tab-new" onClick={newEntry} aria-label="New entry">
+            <button type="button" className="tab tab-new" onClick={newEntry} aria-label="New entry" title="New entry">
               <i><PlusIcon /></i><span>New</span>
             </button>
           )}
           {tab("#/people", active.name === "people" || active.name === "person", <UsersIcon />, "People", incomingCount)}
-          {tab("#/me", active.name === "me", <BookIcon />, "Logbook")}
+          {tab("#/me", active.name === "me" || active.name === "archived", <BookIcon />, "Logbook")}
         </nav>
       </header>
 
@@ -169,13 +206,14 @@ export default function Shell({ user }: { user: User }) {
         )}
         {me && active.name === "me" && <MyLogbook />}
         {active.name === "feed" && <FeedPage />}
+        {me && active.name === "archived" && <ArchivedPage />}
         {active.name === "groups" && <GroupsPage />}
         {active.name === "group" && <GroupPage key={active.id} gid={active.id} />}
         {active.name === "people" && <PeoplePage />}
         {active.name === "person" && <PersonRoute key={active.handle} handle={active.handle} />}
         {active.name === "post" && <PostPage key={`${active.uid}/${active.id}`} uid={active.uid} id={active.id} />}
       </main>
-      {me && <SideColumn onNewEntry={newEntry} />}
+      {me && <SideColumn onNewEntry={newEntry} groupId={active.name === "group" ? active.id : undefined} />}
       </div>
 
       {entrySheet && (

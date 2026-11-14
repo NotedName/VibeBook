@@ -15,7 +15,7 @@ type Props = {
 export default function EntryList({ entries, onEdit, inGroup, dayHeadings = true }: Props) {
   let last = "";
   return (
-    <div className="entries">
+    <div className={`entries${dayHeadings ? "" : " flat"}`}>
       {entries.map((e) => {
         const day = stampOf(e).slice(0, 10);
         const header = dayHeadings && day !== last;

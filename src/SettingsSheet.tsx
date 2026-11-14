@@ -1,15 +1,15 @@
 import { useEffect, useState } from "react";
 import { TEXT_SIZES, useAppearance, type ThemeMode } from "./theme";
 import { PHOTO_QUALITY, usePreferences } from "./preferences";
-import { useActivity } from "./activity";
+import { ACTIVITY_SHOWN, useActivity } from "./activity";
 import { ago } from "./notifications";
 import { useProfile, useSession } from "./session";
-import { personHash } from "./profiles";
+import { personHash, setFriendsVisible } from "./profiles";
 import { VISIBILITY } from "./types";
 import { BrandName } from "./Logo";
 import { CloseIcon, GlobeIcon, LockIcon, MoonIcon, MonitorIcon, SunIcon, UsersIcon } from "./icons";
 
-const CATEGORIES = ["Appearance", "Media", "Entries", "Notifications", "Accessibility", "Activity", "About"] as const;
+const CATEGORIES = ["Appearance", "Media", "Entries", "Notifications", "Privacy", "Accessibility", "Activity", "About"] as const;
 type Category = (typeof CATEGORIES)[number];
 
 type Option<T extends string | number> = { id: T; label: string; icon?: React.ReactNode };
@@ -119,6 +119,19 @@ function Notifications() {
   );
 }
 
+function Privacy() {
+  const { me, uid, notify } = useSession();
+  const shown = me?.friendsVisible !== false;
+  return (
+    <>
+      <Switch label="Show my friends to other people"
+        hint={shown ? "Anyone signed in can open the Friends button on your profile and see your friends." : "Your friends list is hidden. Other people see that it is private; you still see it."}
+        checked={shown} onChange={(on) => { setFriendsVisible(uid, on).catch(() => notify("Could not save that. Try again.")); }} />
+      <p className="hint">This only affects the list of your friends. Your entries still follow the visibility you pick on each one.</p>
+    </>
+  );
+}
+
 function Accessibility() {
   const p = usePreferences();
   return (
@@ -154,7 +167,7 @@ function ActivityLog({ onNavigate }: { onNavigate: () => void }) {
   if (items.length === 0) return <p className="hint notes-empty">Nothing yet. What you do in VibeBook, such as entries, comments, reactions and friends, is listed here.</p>;
   return (
     <>
-      <p className="hint">{items.length} {items.length === 1 ? "action" : "actions"} logged. Kept on this device; the log cannot be deleted or cleared.</p>
+      <p className="hint">{items.length >= ACTIVITY_SHOWN ? `Your latest ${ACTIVITY_SHOWN} actions` : `${items.length} ${items.length === 1 ? "action" : "actions"} logged`}. Saved to your account, so it is the same on every device you sign in on; the log cannot be deleted or cleared.</p>
       <ul className="activity" onClick={(e) => (e.target as HTMLElement).closest("a") && onNavigate()}>
         {items.map((it) => (
           <li key={it.id}>
@@ -194,6 +207,7 @@ export default function SettingsSheet({ onClose }: { onClose: () => void }) {
           {category === "Media" && <Media />}
           {category === "Entries" && <Entries />}
           {category === "Notifications" && <Notifications />}
+          {category === "Privacy" && <Privacy />}
           {category === "Accessibility" && <Accessibility />}
           {category === "Activity" && <ActivityLog onNavigate={onClose} />}
           {category === "About" && <About />}

@@ -31,7 +31,7 @@ function InviteRow({ invite }: { invite: GroupInvite }) {
   return (
     <li className="person">
       <a href={`#/g/${encodeURIComponent(invite.groupId)}`} className="person-link">
-        <GroupAvatar name={name} />
+        <GroupAvatar name={name} photo={group?.avatar} />
         <span className="person-text">
           <b>{name}</b>
           <span>Invited by {inviter === undefined ? "…" : inviter?.displayName || "a VibeBook member"}</span>

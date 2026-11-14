@@ -5,6 +5,7 @@ import { personHash } from "./profiles";
 import Avatar from "./Avatar";
 import { GroupAvatar } from "./GroupRow";
 import { PlusIcon } from "./icons";
+import GroupMembersCard from "./GroupMembersCard";
 
 function SideFriend({ uid }: { uid: string }) {
   const p = useProfile(uid);
@@ -16,7 +17,7 @@ function SideFriend({ uid }: { uid: string }) {
 }
 
 /** Shortcuts shown beside the page on wide screens. Hidden on phones and tablets by CSS. */
-export default function SideColumn({ onNewEntry }: { onNewEntry: () => void }) {
+export default function SideColumn({ onNewEntry, groupId }: { onNewEntry: () => void; groupId?: string }) {
   const s = useSession();
   const groups = s.groups.list.slice(0, 6);
   const notes = useNotes(s.uid);
@@ -24,6 +25,8 @@ export default function SideColumn({ onNewEntry }: { onNewEntry: () => void }) {
   return (
     <aside className="side" aria-label="Shortcuts">
       <button type="button" className="btn primary wide" onClick={onNewEntry}><PlusIcon /> New entry</button>
+
+      {groupId && <GroupMembersCard gid={groupId} />}
 
       {(s.invites.length > 0 || s.incoming.length > 0) && (
         <section className="side-card">
@@ -47,7 +50,7 @@ export default function SideColumn({ onNewEntry }: { onNewEntry: () => void }) {
           <ul>
             {groups.map((g) => (
               <li key={g.id}>
-                <a href={`#/g/${encodeURIComponent(g.id)}`}><GroupAvatar name={g.name} size="sm" /><span>{g.name}</span></a>
+                <a href={`#/g/${encodeURIComponent(g.id)}`}><GroupAvatar name={g.name} photo={g.avatar} size="sm" /><span>{g.name}</span></a>
               </li>
             ))}
           </ul>

@@ -1,26 +1,32 @@
 import { useEffect, useRef, useState } from "react";
-import { deleteEntry, loadPhotos, type Entry, type Photo } from "./entries";
+import { deleteEntry, loadPhotos, setEntryArchived, type Entry, type Photo } from "./entries";
 import { clockTime, copyText, entryText, longDay } from "./report";
 import { useProfile, useSession } from "./session";
 import { personHash } from "./profiles";
 import { VISIBILITY } from "./types";
 import Avatar from "./Avatar";
-import { CommentIcon, CopyIcon, EditIcon, GlobeIcon, GroupsIcon, LockIcon, MoreIcon, RepostIcon, ShareIcon, TrashIcon, UsersIcon } from "./icons";
+import ClampedText from "./ClampedText";
+import { ArchiveIcon, CommentIcon, CopyIcon, DownloadIcon, EditIcon, GlobeIcon, GroupsIcon, LockIcon, MoreIcon, RepostIcon, ShareIcon, TrashIcon, UnarchiveIcon, UsersIcon } from "./icons";
 import GroupShareSheet from "./GroupShareSheet";
 import ShareSheet from "./ShareSheet";
 import { removeRepost, repostId } from "./reposts";
 import { removePostFromGroup, useGroup } from "./groups";
 import Comments from "./Comments";
+import { useCommentCount } from "./commentStore";
 import ReactionBar from "./ReactionBar";
 import VideoPlayer from "./VideoPlayer";
 import PhotoViewer from "./PhotoViewer";
 import { postLink } from "./share";
+import SkillChips from "./SkillChips";
+import { downloadPhotos } from "./download";
 
 type Props = {
   entry: Entry;
   onEdit?: (entry: Entry) => void;
   /** Shown inside this group's feed. Admins and moderators can take posts out of it. */
   inGroup?: { id: string; canModerate: boolean };
+  /** The entry opened on its own page: comments start open, the description is shown in full, and nothing links to itself. */
+  single?: boolean;
 };
 
 function GroupLink({ id }: { id: string }) {
@@ -31,7 +37,7 @@ function GroupLink({ id }: { id: string }) {
 
 const VIS_ICON = { private: <LockIcon />, friends: <UsersIcon />, public: <GlobeIcon /> };
 
-export default function EntryCard({ entry, onEdit, inGroup }: Props) {
+export default function EntryCard({ entry, onEdit, inGroup, single = false }: Props) {
   const s = useSession();
   const ownerUid = entry.ownerUid ?? s.uid;
   const mine = ownerUid === s.uid;
@@ -41,7 +47,8 @@ export default function EntryCard({ entry, onEdit, inGroup }: Props) {
   const [viewing, setViewing] = useState<number | null>(null);
   const [armed, setArmed] = useState(false);
   const [armedRemove, setArmedRemove] = useState(false);
-  const [commenting, setCommenting] = useState(false);
+  const [commenting, setCommenting] = useState(single);
+  const commentCount = useCommentCount(ownerUid, entry.id);
   const [menu, setMenu] = useState(false);
   const [sharing, setSharing] = useState<"share" | "repost" | null>(null);
   const reposter = useProfile(entry.repostedBy);
@@ -85,6 +92,21 @@ export default function EntryCard({ entry, onEdit, inGroup }: Props) {
     else s.manualCopy(text);
   }
 
+  async function downloadAll() {
+    setMenu(false);
+    if (await downloadPhotos(photos, entry.title)) s.notify(photos.length > 1 ? "Downloading photos" : "Downloading photo");
+    else s.notify("Could not download the photos");
+  }
+
+  function toggleArchive() {
+    setMenu(false);
+    const archive = entry.archived !== true;
+    setEntryArchived(ownerUid, entry, archive).then(
+      () => s.notify(archive ? "Entry archived. Find it under Archived entries in your account menu." : "Entry restored to your logbook"),
+      () => s.notify(archive ? "Could not archive the entry" : "Could not restore the entry"),
+    );
+  }
+
   const isPublic = (entry.visibility ?? "private") === "public";
   const myRepost = s.reposts.get(repostId(ownerUid, entry.id));
   const iReposted = entry.repostedBy === s.uid;
@@ -122,6 +144,7 @@ export default function EntryCard({ entry, onEdit, inGroup }: Props) {
         <div className="post-who">
           {mine ? <b>{name}</b> : <a className="post-name" href={personHash(ownerUid, owner)}>{name}</a>}
           <time>{longDay(entry.date)} · {clockTime(entry.time)}</time>
+          {mine && entry.archived && <span className="archived-tag" title="Only you can see this entry"><ArchiveIcon />Archived</span>}
           {groupIds.length > 0 && <ul className="group-links" aria-label="Shared to groups">{groupIds.map((id) => <GroupLink key={id} id={id} />)}</ul>}
         </div>
         {mine && <span className={`vis vis-${vis.id}`} title={vis.hint}>{VIS_ICON[vis.id]}{vis.label}</span>}
@@ -130,7 +153,13 @@ export default function EntryCard({ entry, onEdit, inGroup }: Props) {
             aria-expanded={menu} onClick={() => setMenu(!menu)}><MoreIcon /></button>
           {menu && (
             <div className="menu" role="menu">
+              {!single && (
+                <a role="menuitem" className="menu-link" href={`#/p/${encodeURIComponent(ownerUid)}/${encodeURIComponent(entry.id)}`} onClick={() => setMenu(false)}><CommentIcon />Open post</a>
+              )}
               <button type="button" role="menuitem" onClick={copy}><CopyIcon />Copy</button>
+              {photos.length > 0 && (
+                <button type="button" role="menuitem" onClick={downloadAll}><DownloadIcon />{photos.length > 1 ? `Download ${photos.length} photos` : "Download photo"}</button>
+              )}
               {myRepost && (
                 <button type="button" role="menuitem" onClick={() => {
                   setMenu(false);
@@ -146,6 +175,11 @@ export default function EntryCard({ entry, onEdit, inGroup }: Props) {
                       .then(() => s.notify("Removed from the group"), () => s.notify("Could not remove the post"));
                   }}>
                   <TrashIcon />{armedRemove ? "Tap to confirm" : "Remove from group"}
+                </button>
+              )}
+              {mine && (
+                <button type="button" role="menuitem" onClick={toggleArchive}>
+                  {entry.archived ? <><UnarchiveIcon />Unarchive</> : <><ArchiveIcon />Archive</>}
                 </button>
               )}
               {mine && onEdit && (
@@ -167,11 +201,9 @@ export default function EntryCard({ entry, onEdit, inGroup }: Props) {
       </header>
 
       <div className="post-body">
-        <h2 className="post-title">{entry.title}</h2>
-        {entry.description && <p className="post-desc">{entry.description}</p>}
-        {entry.skills.length > 0 && (
-          <ul className="chips">{entry.skills.map((sk) => <li key={sk}>{sk}</li>)}</ul>
-        )}
+        <h2 className="post-title">{single ? entry.title : <a href={`#/p/${encodeURIComponent(ownerUid)}/${encodeURIComponent(entry.id)}`}>{entry.title}</a>}</h2>
+        {entry.description && (single ? <p className="post-desc">{entry.description}</p> : <ClampedText className="post-desc" text={entry.description} />)}
+        <SkillChips skills={entry.skills} />
       </div>
 
       {expecting && <div className="photo-grid placeholder" aria-hidden="true" />}
@@ -191,7 +223,8 @@ export default function EntryCard({ entry, onEdit, inGroup }: Props) {
       <div className="post-actions">
         <ReactionBar ownerUid={ownerUid} entryId={entry.id} title={entry.title} myUid={s.uid} onError={s.notify} />
         <button type="button" className={`act${commenting ? " on" : ""}`} aria-expanded={commenting}
-          onClick={() => setCommenting(!commenting)}><CommentIcon /><span>Comment</span></button>
+          aria-label={commentCount ? `Comment, ${commentCount} so far` : "Comment"}
+          onClick={() => setCommenting(!commenting)}><CommentIcon /><span>Comment</span>{!!commentCount && <b className="count">{commentCount}</b>}</button>
         {isPublic && !mine && (
           <button type="button" className={`act${myRepost ? " on" : ""}`} aria-pressed={!!myRepost}
             onClick={() => setSharing("repost")}><RepostIcon /><span>{myRepost ? "Reposted" : "Repost"}</span></button>

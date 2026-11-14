@@ -1,12 +1,15 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import {
-  allowBack, canChangeRole, canRemove, GROUP_DESC_MAX, GROUP_NAME_MAX, removeMember, setMemberRole, updateGroup, useBannedUids,
+  allowBack, canChangeRole, canRemove, GROUP_DESC_MAX, GROUP_NAME_MAX, removeMember, saveGroupChanges, setMemberRole, useBannedUids,
 } from "./groups";
 import { ROLES, type Group, type GroupRole, type Member } from "./types";
 import { useProfile, useSession } from "./session";
 import { personHash } from "./profiles";
 import Avatar from "./Avatar";
-import { CloseIcon } from "./icons";
+import { coverBanner, squareAvatar } from "./image";
+import PhotoEditor from "./PhotoEditor";
+import { CameraIcon, CloseIcon, ImageIcon } from "./icons";
+import { GroupAvatar } from "./GroupRow";
 
 type Props = {
   group: Group;
@@ -96,24 +99,91 @@ function RemovedRow({ gid, uid, canAllow }: { gid: string; uid: string; canAllow
   );
 }
 
-function Details({ group }: { group: Group }) {
+/**
+ * Admins edit the group's picture, cover, name and description here. Nothing is saved while editing: pictures and
+ * text are only drafts until "Save changes" is pressed, and "Discard changes" puts everything back.
+ */
+function Details({ group, onDirty }: { group: Group; onDirty: (dirty: boolean) => void }) {
   const { busy, run } = useAction();
+  const { notify } = useSession();
   const [name, setName] = useState(group.name);
   const [description, setDescription] = useState(group.description);
-  const changed = name.trim() !== group.name || description.trim() !== group.description;
+  const [avatar, setAvatar] = useState(group.avatar);
+  const [cover, setCover] = useState(group.coverPhoto);
+  const [editing, setEditing] = useState<{ kind: "avatar" | "cover"; file: File } | null>(null);
+  const input = useRef<HTMLInputElement>(null);
+  const picking = useRef<"avatar" | "cover">("avatar");
+
+  const changed = name.trim() !== group.name || description.trim() !== group.description || avatar !== group.avatar || cover !== group.coverPhoto;
+  useEffect(() => { onDirty(changed); return () => onDirty(false); }, [changed, onDirty]);
+
+  function pick(kind: "avatar" | "cover") { picking.current = kind; input.current?.click(); }
+  function onFile(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (file) setEditing({ kind: picking.current, file });
+  }
+  /** The adjusted picture becomes a draft shown in the preview; it is not saved yet. */
+  async function apply(file: File) {
+    const kind = editing!.kind;
+    setEditing(null);
+    try {
+      if (kind === "avatar") setAvatar(await squareAvatar(file));
+      else setCover(await coverBanner(file));
+    } catch { notify("That image could not be used"); }
+  }
+  function discard() {
+    setName(group.name); setDescription(group.description); setAvatar(group.avatar); setCover(group.coverPhoto);
+  }
   function submit(e: FormEvent) {
     e.preventDefault();
-    run(() => updateGroup(group.id, name, description), "Group updated");
+    const photos: Partial<Pick<Group, "avatar" | "coverPhoto">> = {};
+    if (avatar !== group.avatar) photos.avatar = avatar;
+    if (cover !== group.coverPhoto) photos.coverPhoto = cover;
+    run(() => saveGroupChanges(group.id, name, description, photos), "Group updated");
   }
+
   return (
     <form className="manage-details" onSubmit={submit}>
+      <div className="manage-photos">
+        <input ref={input} type="file" accept="image/*" hidden onChange={onFile} />
+        <div className="manage-photo-row">
+          <GroupAvatar name={name || group.name} photo={avatar} size="lg" />
+          <div className="manage-photo-actions">
+            <b>Group picture</b>
+            <div>
+              <button type="button" className="btn small" disabled={busy} onClick={() => pick("avatar")}><CameraIcon /> {avatar ? "Change" : "Add"}</button>
+              {avatar && <button type="button" className="btn small" disabled={busy} onClick={() => setAvatar("")}>Remove</button>}
+            </div>
+          </div>
+        </div>
+        <div className="manage-photo-cover">
+          <div className="cover-preview c-amethyst">{cover && <img src={cover} alt="" />}</div>
+          <div className="manage-photo-actions">
+            <b>Cover photo</b>
+            <div>
+              <button type="button" className="btn small" disabled={busy} onClick={() => pick("cover")}><ImageIcon /> {cover ? "Change" : "Add"}</button>
+              {cover && <button type="button" className="btn small" disabled={busy} onClick={() => setCover("")}>Remove</button>}
+            </div>
+          </div>
+        </div>
+        {editing && (
+          <PhotoEditor file={editing.file} onCancel={() => setEditing(null)} onApply={apply}
+            fixedRatio={editing.kind === "avatar" ? 1 : 3} outSide={editing.kind === "avatar" ? 512 : 1200}
+            title={editing.kind === "avatar" ? "Adjust group picture" : "Adjust group cover"} />
+        )}
+      </div>
       <label>Name
         <input value={name} onChange={(e) => setName(e.target.value)} required maxLength={GROUP_NAME_MAX} />
       </label>
       <label>What is it for?
         <textarea rows={3} value={description} onChange={(e) => setDescription(e.target.value)} maxLength={GROUP_DESC_MAX} />
       </label>
-      <button type="submit" className="btn primary" disabled={busy || !changed || !name.trim()}>{busy ? "Saving…" : "Save changes"}</button>
+      {changed && <p className="hint unsaved" role="status">You have changes that are not saved yet. Nothing changes for the group until you press Save changes.</p>}
+      <div className="manage-save">
+        <button type="submit" className="btn primary" disabled={busy || !changed || !name.trim()}>{busy ? "Saving…" : "Save changes"}</button>
+        {changed && <button type="button" className="btn" disabled={busy} onClick={discard}>Discard changes</button>}
+      </div>
     </form>
   );
 }
@@ -122,21 +192,28 @@ function Details({ group }: { group: Group }) {
 export default function GroupManageSheet({ group, myRole, members, onClose }: Props) {
   const isAdmin = myRole === "admin";
   const banned = useBannedUids(group.id, true);
+  const dirty = useRef(false);
+  const onDirty = useCallback((d: boolean) => { dirty.current = d; }, []);
+  // Closing with unsaved changes asks first, so a stray tap outside the sheet does not throw an edit away.
+  const close = useCallback(() => {
+    if (dirty.current && !window.confirm("Discard your unsaved changes to this group?")) return;
+    onClose();
+  }, [onClose]);
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && close();
     document.addEventListener("keydown", onKey);
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => { document.removeEventListener("keydown", onKey); document.body.style.overflow = prev; };
-  }, [onClose]);
+  }, [close]);
 
   return (
-    <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+    <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && close()}>
       <div className="sheet manage-sheet" role="dialog" aria-modal="true" aria-label={`Manage ${group.name}`}>
         <div className="sheet-head">
           <h2>Manage group</h2>
-          <button type="button" className="icon-btn close" aria-label="Close" onClick={onClose}><CloseIcon /></button>
+          <button type="button" className="icon-btn close" aria-label="Close" onClick={close}><CloseIcon /></button>
         </div>
         <div className="sheet-body">
           <p className="hint">
@@ -144,7 +221,7 @@ export default function GroupManageSheet({ group, myRole, members, onClose }: Pr
               ? "Admins edit the group, change roles and remove members. Moderators remove members and take posts out of the feed."
               : "Moderators can remove members and take posts out of the feed. Open a post's menu in the feed to remove it."}
           </p>
-          {isAdmin && <section className="manage-section"><h3>Details</h3><Details group={group} /></section>}
+          {isAdmin && <section className="manage-section"><h3>Details</h3><Details group={group} onDirty={onDirty} /></section>}
           <section className="manage-section">
             <h3>Members <span>{members.length}</span></h3>
             <ul className="people">

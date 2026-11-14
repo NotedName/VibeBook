@@ -140,10 +140,43 @@ After pulling these changes run `npm run deploy` so the new rules go live togeth
 - **Notes / Reposts / Likes:** every logbook has columns, like the tabs on a Threads profile. **Notes** are the entries a person wrote, **Reposts** are the public entries they reposted. On your own logbook there is a third, **Likes**, listing the entries you gave a Vibing, most recent first. Likes are private: other people's profiles only show Notes and Reposts. Stats and reports count Notes only. The sort menu works on every column.
 - Likes data: `users/{me}/likes/{ownerUid}_{entryId}` (`src/likes.ts`), a pointer written together with the Vibing in one batch and removed when you take it back or switch to Not vibing. Only you can read it (`firestore.rules`). Vibing given before this list existed is not back-filled, and photo reactions are not included. Run `npm run deploy` so the rules go live.
 - **Buttons:** Find people, Find or create a group, See all groups and the "Use a different account" / "Back to the post" actions are real buttons (bordered, filled), not plain text links.
-- **Activity log:** it can no longer be cleared or deleted from the app (the Clear button and `clearActivity` are gone). It is still stored on this device only, so clearing the browser's site data removes it. The safety cap is now 2000 items.
+- **Activity log:** it can no longer be cleared or deleted from the app (the Clear button and `clearActivity` are gone). It is saved to your account (see below), so it is the same on every device. The safety cap on each device is 2000 items.
 
 ## Settings sidebar, sort button and corners
 
 - **Settings** now has its categories in a column on the left (narrower on phones) with the options on the right; the dialog keeps one size as you switch categories.
 - **Sort:** the sort button sits at the right end of the Notes / Reposts / Likes bar, on your logbook and on other people's profiles.
 - **Corners:** one scale for every layout (`src/styles.css`): cards `--radius` (22), panels and photos inside them `--radius-md` (16), buttons, fields, tabs and menu items `--radius-sm` (12), dialogs and the floating phone tab bar `--radius-lg` (28), and `--radius-pill` only for small tags (chips, badges, counters, toasts). Search, comment and GIF fields, the sign-in tabs, the desktop and rail navigation tabs and the Back button no longer use pills, and the hard-coded 6, 9, 22 and 28 pixel corners now use the scale.
+
+## Group pictures, viewing photos, and friends lists
+
+- **Group picture and cover photo:** admins open **Manage** on the group page. Under Details, **Group picture** (square) and **Cover photo** (3:1) use the same crop, zoom and adjust editor as profiles, and save as soon as you apply them. Name and description are edited right below. The picture shows in group lists, the side column and the share sheets; the cover shows on the group page. Stored on `groups/{id}` as `avatar` and `coverPhoto` (small JPEG data URLs, 120,000 characters at most, admins only in `firestore.rules`).
+- **View photos:** tap anyone's profile photo or cover photo (yours too) to open it full screen; tap outside, press Escape or Close to leave. The same works on group pictures and covers.
+- **Friends of other people:** every profile has a **Friends** button that lists that person's friends (open any of them from there). Your own Friends tile on your logbook opens your list too.
+- **Privacy:** Settings > Privacy > **Show my friends to other people**. When it is off, others see that your list is private (the button shows a lock) and you still see it. It is enforced by `firestore.rules`, not just hidden in the app: real friendships are only readable by the two friends, so each person keeps a pointer list at `users/{uid}/friendList/{friendUid}` that the app syncs to their friendships whenever it is open (`src/friendList.ts`). The rules let others read it only while `profiles/{uid}.friendsVisible` is not false. Existing friendships appear on someone's profile the first time that person opens the app after this update. Run `npm run deploy` for the rules.
+
+## Zoom, members on the right, and text limits
+
+- **Zoom:** every picture you open (entry photos, profile and cover photos, group pictures) can be zoomed up to 600%: mouse wheel or trackpad, pinch, double-tap / double-click, the + / − buttons under the picture (the percentage resets it), or the + − 0 keys. Zoomed in, drag to move around; swiping to the next photo is paused until you zoom back out. `src/ZoomImage.tsx`.
+- **Members on the right:** on a group page, the member list is a card at the top of the right-hand column on desktop (1024px and up). On phones and tablets, where there is no right column, it stays below the feed.
+- **Limits:** activity 140 characters, description 2000, skills at most 15 with 40 characters each. The description shows a live counter (turning red near the limit), and both the form and `firestore.rules` enforce the limits. Entries written before the limits stay editable (an edit that does not change the text is never blocked; saving a changed text needs it to fit).
+- **Show more:** a description longer than 6 lines shows the first 6 with a **Show more** button (and **Show less**), in the feed, logbooks, groups and shared links. `src/ClampedText.tsx`.
+
+## Skill limits, opening a post, and comment sorting
+
+- **Skills:** up to 15 per entry, each at most 4 words and 40 letters (so write "Network cabling, Customer support", not a sentence). The New entry form shows a live "n/15 skills" count and turns red when something is over; saving explains which skill is too long.
+- **Open a post:** tap a post's title, or use **Open post** in its three-dot menu, to open it on its own page (`#/p/<uid>/<entryId>`, the same page share links use). There the full description is shown and the comments start open. In the feed the Comment button still opens comments inside the card.
+- **Paging:** comments load 10 top-level comments (each with all its replies) at a time, then a **Show more comments (N more)** button loads the next 10. Posting a comment reveals the whole list so yours is never hidden. This applies everywhere comments appear: feed cards, the post page, photo viewer and shared links.
+- **Sort comments:** a Sort menu above the comments offers **Oldest** (default), **Newest**, **Most liked** and **Most replies**. Replies are ordered the same way under each comment. The choice is remembered on this device. `src/commentSort.ts`, `src/CommentThread.tsx`.
+
+## Feed refresh, group sorting and mobile keyboards
+
+- **Pull to refresh:** on a phone or tablet, pull the Feed down from the very top and let go to read it again, without reloading the site. The browser's own pull-to-refresh (which reloads the whole page) is switched off while the Feed is open. `src/PullToRefresh.tsx`.
+- **Feed has no sort** (newest first, with day headings). Sorting is on group pages (the menu button at the right of **Share an entry with…**) and on logbooks and profiles.
+- **Mobile keyboards:** on touch screens, sheets (new/edit entry, edit profile, new group, invite) no longer put the cursor in the first field when they open, so the keyboard stays down until you tap a field. `src/focus.ts`.
+
+## Bigger profile photo, account-wide activity log, and spacing
+
+- **Profile photo:** larger (128px, 108px on phones, 92px on very narrow screens) so it balances the name, @username and headline beside it.
+- **Activity log across devices:** every action is also saved to `users/{uid}/activity/{id}` (one small document each: `at`, `text`, optional `who` and `href`). Settings > Activity shows your account's newest 500 items, merged with the copy on the device, so it is the same everywhere. The first time a device opens the app after this update it uploads what it had logged (its newest 500; later visits upload only what is new). Only you can read it, and `firestore.rules` allows only creating items (re-saving an identical one is fine), never editing or deleting. Run `npm run deploy` for the rules.
+- **Spacing:** when the list has no day headings (Hottest, Popular, ...), the first entry under the composer or tab bar now gets the same gap a heading would give it (logbooks, profiles and group feeds).

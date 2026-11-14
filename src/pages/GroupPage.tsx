@@ -3,13 +3,14 @@ import { joinGroup, leaveGroup, useGroup, useGroupMembers, withRoles } from "../
 import { useGroupEntries } from "../groupFeed";
 import { useSession } from "../session";
 import { dateDir, useSortedEntries, useSortMode } from "../sorting";
-import SortBar from "../SortBar";
+import SortMenu from "../SortMenu";
 import { ROLES, type GroupRole, type Member } from "../types";
 import EntryList from "../EntryList";
 import PersonRow from "../PersonRow";
 import { GroupAvatar } from "../GroupRow";
 import InviteSheet from "../InviteSheet";
 import GroupManageSheet from "../GroupManageSheet";
+import ImageViewer from "../ImageViewer";
 import { FeedSkeleton, GroupHeadSkeleton, RowsSkeleton } from "../Skeleton";
 import { PlusIcon, SettingsIcon } from "../icons";
 
@@ -27,9 +28,9 @@ function GroupFeed({ gid, name, canModerate }: { gid: string; name: string; canM
         <button type="button" className="composer-input" onClick={() => s.openEntry(null, gid)}>
           Share an entry with {name}…
         </button>
+        <SortMenu mode={mode} onChange={setMode} />
       </div>
       <div className="feed" aria-live="polite">
-        {entries.length > 1 && <SortBar mode={mode} onChange={setMode} />}
         {error && <p className="error note" role="alert">{error}</p>}
         {loading && entries.length === 0 && <FeedSkeleton />}
         {!loading && entries.length === 0 && !error && (
@@ -47,7 +48,7 @@ function GroupFeed({ gid, name, canModerate }: { gid: string; name: string; canM
 
 function Members({ members, error }: { members: Member[] | null; error: string }) {
   return (
-    <section className="people-section">
+    <section className="people-section members-inline">
       <h2>Members {members && <span>{members.length}</span>}</h2>
       {error && <p className="error note">{error}</p>}
       {!members && !error && <RowsSkeleton />}
@@ -68,6 +69,7 @@ export default function GroupPage({ gid }: { gid: string }) {
   const [armed, setArmed] = useState(false);
   const [inviting, setInviting] = useState(false);
   const [managing, setManaging] = useState(false);
+  const [viewing, setViewing] = useState<"avatar" | "cover" | null>(null);
   const member = s.groups.ids.has(gid);
   const { markGroupSeen } = s;
 
@@ -109,8 +111,17 @@ export default function GroupPage({ gid }: { gid: string }) {
 
   return (
     <>
-      <section className="group-head">
-        <GroupAvatar name={group.name} size="lg" />
+      <section className={`group-head${group.coverPhoto ? " has-cover" : ""}`}>
+        {group.coverPhoto && (
+          <button type="button" className="group-cover" aria-label={`View the cover photo of ${group.name}`} onClick={() => setViewing("cover")}>
+            <img src={group.coverPhoto} alt="" />
+          </button>
+        )}
+        {group.avatar ? (
+          <button type="button" className="group-avatar-btn" aria-label={`View the picture of ${group.name}`} onClick={() => setViewing("avatar")}>
+            <GroupAvatar name={group.name} photo={group.avatar} size="lg" />
+          </button>
+        ) : <GroupAvatar name={group.name} size="lg" />}
         <div className="group-head-text">
           <h1 className="name">{group.name}</h1>
           {group.description && <p>{group.description}</p>}
@@ -140,6 +151,10 @@ export default function GroupPage({ gid }: { gid: string }) {
         </div>
       )}
       <Members members={members} error={membersError} />
+      {viewing && (viewing === "avatar" ? group.avatar : group.coverPhoto) && (
+        <ImageViewer src={viewing === "avatar" ? group.avatar : group.coverPhoto}
+          label={viewing === "avatar" ? `${group.name} picture` : `${group.name} cover photo`} onClose={() => setViewing(null)} />
+      )}
       {inviting && <InviteSheet gid={gid} groupName={group.name} onClose={() => setInviting(false)} />}
       {managing && myRole && canManage && members && (
         <GroupManageSheet group={group} myRole={myRole} members={members} onClose={() => setManaging(false)} />

@@ -16,10 +16,10 @@ export default function PostPage({ uid, id }: { uid: string; id: string }) {
     setEntry(undefined);
     return onSnapshot(
       doc(db, "users", uid, "entries", id),
-      (snap) => setEntry(snap.exists() ? ({ id: snap.id, ownerUid: uid, ...snap.data() } as Entry) : null),
+      (snap) => setEntry(snap.exists() && (snap.data().archived !== true || uid === s.uid) ? ({ id: snap.id, ownerUid: uid, ...snap.data() } as Entry) : null),
       () => setEntry(null),
     );
-  }, [uid, id]);
+  }, [uid, id, s.uid]);
 
   return (
     <div className="feed">
@@ -30,7 +30,7 @@ export default function PostPage({ uid, id }: { uid: string; id: string }) {
           <p>It may have been deleted, or it is not shared with you.</p>
         </div>
       )}
-      {entry && <EntryCard entry={entry} onEdit={uid === s.uid ? (e) => s.openEntry(e) : undefined} />}
+      {entry && <EntryCard single entry={entry} onEdit={uid === s.uid ? (e) => s.openEntry(e) : undefined} />}
     </div>
   );
 }

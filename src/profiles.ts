@@ -1,6 +1,6 @@
 import { logActivity } from "./activity";
 import {
-  collection, doc, getDoc, getDocs, limit, query, runTransaction, serverTimestamp, where,
+  collection, doc, getDoc, getDocs, limit, query, runTransaction, serverTimestamp, updateDoc, where,
 } from "firebase/firestore";
 import { db } from "./firebase";
 import type { CoverId, Profile } from "./types";
@@ -106,6 +106,7 @@ function toProfile(uid: string, d: Stored): Profile {
     avatar: d.avatar ?? "",
     cover: (d.cover as CoverId) ?? "amethyst",
     coverPhoto: d.coverPhoto ?? "",
+    friendsVisible: d.friendsVisible !== false,
   };
 }
 export { toProfile };
@@ -143,6 +144,7 @@ export async function saveProfile(uid: string, p: Omit<Profile, "uid">): Promise
     avatar: p.avatar,
     cover: p.cover,
     coverPhoto: p.coverPhoto,
+    friendsVisible: p.friendsVisible !== false,
   };
   if (clean.username) {
     const problem = usernameProblem(clean.username);
@@ -175,6 +177,14 @@ export async function saveProfile(uid: string, p: Omit<Profile, "uid">): Promise
   primeProfile(saved);
   logActivity(uid, "Updated your profile");
   return saved;
+}
+
+/** Settings > Privacy: lets other people open your friends list, or hides it from everyone but you. */
+export async function setFriendsVisible(uid: string, visible: boolean): Promise<void> {
+  await updateDoc(doc(db, "profiles", uid), { friendsVisible: visible });
+  const cached = await fetchProfile(uid).catch(() => null);
+  if (cached) primeProfile({ ...cached, friendsVisible: visible });
+  logActivity(uid, visible ? "Let other people see your friends list" : "Hid your friends list from other people");
 }
 
 /** Finds people whose name or username starts with every word typed ("@" in front is ignored). */

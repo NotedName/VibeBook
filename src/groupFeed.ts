@@ -40,7 +40,7 @@ export function useGroupEntries(gid: string, max = 40, dir: "asc" | "desc" = "de
           follows.set(d.id, onSnapshot(doc(db, "users", ownerUid, "entries", entryId), (s) => {
             setByPost((prev) => {
               const next = { ...prev };
-              if (s.exists()) {
+              if (s.exists() && s.data().archived !== true) {
                 next[d.id] = { id: s.id, ownerUid, ...s.data(),
                   ...(repostedBy ? { repostedBy, repostDate: date, repostTime: time } : {}) } as Entry;
               } else delete next[d.id];

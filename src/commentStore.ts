@@ -112,3 +112,17 @@ export function useComments(ownerUid: string, entryId: string) {
   );
   return { comments, error };
 }
+
+/** Live number of comments and replies on one entry (deleted placeholders do not count). null while loading or if it cannot be read. */
+export function useCommentCount(ownerUid: string, entryId: string): number | null {
+  const [count, setCount] = useState<number | null>(null);
+  useEffect(
+    () => onSnapshot(
+      commentsRef(ownerUid, entryId),
+      (snap) => setCount(snap.docs.filter((d) => d.data().deleted !== true).length),
+      () => setCount(null),
+    ),
+    [ownerUid, entryId],
+  );
+  return count;
+}

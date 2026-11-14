@@ -16,7 +16,7 @@ export const GROUP_DESC_MAX = 300;
 type Stored = Partial<Omit<Group, "id">>;
 
 function toGroup(id: string, d: Stored): Group {
-  return { id, name: d.name ?? "", description: d.description ?? "", ownerUid: d.ownerUid ?? "" };
+  return { id, name: d.name ?? "", description: d.description ?? "", ownerUid: d.ownerUid ?? "", avatar: d.avatar ?? "", coverPhoto: d.coverPhoto ?? "" };
 }
 
 /** Membership is one document per person and group, named "<groupId>_<uid>". */
@@ -71,7 +71,7 @@ export async function createGroup(uid: string, name: string, description: string
   const clean = { name: clip(name.trim(), GROUP_NAME_MAX), description: clip(description.trim(), GROUP_DESC_MAX) };
   const ref = doc(collection(db, "groups"));
   const batch = writeBatch(db);
-  batch.set(ref, { ...clean, nameKeys: nameKeys(clean.name), ownerUid: uid, createdAt: serverTimestamp() });
+  batch.set(ref, { ...clean, avatar: "", coverPhoto: "", nameKeys: nameKeys(clean.name), ownerUid: uid, createdAt: serverTimestamp() });
   batch.set(memberRef(ref.id, uid), { groupId: ref.id, uid, role: "admin", joinedAt: serverTimestamp() });
   await batch.commit();
   logActivity(uid, `Created the group “${clean.name}”`, { href: `#/g/${ref.id}` });
@@ -239,6 +239,23 @@ export const allowBack = (gid: string, uid: string) => deleteDoc(banRef(gid, uid
 export async function updateGroup(gid: string, name: string, description: string): Promise<void> {
   const clean = { name: clip(name.trim(), GROUP_NAME_MAX), description: clip(description.trim(), GROUP_DESC_MAX) };
   await updateDoc(doc(db, "groups", gid), { ...clean, nameKeys: nameKeys(clean.name) });
+  cache.delete(gid);
+  editListeners.forEach((f) => f());
+}
+
+/** Admins: saves the group's name, description and any changed pictures in one write, so a save either happens whole or not at all. */
+export async function saveGroupChanges(
+  gid: string, name: string, description: string, photos: Partial<Pick<Group, "avatar" | "coverPhoto">>,
+): Promise<void> {
+  const clean = { name: clip(name.trim(), GROUP_NAME_MAX), description: clip(description.trim(), GROUP_DESC_MAX) };
+  await updateDoc(doc(db, "groups", gid), { ...clean, nameKeys: nameKeys(clean.name), ...photos });
+  cache.delete(gid);
+  editListeners.forEach((f) => f());
+}
+
+/** Admins: sets, replaces or (with "") removes the group's picture and cover photo. */
+export async function updateGroupPhotos(gid: string, change: Partial<Pick<Group, "avatar" | "coverPhoto">>): Promise<void> {
+  await updateDoc(doc(db, "groups", gid), change);
   cache.delete(gid);
   editListeners.forEach((f) => f());
 }

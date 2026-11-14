@@ -1,5 +1,5 @@
 import { logActivity } from "./activity";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   collection, doc, limit, onSnapshot, orderBy, query, serverTimestamp, writeBatch,
 } from "firebase/firestore";
@@ -71,12 +71,14 @@ export function useMyReposts(uid: string): Map<string, Repost> {
  * The entries these people have reposted, newest first (or the oldest ones, with dir "asc"; the caller sorts). Each original is followed live; one that
  * was deleted or is no longer public simply drops out.
  */
-export function useRepostedEntries(uids: string[], perPerson = 15, dir: "asc" | "desc" = "desc"): Entry[] {
+export function useRepostedEntries(uids: string[], perPerson = 15, dir: "asc" | "desc" = "desc", refreshKey = 0): Entry[] {
+  const lastSig = useRef("");
   const key = [...uids].sort().join(",");
   const [byKey, setByKey] = useState<Record<string, Entry>>({});
 
   useEffect(() => {
-    setByKey({});
+    const sig = `${key}|${perPerson}|${dir}`;
+    if (sig !== lastSig.current) { setByKey({}); lastSig.current = sig; }
     const stops: (() => void)[] = [];
     const drop = (k: string) => setByKey((prev) => { if (!(k in prev)) return prev; const n = { ...prev }; delete n[k]; return n; });
     (key ? key.split(",") : []).forEach((who) => {
@@ -94,7 +96,7 @@ export function useRepostedEntries(uids: string[], perPerson = 15, dir: "asc" | 
             follows.set(d.id, onSnapshot(
               doc(db, "users", r.ownerUid, "entries", r.entryId),
               (s) => {
-                if (!s.exists()) return drop(k);
+                if (!s.exists() || s.data().archived === true) return drop(k); // archived originals disappear from reposts too
                 setByKey((prev) => ({ ...prev, [k]: {
                   id: s.id, ownerUid: r.ownerUid, ...s.data(), repostedBy: who, repostDate: r.date, repostTime: r.time,
                 } as Entry }));
@@ -107,7 +109,7 @@ export function useRepostedEntries(uids: string[], perPerson = 15, dir: "asc" | 
       ));
     });
     return () => stops.forEach((s) => s());
-  }, [key, perPerson, dir]);
+  }, [key, perPerson, dir, refreshKey]);
 
   return useMemo(() => Object.values(byKey).sort(newestFirst), [byKey]);
 }

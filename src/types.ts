@@ -25,6 +25,8 @@ export type Profile = {
   avatar: string; // small JPEG data URL, "" when none
   cover: CoverId;
   coverPhoto: string; // JPEG data URL shown over the cover color, "" when none
+  /** Whether other people can open this person's friends list. Defaults to true; Settings > Privacy turns it off. */
+  friendsVisible: boolean;
 };
 
 export type FriendRequest = { id: string; from: string; to: string };
@@ -32,7 +34,13 @@ export type FriendRequest = { id: string; from: string; to: string };
 export type Relation = "self" | "friends" | "incoming" | "outgoing" | "none";
 
 /** Stored at groups/{id}. Every group is open: anyone signed in can find it and join. */
-export type Group = { id: string; name: string; description: string; ownerUid: string };
+export type Group = {
+  id: string; name: string; description: string; ownerUid: string;
+  /** small square JPEG data URL, "" when none */
+  avatar: string;
+  /** 3:1 banner JPEG data URL, "" when none */
+  coverPhoto: string;
+};
 
 /**
  * What someone can do in a group. Stored on their groupMembers document; people who joined before
@@ -54,6 +62,8 @@ export type GroupInvite = { id: string; groupId: string; from: string; to: strin
 
 /** Most people that can be invited in one go. */
 export const MAX_INVITES_AT_ONCE = 30;
+/** The invite sheet lists at most this many people at once (closest friends first), so it never has to render a long list. */
+export const INVITE_LIST_LIMIT = 8;
 
 /** firestore.rules only looks at the first five groupIds of an entry. */
 export const MAX_GROUPS_PER_ENTRY = 5;

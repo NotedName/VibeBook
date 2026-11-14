@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { createGroup, GROUP_DESC_MAX, GROUP_NAME_MAX } from "./groups";
 import { useSession } from "./session";
 import { CloseIcon } from "./icons";
+import { canAutoFocus } from "./focus";
 
 export default function GroupSheet({ onClose, onCreated }: { onClose: () => void; onCreated: (id: string) => void }) {
   const { uid } = useSession();
@@ -12,7 +13,7 @@ export default function GroupSheet({ onClose, onCreated }: { onClose: () => void
   const nameRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    nameRef.current?.focus();
+    if (canAutoFocus()) nameRef.current?.focus();
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     document.addEventListener("keydown", onKey);
     const prev = document.body.style.overflow;

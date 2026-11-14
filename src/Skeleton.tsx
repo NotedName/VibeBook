@@ -69,7 +69,7 @@ export function ProfileSkeleton() {
         <div className="cover-wrap"><span className="sk sk-cover" /></div>
         <div className="pad">
           <div className="who">
-            <Dot size={96} />
+            <Dot size={128} />
             <div className="who-text sk-stack"><Bar w="50%" h={20} /><Bar w="35%" /></div>
           </div>
           <div className="stats">{[0, 1, 2, 3].map((i) => <span key={i} className="sk" style={{ height: 58, borderRadius: 12 }} />)}</div>

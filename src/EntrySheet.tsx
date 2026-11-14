@@ -1,38 +1,52 @@
 import { defaultVisibility } from "./preferences";
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { addEntry, DESC_MAX, loadPhotos, MAX_PHOTOS, SKILL_MAX, SKILL_WORDS_MAX, SKILLS_INPUT_MAX, SKILLS_MAX, TITLE_MAX, updateEntry, type Entry, type Photo } from "./entries";
-import { clockTime, longDay, nowStr, todayStr } from "./report";
+import { nowStr, todayStr } from "./report";
+import { formatHM, spanMinutes } from "./weeks";
+import { discardClock } from "./hours";
 import { CameraIcon, ClockIcon, CloseIcon, EditIcon, GlobeIcon, ImageIcon, LockIcon, SmileIcon, UsersIcon } from "./icons";
 import { useSession } from "./session";
 import { VISIBILITY, type Visibility } from "./types";
+import { chosenVisibility } from "./entryPrivacy";
 import { parseVideo, VIDEO_URL_MAX } from "./video";
 import PhotoEditor from "./PhotoEditor";
 import EmojiPicker from "./EmojiPicker";
 import { insertEmoji } from "./emoji";
 import { canAutoFocus } from "./focus";
+import { useScrollLock } from "./scrollLock";
+
+/** Values a new entry starts with, e.g. from pressing Clock out. */
+export type EntryPrefill = { date: string; clockIn: string; clockOut: string; /** Stop the running clock once this entry is saved. */ fromClock?: boolean };
 
 type Props = {
   uid: string;
   entry: Entry | null; // null = new entry
+  prefill?: EntryPrefill;
   /** Group to tick for a new entry, e.g. when writing from inside that group. */
   defaultGroupId?: string;
   onClose: () => void;
   onSaved: (message: string) => void;
 };
 
-export default function EntrySheet({ uid, entry, defaultGroupId, onClose, onSaved }: Props) {
+export default function EntrySheet({ uid, entry, prefill, defaultGroupId, onClose, onSaved }: Props) {
   const s = useSession();
-  // Date and time are stamped when the sheet opens and kept as they were when editing; never typed in.
-  const [{ date, time }] = useState(() => ({ date: entry?.date ?? todayStr(), time: entry?.time ?? nowStr() }));
+  // A new entry is stamped with the moment the sheet opened. The date and the hours worked can be changed.
+  const [loggedAt] = useState(() => entry?.time ?? nowStr());
+  const [date, setDate] = useState(entry?.date ?? prefill?.date ?? todayStr());
+  const [clockIn, setClockIn] = useState(entry?.clockIn ?? prefill?.clockIn ?? "");
+  const [clockOut, setClockOut] = useState(entry?.clockOut ?? prefill?.clockOut ?? "");
+  const worked = spanMinutes(clockIn, clockOut);
   const [title, setTitle] = useState(entry?.title ?? "");
   const [skills, setSkills] = useState(entry?.skills.join(", ") ?? "");
   const [description, setDescription] = useState(entry?.description ?? "");
   const [videoUrl, setVideoUrl] = useState(entry?.videoUrl ?? "");
-  const [visibility, setVisibility] = useState<Visibility>(entry?.visibility ?? defaultVisibility());
+  const [visibility, setVisibility] = useState<Visibility>(entry ? chosenVisibility(entry) : defaultVisibility());
   // Groups are chosen with Share on the post, not here. A new entry started inside a group goes to that group,
   // and an entry being edited keeps the groups it is already shared to.
   const [groupIds] = useState<string[]>(() =>
     (entry ? entry.groupIds ?? [] : defaultGroupId ? [defaultGroupId] : []).filter((id) => s.groups.ids.has(id)));
+  // In a private group, only its members see the entry, whatever is picked here. The pick is kept for when it leaves the group.
+  const privateGroup = s.groups.list.find((g) => groupIds.includes(g.id) && g.privacy === "private");
   const [saved, setSaved] = useState<Photo[]>([]); // photos already stored on the entry
   const [removed, setRemoved] = useState<string[]>([]);
   const [photosReady, setPhotosReady] = useState(!entry || entry.photoCount === 0);
@@ -66,15 +80,13 @@ export default function EntrySheet({ uid, entry, defaultGroupId, onClose, onSave
     return () => { live = false; };
   }, [uid, entryId, hadPhotos]);
 
+  useScrollLock();
   useEffect(() => {
     if (canAutoFocus()) titleRef.current?.focus();
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     document.addEventListener("keydown", onKey);
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
     return () => {
       document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = prev;
     };
   }, [onClose]);
 
@@ -98,13 +110,14 @@ export default function EntrySheet({ uid, entry, defaultGroupId, onClose, onSave
     }
     setBusy(true);
     const input = {
-      date, time, title: title.trim(), description: description.trim(), visibility, groupIds,
+      date, time: clockIn || loggedAt, clockIn, clockOut, title: title.trim(), description: description.trim(), visibility, groupIds,
       videoUrl: videoUrl.trim(),
       skills: skills.split(",").map((s) => s.trim()).filter(Boolean),
     };
     try {
       if (entry) await updateEntry(uid, entry, input, saved, removed, files);
       else await addEntry(uid, input, files);
+      if (!entry && prefill?.fromClock) await discardClock(uid).catch(() => {});
       onSaved(entry ? "Entry updated" : "Entry saved");
     } catch (err) {
       setError((err as Error).message);
@@ -156,8 +169,26 @@ export default function EntrySheet({ uid, entry, defaultGroupId, onClose, onSave
             </div>
           )}
 
-          {/* New entries are stamped silently on save; only an existing entry shows when it was logged. */}
-          {entry && <p className="stamp"><ClockIcon />{longDay(date)} · {clockTime(time)}<small>Logged</small></p>}
+          <fieldset className="hours-pick">
+            <legend><ClockIcon /> When and how long</legend>
+            <div className="hours-grid">
+              <label>Date
+                <input type="date" value={date} max={todayStr()} required
+                  onChange={(e) => setDate(e.target.value || todayStr())} />
+              </label>
+              <label>Time in
+                <input type="time" value={clockIn} onChange={(e) => setClockIn(e.target.value)} />
+              </label>
+              <label>Time out
+                <input type="time" value={clockOut} onChange={(e) => setClockOut(e.target.value)} />
+              </label>
+            </div>
+            <p className="hint">
+              {worked > 0
+                ? `${formatHM(worked)} will count towards your hours${clockOut < clockIn ? " (the shift runs past midnight)" : ""}.`
+                : "Add Time in and Time out to count this entry towards your hours. Leave both empty to log it without hours."}
+            </p>
+          </fieldset>
           <label>Activity
             <input ref={titleRef} value={title} onChange={(e) => setTitle(e.target.value)} required onFocus={() => { lastField.current = "title"; }}
               maxLength={TITLE_MAX} placeholder="e.g. Set up a new PC in the engineering office" />
@@ -182,7 +213,7 @@ export default function EntrySheet({ uid, entry, defaultGroupId, onClose, onSave
             {emojiOpen && <div className="media-picker"><EmojiPicker onPick={addEmoji} /></div>}
           </div>
 
-          <fieldset className="vis-pick">
+          <fieldset className="vis-pick" disabled={!!privateGroup}>
             <legend>Who can see this</legend>
             <div className="seg">
               {VISIBILITY.map((v) => (
@@ -194,7 +225,11 @@ export default function EntrySheet({ uid, entry, defaultGroupId, onClose, onSave
                 </label>
               ))}
             </div>
-            <p className="hint">{VISIBILITY.find((v) => v.id === visibility)!.hint}</p>
+            <p className="hint">
+              {privateGroup
+                ? `Shared to ${privateGroup.name}, a private group: only its members can see this entry. It stays off your profile (people see "join the group to see this post"), the feed and share links.`
+                : VISIBILITY.find((v) => v.id === visibility)!.hint}
+            </p>
           </fieldset>
 
           {!entry && defaultGroupId && s.groups.ids.has(defaultGroupId) && (

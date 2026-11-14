@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { collection, limit, onSnapshot, orderBy, query } from "firebase/firestore";
 import { db } from "./firebase";
 import { nowStr, todayStr } from "./report";
@@ -25,9 +25,16 @@ export function useGroupAlerts(uid: string, groupIds: string[]) {
   // stamps ("YYYY-MM-DD HH:mm") of other people's recent posts, per group
   const [posts, setPosts] = useState<Record<string, string[]>>({});
 
+  const postsRef = useRef(posts);
+  postsRef.current = posts;
+
+  // "Seen" is now, or the newest post already known if that is stamped later (a post dated ahead of this
+  // device's clock would otherwise stay "new" however often you marked it read).
   const markSeen = useCallback((gid: string) => {
+    const newest = (postsRef.current[gid] ?? []).reduce((a, b) => (b > a ? b : a), "");
+    const now = stamp();
     setSeen((prev) => {
-      const next = { ...prev, [gid]: stamp() };
+      const next = { ...prev, [gid]: newest > now ? newest : now };
       try { localStorage.setItem(seenKey(uid), JSON.stringify(next)); } catch { /* not remembered */ }
       return next;
     });

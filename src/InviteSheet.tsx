@@ -9,6 +9,7 @@ import { useClosestFriends } from "./closeFriends";
 import { INVITE_LIST_LIMIT, MAX_INVITES_AT_ONCE } from "./types";
 import Avatar from "./Avatar";
 import { CloseIcon, SearchIcon } from "./icons";
+import { useScrollLock } from "./scrollLock";
 
 function Candidate({ uid, checked, disabled, status, onToggle }: {
   uid: string; checked: boolean; disabled: boolean; status: string; onToggle: () => void;
@@ -42,12 +43,11 @@ export default function InviteSheet({ gid, groupName, onClose }: { gid: string; 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
+  useScrollLock();
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     document.addEventListener("keydown", onKey);
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => { document.removeEventListener("keydown", onKey); document.body.style.overflow = prev; };
+    return () => { document.removeEventListener("keydown", onKey); };
   }, [onClose]);
 
   useEffect(() => {

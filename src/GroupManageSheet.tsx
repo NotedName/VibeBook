@@ -1,8 +1,12 @@
 import { useCallback, useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import {
-  allowBack, canChangeRole, canRemove, GROUP_DESC_MAX, GROUP_NAME_MAX, removeMember, saveGroupChanges, setMemberRole, useBannedUids,
+  allowBack, approveRequest, canChangeRole, canRemove, cleanQuestions, declineRequest, GROUP_DESC_MAX, GROUP_NAME_MAX, removeMember,
+  saveGroupChanges, setMemberRole, useBannedUids, useJoinRequests,
 } from "./groups";
-import { ROLES, type Group, type GroupRole, type Member } from "./types";
+import { syncEntryPrivacy } from "./entryPrivacy";
+import { ROLES, type Group, type GroupPrivacy, type GroupRole, type JoinRequest, type Member } from "./types";
+import GroupAccessFields from "./GroupAccessFields";
+import { ago } from "./notifications";
 import { useProfile, useSession } from "./session";
 import { personHash } from "./profiles";
 import Avatar from "./Avatar";
@@ -10,6 +14,8 @@ import { coverBanner, squareAvatar } from "./image";
 import PhotoEditor from "./PhotoEditor";
 import { CameraIcon, CloseIcon, ImageIcon } from "./icons";
 import { GroupAvatar } from "./GroupRow";
+import RoleTiers from "./RoleTiers";
+import { useScrollLock } from "./scrollLock";
 
 type Props = {
   group: Group;
@@ -51,7 +57,7 @@ function MemberRow({ gid, member, myRole, ownerUid }: { gid: string; member: Mem
   }, [armed]);
 
   return (
-    <li className="person">
+    <li className="person member-row">
       <a href={personHash(member.uid, p)} className="person-link">
         <Avatar profile={p} size="md" />
         <span className="person-text">
@@ -59,7 +65,8 @@ function MemberRow({ gid, member, myRole, ownerUid }: { gid: string; member: Mem
           <span>{member.uid === ownerUid ? "Owner · Admin" : roleLabel(member.role)}</span>
         </span>
       </a>
-      <div className="relation">
+      {(changeRole || removable) && (
+      <div className="member-actions">
         {changeRole && (
           <select className="role-select" aria-label={`Role for ${name}`} value={member.role} disabled={busy}
             onChange={(e) => {
@@ -76,6 +83,7 @@ function MemberRow({ gid, member, myRole, ownerUid }: { gid: string; member: Mem
           </button>
         )}
       </div>
+      )}
     </li>
   );
 }
@@ -85,17 +93,65 @@ function RemovedRow({ gid, uid, canAllow }: { gid: string; uid: string; canAllow
   const { busy, run } = useAction();
   const name = p === undefined ? "…" : p?.displayName || "VibeBook member";
   return (
-    <li className="person">
+    <li className="person member-row">
       <span className="person-link">
         <Avatar profile={p} size="md" />
         <span className="person-text"><b>{name}</b><span>Cannot rejoin</span></span>
       </span>
       {canAllow && (
-        <button type="button" className="btn" disabled={busy} onClick={() => run(() => allowBack(gid, uid), `${name} can rejoin`)}>
-          Allow back
-        </button>
+        <div className="member-actions">
+          <button type="button" className="btn" disabled={busy} onClick={() => run(() => allowBack(gid, uid), `${name} can rejoin`)}>
+            Allow back
+          </button>
+        </div>
       )}
     </li>
+  );
+}
+
+function RequestRow({ group, request }: { group: Group; request: JoinRequest }) {
+  const s = useSession();
+  const p = useProfile(request.uid);
+  const { busy, run } = useAction();
+  const name = p === undefined ? "…" : p?.displayName || "VibeBook member";
+  return (
+    <li className="req-card">
+      <div className="person">
+        <a href={personHash(request.uid, p)} className="person-link">
+          <Avatar profile={p} size="md" />
+          <span className="person-text"><b>{name}</b><span>Asked {ago(request.createdAt)} ago</span></span>
+        </a>
+      </div>
+      <dl className="req-answers">
+        <dt>Why they want to join</dt>
+        <dd>{request.message}</dd>
+        {group.questions.map((q, i) => (
+          <div key={i}><dt>{q}</dt><dd>{request.answers[i] || "No answer"}</dd></div>
+        ))}
+      </dl>
+      <div className="req-actions">
+        <button type="button" className="btn primary" disabled={busy}
+          onClick={() => run(() => approveRequest(s.uid, group, request.uid), `${name} joined the group`)}>Approve</button>
+        <button type="button" className="btn" disabled={busy}
+          onClick={() => run(() => declineRequest(group.id, request.uid), "Request declined")}>Decline</button>
+      </div>
+    </li>
+  );
+}
+
+/** Requests waiting for approval in a private group. Admins and moderators see them. */
+function Requests({ group }: { group: Group }) {
+  const { requests, error } = useJoinRequests(group.id, group.privacy === "private");
+  if (group.privacy !== "private") return null;
+  return (
+    <section className="manage-section">
+      <h3>Join requests {requests && <span>{requests.length}</span>}</h3>
+      {error && <p className="error note">{error}</p>}
+      {requests && requests.length === 0 && !error && <p className="hint">No one is waiting. People who ask to join show up here.</p>}
+      {requests && requests.length > 0 && (
+        <ul className="req-list">{requests.map((r) => <RequestRow key={r.uid} group={group} request={r} />)}</ul>
+      )}
+    </section>
   );
 }
 
@@ -105,16 +161,21 @@ function RemovedRow({ gid, uid, canAllow }: { gid: string; uid: string; canAllow
  */
 function Details({ group, onDirty }: { group: Group; onDirty: (dirty: boolean) => void }) {
   const { busy, run } = useAction();
-  const { notify } = useSession();
+  const s = useSession();
+  const { notify } = s;
   const [name, setName] = useState(group.name);
   const [description, setDescription] = useState(group.description);
   const [avatar, setAvatar] = useState(group.avatar);
   const [cover, setCover] = useState(group.coverPhoto);
+  const [privacy, setPrivacy] = useState<GroupPrivacy>(group.privacy);
+  const [questions, setQuestions] = useState<string[]>(group.questions);
   const [editing, setEditing] = useState<{ kind: "avatar" | "cover"; file: File } | null>(null);
   const input = useRef<HTMLInputElement>(null);
   const picking = useRef<"avatar" | "cover">("avatar");
 
-  const changed = name.trim() !== group.name || description.trim() !== group.description || avatar !== group.avatar || cover !== group.coverPhoto;
+  const cleanQs = cleanQuestions(questions, privacy);
+  const accessChanged = privacy !== group.privacy || cleanQs.join("\n") !== group.questions.join("\n");
+  const changed = name.trim() !== group.name || description.trim() !== group.description || avatar !== group.avatar || cover !== group.coverPhoto || accessChanged;
   useEffect(() => { onDirty(changed); return () => onDirty(false); }, [changed, onDirty]);
 
   function pick(kind: "avatar" | "cover") { picking.current = kind; input.current?.click(); }
@@ -134,13 +195,19 @@ function Details({ group, onDirty }: { group: Group; onDirty: (dirty: boolean) =
   }
   function discard() {
     setName(group.name); setDescription(group.description); setAvatar(group.avatar); setCover(group.coverPhoto);
+    setPrivacy(group.privacy); setQuestions(group.questions);
   }
   function submit(e: FormEvent) {
     e.preventDefault();
     const photos: Partial<Pick<Group, "avatar" | "coverPhoto">> = {};
     if (avatar !== group.avatar) photos.avatar = avatar;
     if (cover !== group.coverPhoto) photos.coverPhoto = cover;
-    run(() => saveGroupChanges(group.id, name, description, photos), "Group updated");
+    const goingPrivate = privacy === "private" && group.privacy !== "private";
+    run(async () => {
+      await saveGroupChanges(group.id, name, description, photos, accessChanged ? { privacy, questions: cleanQs } : undefined);
+      // Your own entries in this group follow its new privacy right away; other members' entries follow when they next open the app.
+      if (privacy !== group.privacy) await syncEntryPrivacy(s.uid).catch(() => {});
+    }, goingPrivate ? "Group is now private" : "Group updated");
   }
 
   return (
@@ -179,6 +246,14 @@ function Details({ group, onDirty }: { group: Group; onDirty: (dirty: boolean) =
       <label>What is it for?
         <textarea rows={3} value={description} onChange={(e) => setDescription(e.target.value)} maxLength={GROUP_DESC_MAX} placeholder="Who should join, and what do you share here?" />
       </label>
+      <GroupAccessFields privacy={privacy} questions={questions} onPrivacy={setPrivacy} onQuestions={setQuestions} disabled={busy} />
+      {privacy !== group.privacy && (
+        <p className="hint">
+          {privacy === "private"
+            ? "Entries already shared to this group will be hidden from profiles and feeds. Their authors' own entries are updated when they next open VibeBook."
+            : "Entries stay as they are until their authors next open VibeBook, when they go back to the visibility their authors chose. People waiting to join can join directly."}
+        </p>
+      )}
       {changed && <p className="hint unsaved" role="status">You have changes that are not saved yet. Nothing changes for the group until you press Save changes.</p>}
       <div className="manage-save">
         <button type="submit" className="btn primary" disabled={busy || !changed || !name.trim()}>{busy ? "Saving…" : "Save changes"}</button>
@@ -200,12 +275,11 @@ export default function GroupManageSheet({ group, myRole, members, onClose }: Pr
     onClose();
   }, [onClose]);
 
+  useScrollLock();
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && close();
     document.addEventListener("keydown", onKey);
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => { document.removeEventListener("keydown", onKey); document.body.style.overflow = prev; };
+    return () => { document.removeEventListener("keydown", onKey); };
   }, [close]);
 
   return (
@@ -221,12 +295,12 @@ export default function GroupManageSheet({ group, myRole, members, onClose }: Pr
               ? "Admins edit the group, change roles and remove members. Moderators remove members and take posts out of the feed."
               : "Moderators can remove members and take posts out of the feed. Open a post's menu in the feed to remove it."}
           </p>
+          <Requests group={group} />
           {isAdmin && <section className="manage-section"><h3>Details</h3><Details group={group} onDirty={onDirty} /></section>}
           <section className="manage-section">
             <h3>Members <span>{members.length}</span></h3>
-            <ul className="people">
-              {members.map((m) => <MemberRow key={m.uid} gid={group.id} member={m} myRole={myRole} ownerUid={group.ownerUid} />)}
-            </ul>
+            <RoleTiers members={members} ownerUid={group.ownerUid} list="people"
+              render={(m) => <MemberRow key={m.uid} gid={group.id} member={m} myRole={myRole} ownerUid={group.ownerUid} />} />
             <p className="hint">Removed people cannot rejoin until an admin allows them back.</p>
           </section>
           {banned.length > 0 && (

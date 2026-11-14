@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent } from "react";
 import { createPortal } from "react-dom";
 import { CloseIcon, FlipIcon, RotateIcon } from "./icons";
+import { useScrollLock } from "./scrollLock";
 
 type Aspect = "original" | "1:1" | "4:3" | "16:9";
 const ASPECTS: { id: Aspect; label: string; ratio: number | null }[] = [
@@ -86,6 +87,7 @@ type Props = {
 
 /** Crop, rotate, flip and adjust a photo before it is attached to an entry. */
 export default function PhotoEditor({ file, onApply, onCancel, fixedRatio, outSide, title = "Edit photo" }: Props) {
+  useScrollLock();
   const [bitmap, setBitmap] = useState<ImageBitmap | null>(null);
   const [loadError, setLoadError] = useState(false);
   const [turns, setTurns] = useState(0);

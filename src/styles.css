@@ -320,11 +320,13 @@ a.btn { text-decoration: none; }
 }
 .sheet-head {
   position: relative; flex: none; display: flex; align-items: center; justify-content: center;
-  padding: 14px 56px; border-bottom: 1px solid var(--line);
+  min-height: 60px; padding: 10px calc(60px + env(safe-area-inset-right, 0px)) 10px calc(60px + env(safe-area-inset-left, 0px));
+  border-bottom: 1px solid var(--line);
 }
-.sheet-head h2 { font-family: var(--font-display); font-size: calc(18px * var(--ts)); }
-.sheet-head .close { position: absolute; right: 12px; top: 8px; }
-.sheet-body { flex: 1; overflow-y: auto; padding: 16px; display: grid; gap: 14px; align-content: start; }
+.sheet-head h2 { font-family: var(--font-display); font-size: calc(18px * var(--ts)); line-height: 1.25; text-align: center; min-width: 0; overflow-wrap: anywhere; }
+/* top/bottom 0 with auto margins centres the button whatever the title's height or the text size setting */
+.sheet-head .close { position: absolute; top: 0; bottom: 0; margin-block: auto; right: max(8px, env(safe-area-inset-right, 0px)); }
+.sheet-body { flex: 1; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; padding: 16px; display: grid; gap: 14px; align-content: start; }
 .sheet-actions {
   flex: none; display: flex; gap: 10px; padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px));
   border-top: 1px solid var(--line);
@@ -693,10 +695,10 @@ a.btn { text-decoration: none; }
 .repost-note svg { width: 15px; height: 15px; flex: none; }
 .repost-note a { color: inherit; text-decoration: none; }
 .repost-note b { color: var(--text); font-weight: 600; }
-.backbar { padding: 8px var(--gutter) 0; }
+.backbar { padding: 6px max(var(--gutter), env(safe-area-inset-left, 0px)) 0; }
 .back-btn {
-  display: inline-flex; align-items: center; gap: 6px; border: 0; background: none; border-radius: var(--radius-sm);
-  padding: 8px 14px 8px 10px; color: var(--accent-text); font-weight: 600; font-size: calc(14px * var(--ts));
+  display: inline-flex; align-items: center; gap: 4px; border: 0; background: none; border-radius: var(--radius-sm);
+  min-height: 44px; margin-left: -6px; padding: 0 16px 0 8px; color: var(--accent-text); font-weight: 600; font-size: calc(15px * var(--ts));
 }
 .back-btn:hover { background: var(--accent-soft); }
 .back-btn svg { width: 20px; height: 20px; }
@@ -828,12 +830,23 @@ a.btn { text-decoration: none; }
 .notes-readall { justify-self: end; }
 .notes-empty { text-align: center; padding: 24px 8px; }
 .notes { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
-.note {
+.note-row {
   display: flex; align-items: center; gap: 12px; padding: 10px; border-radius: var(--radius-md);
-  color: var(--text); text-decoration: none;
+  color: var(--text); text-decoration: none; -webkit-user-drag: none;
 }
-.note:hover { background: var(--surface-2); }
-.note.unread { background: var(--accent-soft); }
+.note-row:hover { background: var(--surface-2); }
+.note-row.unread, .note-row.unread:hover { background: var(--accent-soft); }
+
+/* Swipe a notification sideways to mark it read: the row slides over a "Mark as read" strip. */
+.note-swipe { position: relative; overflow: hidden; border-radius: var(--radius-md); touch-action: pan-y; -webkit-user-select: none; user-select: none; }
+.note-swipe-bg {
+  position: absolute; inset: 0; display: flex; align-items: center; gap: 8px; padding: 0 18px; pointer-events: none; opacity: 0;
+  background: var(--accent); color: var(--accent-ink); font-weight: 700; font-size: calc(13px * var(--ts));
+}
+.note-swipe-bg svg { width: 18px; height: 18px; flex: none; }
+.note-swipe-fg { position: relative; background: var(--surface); border-radius: inherit; transition: transform .22s var(--ease); }
+.note-swipe.dragging .note-swipe-fg { transition: none; will-change: transform; }
+@media (prefers-reduced-motion: reduce) { .note-swipe-fg { transition: none; } }
 .note-avatars { display: flex; flex: none; }
 .note-avatars .av { width: 40px; height: 40px; font-size: calc(15px * var(--ts)); }
 .note-avatars.stack .av { width: 32px; height: 32px; font-size: calc(12px * var(--ts)); border: 2px solid var(--surface); }
@@ -1081,7 +1094,6 @@ a.btn { text-decoration: none; }
 .show-more { background: none; border: 0; padding: 6px 0 0; color: var(--accent-text); font-weight: 600; font-size: calc(14px * var(--ts)); }
 .show-more:hover { text-decoration: underline; }
 .sheet label small.count-warn { color: var(--danger); }
-@media (min-width: 1024px) { .members-inline { display: none; } }
 
 /* ---------- comment sorting and paging, opening a post ---------- */
 .comment-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; color: var(--muted); font-size: calc(13px * var(--ts)); font-weight: 600; }
@@ -1191,12 +1203,12 @@ html.ptr-on, html.ptr-on body { overscroll-behavior-y: contain; }
    The card is exactly as tall as its members. The page column is sticky, so a very long list stops at the screen height and scrolls up and down
    inside the card. It never scrolls sideways: rows wrap their text instead of being cut or pushed out, and the hover highlight stays inside the card. */
 .side-members { min-width: 0; overflow: hidden; }
-.side-members ul { max-height: calc(100vh - 190px); overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; }
+.side-members .role-tiers { max-height: calc(100vh - 190px); overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; }
+.side-members ul { grid-template-columns: minmax(0, 1fr); }
 .side-members li { min-width: 0; }
 .side-card.side-members li a { margin: 0; flex-wrap: wrap; row-gap: 4px; align-items: center; }
 .side-card.side-members li a span:not(.role-badge) { flex: 1 1 0; min-width: 0; overflow: visible; text-overflow: clip; white-space: normal; overflow-wrap: anywhere; line-height: 1.3; }
 .side-members .role-badge { flex: none; margin-left: auto; font-style: normal; }
-.members-inline .people, .members-inline .person { min-width: 0; }
 
 /* ---------- offline screen (Android app only) ---------- */
 .offline-gate {
@@ -1211,3 +1223,231 @@ html.ptr-on, html.ptr-on body { overscroll-behavior-y: contain; }
 .offline-card p { margin: 0; color: var(--muted); line-height: 1.5; }
 .offline-card .btn { margin-top: 6px; }
 .offline-card .error { min-height: 1.4em; color: var(--danger); }
+
+/* ---------- member hierarchy: Owner, Admins, Moderators, Members ---------- */
+.role-tiers { display: grid; gap: 14px; min-width: 0; }
+.role-tier { display: grid; gap: 6px; min-width: 0; }
+.tier-head {
+  display: flex; align-items: center; gap: 8px; margin: 0 4px; font-family: var(--font-body, inherit);
+  font-size: calc(12px * var(--ts)); font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted);
+}
+.tier-head span { font-weight: 600; letter-spacing: 0; padding: 0 7px; border-radius: var(--radius-pill); background: var(--surface-2); font-size: calc(12px * var(--ts)); }
+.tier-owner .tier-head, .tier-admin .tier-head { color: var(--accent-text); }
+.tier-owner .tier-head span, .tier-admin .tier-head span { background: var(--accent-soft); }
+/* the people at the top of the hierarchy stand out a little */
+.tier-owner .person-text b, .tier-admin .person-text b { font-weight: 800; }
+.tier-owner .person, .tier-admin .person { box-shadow: inset 3px 0 0 var(--accent); }
+.side-members .tier-owner li a, .side-members .tier-admin li a { font-weight: 700; }
+.side-members .tier-head { margin: 0 2px; }
+
+/* ---------- members never scroll sideways: they wrap and shrink instead ---------- */
+.sheet-body { overflow-x: hidden; }
+.sheet-body > *, .manage-section, .people, .person, .person-link, .person-text, .relation { min-width: 0; max-width: 100%; }
+.person .relation { flex: 1 1 auto; justify-content: flex-end; }
+.person .relation .btn, .person .role-select { max-width: 100%; }
+.role-select { min-width: 0; text-overflow: ellipsis; }
+.person-text b, .person-text span { overflow-wrap: anywhere; }
+@media (max-width: 420px) {
+  .person .relation { flex: 1 1 100%; justify-content: flex-start; }
+}
+
+/* ---------- private groups, join requests, private posts ---------- */
+.seg.two { grid-template-columns: repeat(2, 1fr); }
+.vis-group { color: var(--accent-text); background: var(--accent-soft); }
+.sheet .group-pick label.off { opacity: .6; cursor: default; }
+.priv-tag { display: inline-flex; align-items: center; gap: 4px; margin-left: 8px; padding: 1px 8px; border-radius: var(--radius-pill);
+  background: var(--surface-2); color: var(--muted); font-size: calc(11px * var(--ts)); font-weight: 600; vertical-align: middle; }
+.priv-tag svg { width: 12px; height: 12px; }
+.group-kind { display: inline-flex; align-items: center; gap: 5px; margin: 0; color: var(--muted); font-size: calc(13px * var(--ts)); font-weight: 600; }
+.group-kind svg { width: 14px; height: 14px; }
+
+.join-questions { border: 0; padding: 0; margin: 0; min-width: 0; display: grid; gap: 8px; justify-items: start; }
+.join-questions legend { font-weight: 600; font-size: calc(14px * var(--ts)); color: var(--text); padding: 0 0 6px; }
+.join-questions legend small { color: var(--muted); font-weight: 400; }
+.join-questions .hint { margin: 0; }
+.q-row { display: flex; gap: 6px; align-items: center; width: 100%; }
+.q-row input { flex: 1 1 0; min-width: 0; }
+.join-who { display: flex; align-items: center; gap: 10px; margin: 0; }
+
+.req-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.req-card { border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface-2); min-width: 0; overflow: hidden; }
+.req-card .person { border-top: 0; }
+.req-answers { margin: 0; padding: 0 14px 4px; display: grid; gap: 8px; }
+.req-answers dt { color: var(--muted); font-size: calc(12px * var(--ts)); font-weight: 600; overflow-wrap: anywhere; }
+.req-answers dd { margin: 2px 0 0; color: var(--text); font-size: calc(14px * var(--ts)); white-space: pre-wrap; overflow-wrap: anywhere; }
+.req-actions { display: flex; flex-wrap: wrap; gap: 8px; padding: 10px 14px 14px; }
+
+.locked-post { border-style: dashed; box-shadow: none; }
+.locked-body { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; padding: 4px 14px 14px; }
+.locked-icon { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; background: var(--accent-soft); color: var(--accent-text); flex: none; }
+.locked-icon svg { width: 18px; height: 18px; }
+.locked-text { flex: 1 1 160px; min-width: 0; display: grid; gap: 2px; font-size: calc(14px * var(--ts)); }
+.locked-text span { color: var(--muted); overflow-wrap: anywhere; }
+.locked-body .btn { gap: 8px; }
+
+/* ---------- group members: one tap away, and a tidy manage list ---------- */
+/* The side card lists the members from 1024px up; below that the Members button opens them in a sheet. */
+@media (min-width: 1024px) { .members-btn { display: none; } }
+.sheet.members-sheet { max-width: 560px; }
+.sheet-count {
+  margin-left: 8px; padding: 1px 9px; border-radius: var(--radius-pill); background: var(--surface-2); border: 1px solid var(--line);
+  color: var(--muted); font-family: var(--font-body, inherit); font-size: calc(12px * var(--ts)); font-weight: 700; vertical-align: middle;
+}
+.members-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.members-actions .btn { flex: 1 1 140px; }
+
+/* A member in the manage sheet: who they are on the left, their controls on the right. On a narrow screen the controls drop to a row of
+   their own that fills the width, with the role picker taking the space and the button keeping its natural size. */
+.member-row { flex-wrap: nowrap; align-items: center; }
+.member-row .person-link { flex: 1 1 0; min-width: 0; }
+.member-actions { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
+.member-actions .role-select, .member-actions .btn { min-height: 38px; }
+.member-actions .role-select { max-width: 150px; }
+.member-actions .btn { white-space: nowrap; }
+@media (max-width: 520px) {
+  .member-row { flex-wrap: wrap; }
+  .member-row .person-link { flex: 1 1 100%; }
+  .member-actions { flex: 1 1 100%; display: grid; grid-template-columns: minmax(0, 1fr) auto; }
+  .member-actions .role-select { max-width: none; width: 100%; }
+  .member-actions > :only-child { grid-column: 1 / -1; justify-self: end; }
+}
+
+/* ---------- messages ---------- */
+a.icon-btn { color: inherit; text-decoration: none; }
+.icon-btn.on { background: var(--accent-soft); color: var(--accent-text); }
+.chat-list { overflow: hidden; }
+.chat-row { display: flex; align-items: center; gap: 12px; padding: 12px 14px; min-width: 0; color: inherit; text-decoration: none; }
+.chat-list li + li .chat-row { border-top: 1px solid var(--line); }
+.chat-row:hover { background: var(--surface-2); }
+.chat-row-text { display: grid; flex: 1 1 0; min-width: 0; }
+.chat-row-text b, .chat-row-text span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chat-row-text b { font-weight: 700; }
+.chat-row-text span { color: var(--muted); font-size: calc(14px * var(--ts)); }
+.chat-row.unread .chat-row-text span { color: var(--text); font-weight: 600; }
+.chat-row-meta { display: grid; justify-items: end; gap: 6px; flex: none; color: var(--muted); font-size: calc(12px * var(--ts)); }
+.chat-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); }
+
+.chat { display: flex; flex-direction: column; min-height: calc(100dvh - 150px); }
+.chat-head { display: flex; align-items: center; gap: 12px; margin: 8px var(--gutter) 0; padding: 10px 0; min-width: 0; color: inherit; text-decoration: none; border-bottom: 1px solid var(--line); }
+.chat-head-text { display: grid; min-width: 0; }
+.chat-head-text b, .chat-head-text span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chat-head-text span { color: var(--muted); font-size: calc(13px * var(--ts)); }
+.chat-body { flex: 1 1 auto; display: flex; flex-direction: column; justify-content: flex-end; gap: 2px; padding: 12px var(--gutter); min-width: 0; }
+.chat-item { display: grid; gap: 2px; }
+.chat-day { margin: 14px 0 6px; text-align: center; color: var(--muted); font-size: calc(12px * var(--ts)); font-weight: 600; }
+.bubble { max-width: min(78%, 480px); padding: 9px 13px; border-radius: 18px; line-height: 1.4; white-space: pre-wrap; overflow-wrap: anywhere; }
+.bubble.mine { justify-self: end; background: var(--accent); color: var(--accent-ink); border-bottom-right-radius: 6px; }
+.bubble.theirs { justify-self: start; background: var(--surface-2); border: 1px solid var(--line); border-bottom-left-radius: 6px; }
+.bubble-time { margin: 0 4px 6px; color: var(--muted); font-size: calc(11px * var(--ts)); }
+.bubble-time.mine { justify-self: end; }
+.bubble-time.theirs { justify-self: start; }
+.chat-more { align-self: center; margin-bottom: 8px; }
+.chat-empty { text-align: center; }
+.chat-composer {
+  position: sticky; bottom: 0; z-index: 5; display: flex; align-items: flex-end; gap: 8px;
+  padding: 10px var(--gutter) calc(10px + env(safe-area-inset-bottom, 0px));
+  background: color-mix(in srgb, var(--bg) 88%, transparent); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+  border-top: 1px solid var(--line);
+}
+.chat-composer textarea {
+  flex: 1 1 0; min-width: 0; min-height: 40px; max-height: 140px; resize: none; field-sizing: content;
+  border: 1px solid var(--line); background: var(--surface); border-radius: 20px; padding: 9px 14px; line-height: 1.4;
+}
+.chat-composer textarea:focus { border-color: var(--accent); outline: none; }
+.chat-composer .send { background: var(--accent); color: var(--accent-ink); }
+.chat-composer .send:hover:not(:disabled) { filter: brightness(1.12); background: var(--accent); }
+.chat-composer .send:disabled { opacity: .45; cursor: default; }
+.chat-locked { margin: 0; padding: 14px var(--gutter); text-align: center; }
+/* On a phone an open conversation takes the whole screen: no floating tab bar over the message box. */
+@media (max-width: 599.98px) {
+  .topbar.in-chat .tabs { display: none; }
+  .logbook.chat-page { padding-bottom: 0; }
+}
+/* Four buttons in the top bar need to fit the outer screen of a Galaxy Fold. */
+@media (max-width: 359.98px) { .top-actions .icon-btn { width: 32px; height: 32px; } }
+
+/* A panel is open: the page behind it stays put (scrollLock.ts pins the body; this stops the rubber-band too). */
+html.scroll-locked { overscroll-behavior: none; }
+
+/* ---------- hours: required hours, clock in / out ---------- */
+.hours { display: grid; gap: 8px; padding: 14px; margin-bottom: 14px; background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius-md); }
+.hours-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.hours-total b { display: block; font-family: var(--font-display); font-size: calc(26px * var(--ts)); line-height: 1.1; font-variant-numeric: tabular-nums; }
+.hours-total span { color: var(--muted); font-size: calc(13px * var(--ts)); font-weight: 600; }
+.hours-bar { height: 10px; border-radius: 999px; background: var(--line); overflow: hidden; }
+.hours-bar i { display: block; height: 100%; background: var(--accent); border-radius: inherit; transition: width .3s ease; }
+.hours-line { margin: 0; }
+.hours-line b { color: var(--text); }
+.hours-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; }
+.hours-form label { display: grid; gap: 4px; flex: 1 1 130px; min-width: 0; font-size: calc(13px * var(--ts)); font-weight: 600; color: var(--muted); }
+.hours-form input { min-width: 0; }
+.clock-row { padding-top: 4px; border-top: 1px solid var(--line); display: grid; gap: 8px; }
+.clock-row > .btn { justify-self: start; }
+.clock-live { display: grid; gap: 8px; }
+.clock-status { display: flex; align-items: center; gap: 10px; margin: 0; font-weight: 600; font-size: calc(14px * var(--ts)); }
+.clock-status svg { width: 20px; height: 20px; flex: none; color: var(--accent-text); }
+.clock-status small { display: block; color: var(--muted); font-weight: 400; font-size: calc(13px * var(--ts)); }
+.clock-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.btn.danger { border-color: var(--danger, #d4483b); color: var(--danger, #d4483b); }
+.report-range { grid-column: 1 / -1; color: var(--muted); font-size: calc(12px * var(--ts)); }
+
+/* Entry sheet: date, time in, time out */
+.hours-pick { border: 0; padding: 0; margin: 0; display: grid; gap: 8px; min-width: 0; }
+.hours-pick legend { display: flex; align-items: center; gap: 8px; padding: 0; margin-bottom: 8px; font-weight: 600; font-size: calc(14px * var(--ts)); }
+.hours-pick legend svg { width: 18px; height: 18px; color: var(--accent-text); }
+.hours-pick .hint { margin: 0; }
+.hours-grid { display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 8px; }
+.hours-grid label { min-width: 0; }
+.hours-grid input { width: 100%; min-width: 0; }
+@media (max-width: 420px) { .hours-grid { grid-template-columns: 1fr 1fr; } .hours-grid label:first-child { grid-column: 1 / -1; } }
+
+/* Week and day headings in the logbook */
+.week-label {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 28px 16px 0; padding-bottom: 8px;
+  border-bottom: 2px solid var(--accent); font-family: var(--font-display); font-weight: 700; font-size: calc(17px * var(--ts));
+}
+.week-label small { margin-left: 10px; color: var(--muted); font-weight: 400; font-size: calc(13px * var(--ts)); }
+.week-label b { color: var(--accent-text); font-variant-numeric: tabular-nums; flex: none; }
+.week-label + .day-label { margin-top: 14px; }
+.day-label .day-hours { margin-left: 10px; color: var(--muted); font-weight: 400; font-size: calc(13px * var(--ts)); }
+
+/* ---------- date range filter ---------- */
+.range-filter { margin: 10px var(--gutter) 0; display: grid; gap: 8px; }
+.range-top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.range-summary { color: var(--muted); font-size: calc(13px * var(--ts)); }
+.range-fields { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; padding: 10px; background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius-sm); }
+.range-fields label { display: grid; gap: 4px; flex: 1 1 140px; min-width: 0; font-size: calc(13px * var(--ts)); font-weight: 600; color: var(--muted); }
+.range-fields input { min-width: 0; }
+.range-error { flex-basis: 100%; margin: 0; }
+
+/* ---------- export sheet and available days ---------- */
+.export-btn { grid-column: 1 / -1; }
+.hours-grid.two { grid-template-columns: 1fr 1fr; }
+.report-details { display: grid; gap: 10px; }
+.report-details label { display: grid; gap: 4px; font-weight: 600; font-size: calc(13px * var(--ts)); color: var(--muted); }
+.report-details input { font-weight: 400; color: var(--text); }
+.hours-days { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.link-btn { background: none; border: 0; padding: 0; color: var(--accent-text); font: inherit; text-decoration: underline; cursor: pointer; }
+
+.day-chips { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+.day-chip {
+  padding: 10px 0; border-radius: var(--radius-sm); border: 1px solid var(--line); background: var(--surface-2);
+  color: var(--muted); font-weight: 600; font-size: calc(13px * var(--ts)); cursor: pointer;
+}
+.day-chip.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-text); }
+
+.cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.cal-dow { text-align: center; color: var(--muted); font-size: calc(12px * var(--ts)); font-weight: 600; padding: 4px 0; }
+.cal-day {
+  aspect-ratio: 1; min-height: 38px; border-radius: var(--radius-sm); border: 1px solid var(--line); cursor: pointer;
+  font-variant-numeric: tabular-nums; font-size: calc(14px * var(--ts)); position: relative;
+}
+.cal-day.avail, .cal-key.avail { background: var(--accent-soft); color: var(--accent-text); border-color: transparent; }
+.cal-day.off, .cal-key.off { background: transparent; color: var(--muted); text-decoration: line-through; opacity: .75; }
+.cal-day.changed::after { content: ""; position: absolute; top: 4px; right: 4px; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.cal-day.today { outline: 2px solid var(--accent); outline-offset: 1px; }
+.cal-legend { display: flex; flex-wrap: wrap; gap: 14px; list-style: none; margin: 8px 0 4px; padding: 0; color: var(--muted); font-size: calc(12px * var(--ts)); }
+.cal-legend li { display: flex; align-items: center; gap: 6px; }
+.cal-key { display: inline-block; width: 14px; height: 14px; border-radius: 4px; border: 1px solid var(--line); position: relative; }
+.cal-key.changed::after { content: ""; position: absolute; top: 2px; right: 2px; width: 4px; height: 4px; border-radius: 50%; background: currentColor; }

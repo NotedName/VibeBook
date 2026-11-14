@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type PointerEvent as RPointerEvent, type ReactNode } from "react";
 import { ago, markRead, noteHref, useNoteItems, useNotes, type NoteItem } from "./notifications";
 import { useProfile, useSession } from "./session";
 import { usePreferences } from "./preferences";
 import type { GroupAlert } from "./groupAlerts";
 import Avatar from "./Avatar";
 import { BellIcon, CheckIcon, CloseIcon, GroupsIcon } from "./icons";
+import { useScrollLock } from "./scrollLock";
 
 const nameOf = (p: { displayName: string } | null | undefined) => p?.displayName || "Someone";
 
@@ -41,6 +42,8 @@ function What({ item }: { item: NoteItem }) {
     case "group_invite":
       body = item.compiled ? "invited you to join groups" : <>invited you to join <b className="note-title">{n.groupName || "a group"}</b></>;
       break;
+    case "group_request": body = <>asked to join <b className="note-title">{n.groupName || "your group"}</b></>; break;
+    case "group_approved": body = <>approved your request to join <b className="note-title">{n.groupName || "a group"}</b></>; break;
     case "like": body = n.photoId ? <>vibed a photo in {t}</> : <>vibed {t}</>; break;
     case "comment": body = n.photoId ? <>commented on a photo in {t}</> : <>commented on {t}</>; break;
     case "reply": body = <>replied to your comment on {t}</>; break;
@@ -50,36 +53,97 @@ function What({ item }: { item: NoteItem }) {
   return <>{body}{times}</>;
 }
 
-function Row({ item, onOpen }: { item: NoteItem; onOpen: (item: NoteItem) => void }) {
+
+/** How far (px) a row must be dragged sideways to count as "mark as read". */
+const SWIPE_AT = 72;
+
+/**
+ * Drag a notification left or right to mark it read. Vertical movement still scrolls the list (touch-action: pan-y),
+ * and a drag never counts as a tap, so it does not open the notification. Read notifications do not move.
+ */
+function SwipeToRead({ enabled, onRead, children }: { enabled: boolean; onRead: () => void; children: ReactNode }) {
+  const [dx, setDx] = useState(0);
+  const [dragging, setDragging] = useState(false);
+  const st = useRef({ x: 0, y: 0, id: -1, live: false, moved: false });
+
+  function down(e: RPointerEvent<HTMLDivElement>) {
+    if (!enabled || !e.isPrimary || (e.pointerType === "mouse" && e.button !== 0)) return;
+    st.current = { x: e.clientX, y: e.clientY, id: e.pointerId, live: false, moved: false };
+  }
+  function move(e: RPointerEvent<HTMLDivElement>) {
+    const s = st.current;
+    if (s.id !== e.pointerId) return;
+    const mx = e.clientX - s.x;
+    const my = e.clientY - s.y;
+    if (!s.live) {
+      if (Math.abs(mx) < 10 || Math.abs(mx) < Math.abs(my) * 1.3) return;
+      s.live = true; s.moved = true;
+      e.currentTarget.setPointerCapture(e.pointerId);
+      setDragging(true);
+    }
+    setDx(Math.max(-160, Math.min(160, mx)));
+  }
+  function end(e: RPointerEvent<HTMLDivElement>, cancelled: boolean) {
+    const s = st.current;
+    if (s.id !== e.pointerId) return;
+    s.id = -1;
+    if (!s.live) return;
+    s.live = false;
+    setDragging(false);
+    const passed = !cancelled && Math.abs(e.clientX - s.x) >= SWIPE_AT;
+    setDx(0);
+    if (passed) onRead();
+  }
+
+  return (
+    <div className={`note-swipe${dragging ? " dragging" : ""}`}
+      onPointerDown={down} onPointerMove={move}
+      onPointerUp={(e) => end(e, false)} onPointerCancel={(e) => end(e, true)}
+      // a drag ends in a click on the link underneath: swallow that one
+      onClickCapture={(e) => { if (st.current.moved) { e.preventDefault(); e.stopPropagation(); st.current.moved = false; } }}>
+      <div className="note-swipe-bg" aria-hidden="true"
+        style={{ opacity: Math.min(1, Math.abs(dx) / SWIPE_AT), justifyContent: dx < 0 ? "flex-end" : "flex-start" }}>
+        <CheckIcon /> Mark as read
+      </div>
+      <div className="note-swipe-fg" style={{ transform: dx ? `translateX(${dx}px)` : undefined }}>{children}</div>
+    </div>
+  );
+}
+
+function Row({ item, onOpen, onRead }: { item: NoteItem; onOpen: (item: NoteItem) => void; onRead: (item: NoteItem) => void }) {
   const shown = item.actors.slice(0, 3);
   return (
     <li>
-      <a className={`note${item.unread ? " unread" : ""}`} href={noteHref(item)} onClick={() => onOpen(item)}>
-        <span className={`note-avatars${shown.length > 1 ? " stack" : ""}`}>
-          {shown.map((u) => <ActorAvatar key={u} uid={u} />)}
-        </span>
-        <span className="note-text">
-          <span><Who actors={item.actors} /> <What item={item} /></span>
-          <time>{ago(item.time)}</time>
-        </span>
-        {item.unread && <i className="note-dot" aria-label="Unread" />}
-      </a>
+      <SwipeToRead enabled={item.unread} onRead={() => onRead(item)}>
+        <a className={`note-row${item.unread ? " unread" : ""}`} href={noteHref(item)} draggable={false} onClick={() => onOpen(item)}>
+          <span className={`note-avatars${shown.length > 1 ? " stack" : ""}`}>
+            {shown.map((u) => <ActorAvatar key={u} uid={u} />)}
+          </span>
+          <span className="note-text">
+            <span><Who actors={item.actors} /> <What item={item} /></span>
+            <time>{ago(item.time)}</time>
+          </span>
+          {item.unread && <i className="note-dot" aria-label="Unread" />}
+        </a>
+      </SwipeToRead>
     </li>
   );
 }
 
-function GroupAlertRow({ alert, onOpen }: { alert: GroupAlert; onOpen: (gid: string) => void }) {
+function GroupAlertRow({ alert, onOpen, onRead }: { alert: GroupAlert; onOpen: (gid: string) => void; onRead: (gid: string) => void }) {
   const { groups } = useSession();
   const name = groups.list.find((g) => g.id === alert.gid)?.name || "a group";
   return (
     <li>
-      <a className="note unread" href={`#/g/${encodeURIComponent(alert.gid)}`} onClick={() => onOpen(alert.gid)}>
-        <span className="note-avatars"><span className="av av-sm" aria-hidden="true"><GroupsIcon /></span></span>
-        <span className="note-text">
-          <span><b>{alert.count === 1 ? "1 new post" : `${alert.count} new posts`}</b> in <b className="note-title">{name}</b></span>
-        </span>
-        <i className="note-dot" aria-label="Unread" />
-      </a>
+      <SwipeToRead enabled onRead={() => onRead(alert.gid)}>
+        <a className="note-row unread" href={`#/g/${encodeURIComponent(alert.gid)}`} draggable={false} onClick={() => onOpen(alert.gid)}>
+          <span className="note-avatars"><span className="av av-sm" aria-hidden="true"><GroupsIcon /></span></span>
+          <span className="note-text">
+            <span><b>{alert.count === 1 ? "1 new post" : `${alert.count} new posts`}</b> in <b className="note-title">{name}</b></span>
+          </span>
+          <i className="note-dot" aria-label="Unread" />
+        </a>
+      </SwipeToRead>
     </li>
   );
 }
@@ -87,14 +151,27 @@ function GroupAlertRow({ alert, onOpen }: { alert: GroupAlert; onOpen: (gid: str
 function NotificationsSheet({ items, alerts, unreadIds, onOpen, onOpenGroup, onClose }: {
   items: NoteItem[]; alerts: GroupAlert[]; unreadIds: string[]; onOpen: (item: NoteItem) => void; onOpenGroup: (gid: string) => void; onClose: () => void;
 }) {
+  const [busy, setBusy] = useState(false);
   const s = useSession();
+  useScrollLock();
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     document.addEventListener("keydown", onKey);
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => { document.removeEventListener("keydown", onKey); document.body.style.overflow = prev; };
+    return () => { document.removeEventListener("keydown", onKey); };
   }, [onClose]);
+
+  async function markAll() {
+    setBusy(true);
+    alerts.forEach((a) => s.markGroupSeen(a.gid));
+    try { await markRead(s.uid, unreadIds); }
+    catch (err) { console.error("Mark all as read failed", err); s.notify("Could not mark them as read"); }
+    finally { setBusy(false); }
+  }
+
+  function readOne(item: NoteItem) {
+    const ids = item.notes.filter((n) => !n.read).map((n) => n.id);
+    markRead(s.uid, ids).catch(() => s.notify("Could not mark it as read"));
+  }
 
   return (
     <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
@@ -105,11 +182,7 @@ function NotificationsSheet({ items, alerts, unreadIds, onOpen, onOpenGroup, onC
         </div>
         <div className="sheet-body notes-body">
           {(unreadIds.length > 0 || alerts.length > 0) && (
-            <button type="button" className="btn small notes-readall"
-              onClick={() => {
-                if (unreadIds.length) markRead(s.uid, unreadIds).catch(() => s.notify("Could not mark them as read"));
-                alerts.forEach((a) => s.markGroupSeen(a.gid));
-              }}>
+            <button type="button" className="btn small notes-readall" disabled={busy} onClick={markAll}>
               <CheckIcon /> Mark all as read
             </button>
           )}
@@ -117,8 +190,8 @@ function NotificationsSheet({ items, alerts, unreadIds, onOpen, onOpenGroup, onC
             ? <p className="hint notes-empty">You are all caught up. Requests, likes, comments and reposts show up here.</p>
             : (
               <ul className="notes">
-                {alerts.map((a) => <GroupAlertRow key={a.gid} alert={a} onOpen={onOpenGroup} />)}
-                {items.map((it) => <Row key={it.key} item={it} onOpen={onOpen} />)}
+                {alerts.map((a) => <GroupAlertRow key={a.gid} alert={a} onOpen={onOpenGroup} onRead={s.markGroupSeen} />)}
+                {items.map((it) => <Row key={it.key} item={it} onOpen={onOpen} onRead={readOne} />)}
               </ul>
             )}
         </div>

@@ -7,7 +7,7 @@ import { db } from "./firebase";
 import type { FriendRequest, Relation } from "./types";
 import { dropNote, pushNote } from "./notifications";
 
-const pairId = (a: string, b: string) => (a < b ? `${a}_${b}` : `${b}_${a}`);
+export const pairId = (a: string, b: string) => (a < b ? `${a}_${b}` : `${b}_${a}`);
 
 export const sendRequest = (me: string, them: string) =>
   setDoc(doc(db, "friendRequests", `${me}_${them}`), { from: me, to: them, createdAt: serverTimestamp() })

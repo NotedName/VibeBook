@@ -9,11 +9,13 @@ import { syncFriendList } from "./friendList";
 import { syncActivity } from "./activity";
 import { useGroupInvites, useMyGroups } from "./groups";
 import { useMyReposts } from "./reposts";
+import { syncEntryPrivacy } from "./entryPrivacy";
 import { useGroupAlerts } from "./groupAlerts";
+import { useConversations } from "./messages";
 import { SessionProvider, type Session } from "./session";
 import type { Profile } from "./types";
 import { ArrowLeftIcon, BookIcon, CloseIcon, FeedIcon, GroupsIcon, PlusIcon, SettingsIcon, UsersIcon } from "./icons";
-import EntrySheet from "./EntrySheet";
+import EntrySheet, { type EntryPrefill } from "./EntrySheet";
 import SideColumn from "./SideColumn";
 import ProfileSheet from "./ProfileSheet";
 import SettingsSheet from "./SettingsSheet";
@@ -30,22 +32,29 @@ import PostPage from "./pages/PostPage";
 import { parsePostHash } from "./share";
 import { BrandName } from "./Logo";
 import NotificationBell from "./NotificationBell";
+import MessagesButton from "./MessagesButton";
+import MessagesPage from "./pages/MessagesPage";
+import ThreadPage from "./pages/ThreadPage";
 import { FeedSkeleton, ProfileSkeleton } from "./Skeleton";
 import { hideSplash } from "./splash";
+import { useScrollLock } from "./scrollLock";
 
 type Route =
   | { name: "me" } | { name: "archived" } | { name: "feed" } | { name: "people" } | { name: "groups" }
+  | { name: "messages" } | { name: "thread"; uid: string }
   | { name: "person"; handle: string } | { name: "group"; id: string } | { name: "post"; uid: string; id: string };
 
 function parse(hash: string): Route {
   const post = parsePostHash(hash);
   if (post) return { name: "post", uid: post.uid, id: post.id };
   if (hash.startsWith("#/u/")) return { name: "person", handle: decodeURIComponent(hash.slice(4)) }; // a username, or a uid from an older link
+  if (hash.startsWith("#/m/")) return { name: "thread", uid: decodeURIComponent(hash.slice(4)) };
   if (hash.startsWith("#/g/")) return { name: "group", id: decodeURIComponent(hash.slice(4)) };
   if (hash === "#/me" || hash === "#/logbook") return { name: "me" };
   if (hash === "#/archived") return { name: "archived" };
   if (hash === "#/groups") return { name: "groups" };
   if (hash === "#/people") return { name: "people" };
+  if (hash === "#/messages") return { name: "messages" };
   // The Feed is home: it is what an empty address, "#/" or "#/feed" opens.
   return { name: "feed" };
 }
@@ -86,9 +95,14 @@ export default function Shell({ user }: { user: User }) {
   }, [uid, social.ready, friendKey]);
   // Uploads this device's activity log to your account once per visit, so it shows on your other devices too (best effort).
   useEffect(() => { syncActivity(uid).catch(() => {}); }, [uid]);
+  const chats = useConversations(uid);
   const groups = useMyGroups(uid);
   const reposts = useMyReposts(uid);
   const allInvites = useGroupInvites(uid);
+  // Puts your entries in line with your groups' privacy (an admin may have switched a group since you were last here). Best effort.
+  useEffect(() => {
+    if (groups.ready && !groups.error) syncEntryPrivacy(uid).catch(() => {});
+  }, [uid, groups.ready, groups.error]);
   const groupIdList = useMemo(() => [...groups.ids].sort(), [groups.ids]);
   const { alerts: groupAlerts, markSeen: markGroupSeen } = useGroupAlerts(uid, groupIdList);
   const invites = useMemo(() => allInvites.filter((i) => !groups.ids.has(i.groupId)), [allInvites, groups.ids]);
@@ -97,10 +111,11 @@ export default function Shell({ user }: { user: User }) {
   const [route, setRoute] = useState<Route>(() => parse(location.hash));
   // Pages visited inside the app, so Back never leaves it: only offered when there is somewhere in the app to go.
   const trail = useRef<string[]>([location.hash]);
-  const [entrySheet, setEntrySheet] = useState<{ entry: Entry | null; groupId?: string } | null>(null);
+  const [entrySheet, setEntrySheet] = useState<{ entry: Entry | null; groupId?: string; prefill?: EntryPrefill } | null>(null);
   const [editingProfile, setEditingProfile] = useState(false);
   const [notice, setNotice] = useState("");
   const [manualCopy, setManualCopy] = useState<string | null>(null);
+  useScrollLock(manualCopy !== null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const noticeTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -143,11 +158,12 @@ export default function Shell({ user }: { user: User }) {
   const entrySaved = useCallback((message: string) => { setEntrySheet(null); notify(message); }, [notify]);
 
   const session = useMemo<Session>(() => ({
-    ...social, user, uid, me, groups, invites, reposts, groupAlerts, markGroupSeen, notify,
+    ...social, user, uid, me, groups, invites, reposts, groupAlerts, markGroupSeen, chats, notify,
     manualCopy: setManualCopy,
     editProfile: () => setEditingProfile(true),
     openEntry: (entry, groupId) => setEntrySheet({ entry, groupId }),
-  }), [social, groups, invites, reposts, groupAlerts, markGroupSeen, user, uid, me, notify]);
+    openEntryWithHours: (prefill) => setEntrySheet({ entry: null, prefill }),
+  }), [social, groups, invites, reposts, groupAlerts, markGroupSeen, chats, user, uid, me, notify]);
 
   if (profileError) return <p className="center error">{profileError}</p>;
   if (me === undefined) return <div className="page"><main className="logbook"><ProfileSkeleton /><FeedSkeleton /></main></div>;
@@ -155,8 +171,8 @@ export default function Shell({ user }: { user: User }) {
   const isMe = route.name === "person" && (route.handle === uid || route.handle.toLowerCase() === me?.username);
   const active = isMe ? { name: "me" } as Route : route;
   const incomingCount = social.incoming.length;
-  const subPage = active.name === "person" || active.name === "group" || active.name === "post" || active.name === "archived";
-  const backTo = active.name === "group" ? "#/groups" : active.name === "person" ? "#/people" : active.name === "archived" ? "#/me" : "#/feed";
+  const subPage = active.name === "person" || active.name === "group" || active.name === "post" || active.name === "archived" || active.name === "thread";
+  const backTo = active.name === "group" ? "#/groups" : active.name === "person" ? "#/people" : active.name === "archived" ? "#/me" : active.name === "thread" ? "#/messages" : "#/feed";
   const newEntry = () => setEntrySheet({ entry: null, groupId: active.name === "group" ? active.id : undefined });
   const goBack = () => { if (trail.current.length > 1) history.back(); else location.hash = backTo; };
   const tab = (href: string, on: boolean, icon: React.ReactNode, label: string, badge = 0) => (
@@ -167,10 +183,11 @@ export default function Shell({ user }: { user: User }) {
 
   return (
     <SessionProvider value={session}>
-      <header className="topbar">
+      <header className={`topbar${active.name === "thread" ? " in-chat" : ""}`}>
         <div className="topbar-in">
           <a className="brand" href="#/feed"><BrandName /></a>
           <div className="top-actions">
+            <MessagesButton on={active.name === "messages" || active.name === "thread"} />
             <NotificationBell />
             <button type="button" className="icon-btn" onClick={() => setSettingsOpen(true)}
               aria-label="Settings" aria-haspopup="dialog">
@@ -196,7 +213,7 @@ export default function Shell({ user }: { user: User }) {
       </header>
 
       <div className="page">
-      <main className="logbook">
+      <main className={`logbook${active.name === "thread" ? " chat-page" : ""}`}>
         {subPage && (
           <div className="backbar">
             <button type="button" className="back-btn" onClick={goBack} aria-label="Go back">
@@ -210,6 +227,8 @@ export default function Shell({ user }: { user: User }) {
         {active.name === "groups" && <GroupsPage />}
         {active.name === "group" && <GroupPage key={active.id} gid={active.id} />}
         {active.name === "people" && <PeoplePage />}
+        {active.name === "messages" && <MessagesPage />}
+        {active.name === "thread" && <ThreadPage key={active.uid} uid={active.uid} />}
         {active.name === "person" && <PersonRoute key={active.handle} handle={active.handle} />}
         {active.name === "post" && <PostPage key={`${active.uid}/${active.id}`} uid={active.uid} id={active.id} />}
       </main>
@@ -217,7 +236,7 @@ export default function Shell({ user }: { user: User }) {
       </div>
 
       {entrySheet && (
-        <EntrySheet key={entrySheet.entry?.id ?? "new"} uid={uid} entry={entrySheet.entry}
+        <EntrySheet key={entrySheet.entry?.id ?? "new"} uid={uid} entry={entrySheet.entry} prefill={entrySheet.prefill}
           defaultGroupId={entrySheet.groupId} onClose={closeEntry} onSaved={entrySaved} />
       )}
       {(me === null || editingProfile || !me.username) && (

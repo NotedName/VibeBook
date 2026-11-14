@@ -1,9 +1,11 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import type { User } from "firebase/auth";
 import type { Entry } from "./entries";
+import type { EntryPrefill } from "./EntrySheet";
 import type { MyGroups } from "./groups";
 import { fetchProfile } from "./profiles";
 import type { Repost } from "./reposts";
+import type { Chats } from "./messages";
 import type { SocialState } from "./social";
 import type { GroupAlert } from "./groupAlerts";
 import type { GroupInvite, Profile } from "./types";
@@ -21,11 +23,15 @@ export type Session = SocialState & {
   /** groups with posts you have not looked at yet */
   groupAlerts: GroupAlert[];
   markGroupSeen: (gid: string) => void;
+  /** your direct-message conversations and how many have something you have not read */
+  chats: Chats;
   notify: (message: string) => void;
   manualCopy: (text: string) => void;
   editProfile: () => void;
   /** entry null = new entry; groupId pre-selects a group to share a new entry with. */
   openEntry: (entry: Entry | null, groupId?: string) => void;
+  /** Opens a new entry already filled with hours, as when pressing Clock out. */
+  openEntryWithHours: (prefill: EntryPrefill) => void;
 };
 
 const Ctx = createContext<Session | null>(null);

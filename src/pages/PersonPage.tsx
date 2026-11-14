@@ -6,6 +6,7 @@ import { newestFirst } from "../entries";
 import { dateDir, useSortedEntries, useSortMode } from "../sorting";
 import SortMenu from "../SortMenu";
 import { useRepostedEntries } from "../reposts";
+import { useTeasedEntries } from "../teasers";
 import ProfileHeader from "../ProfileHeader";
 import RelationButtons from "../RelationButtons";
 import FriendsSheet from "../FriendsSheet";
@@ -24,11 +25,15 @@ export default function PersonPage({ uid }: { uid: string }) {
   const dir = dateDir(mode);
   const { entries: original, loading, error } = useSharedEntries(sources, 100, dir);
   const who = useMemo(() => [uid], [uid]);
-  const reposts = useRepostedEntries(who, 15, dir);
+  // Posts in private groups: the real entry for people in the group, a "join the group to see this" placeholder for
+  // everyone else. Your own profile seen "as someone else" shows placeholders too.
+  const none = useMemo(() => new Set<string>(), []);
+  const privatePosts = useTeasedEntries(who, uid === s.uid ? none : s.groups.ids, 30, dir);
+  const reposts = useRepostedEntries(who, 15, dir, 0, "stub");
   const [tab, setTab] = useState<ProfileTab>("notes");
   const pool = useMemo(
-    () => [...(tab === "reposts" ? reposts : original)].sort(dir === "asc" ? (a, b) => -newestFirst(a, b) : newestFirst),
-    [tab, original, reposts, dir],
+    () => [...(tab === "reposts" ? reposts : [...original, ...privatePosts])].sort(dir === "asc" ? (a, b) => -newestFirst(a, b) : newestFirst),
+    [tab, original, privatePosts, reposts, dir],
   );
   const entries = useSortedEntries(pool, mode);
   const rel = s.relationOf(uid);

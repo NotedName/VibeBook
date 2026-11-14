@@ -1,5 +1,7 @@
 import { useState } from "react";
-import { joinGroup } from "./groups";
+import { acceptInvite, cancelRequest, joinGroup, useMyRequest } from "./groups";
+import JoinRequestSheet from "./JoinRequestSheet";
+import { LockIcon } from "./icons";
 import { useSession } from "./session";
 import type { Group } from "./types";
 import { firstChar } from "./text";
@@ -13,31 +15,46 @@ export function GroupAvatar({ name, photo = "", size = "md" }: { name: string; p
   );
 }
 
-/** A group in a list: opens its page, and offers Join when you are not a member yet. */
+/**
+ * A group in a list: opens its page, and offers Join when you are not a member yet. A private group offers
+ * "Ask to join" (or "Requested", which cancels the request) instead, unless you were invited.
+ */
 export default function GroupRow({ group }: { group: Group }) {
   const s = useSession();
   const [busy, setBusy] = useState(false);
+  const [asking, setAsking] = useState(false);
   const member = s.groups.ids.has(group.id);
+  const priv = group.privacy === "private";
+  const invited = s.invites.some((i) => i.groupId === group.id);
+  const request = useMyRequest(s.uid, group.id, priv && !member && !invited);
 
-  async function join() {
+  async function run(fn: () => Promise<unknown>, ok: string) {
     setBusy(true);
-    try { await joinGroup(s.uid, group.id); s.notify(`Joined ${group.name}`); }
+    try { await fn(); s.notify(ok); }
     catch { s.notify("That did not go through. Try again."); }
     finally { setBusy(false); }
   }
+  const join = () => run(() => (invited && priv ? acceptInvite(s.uid, group.id) : joinGroup(s.uid, group.id)), `Joined ${group.name}`);
 
   return (
     <li className="person">
       <a href={`#/g/${encodeURIComponent(group.id)}`} className="person-link">
         <GroupAvatar name={group.name} photo={group.avatar} />
         <span className="person-text">
-          <b>{group.name}</b>
+          <b>{group.name}{priv && <span className="priv-tag" title="Private group"><LockIcon />Private</span>}</b>
           {group.description && <span className="clamp">{group.description}</span>}
         </span>
       </a>
-      {member ? <span className="vis">Joined</span> : (
-        <button type="button" className="btn primary" disabled={busy} onClick={join}>Join</button>
-      )}
+      {member ? <span className="vis">Joined</span>
+        : priv && !invited ? (
+          request ? (
+            <button type="button" className="btn" disabled={busy} title="Cancel your request"
+              onClick={() => run(() => cancelRequest(s.uid, group.id), "Request cancelled")}>Requested</button>
+          ) : (
+            <button type="button" className="btn primary" disabled={busy || request === undefined} onClick={() => setAsking(true)}>Ask to join</button>
+          )
+        ) : <button type="button" className="btn primary" disabled={busy} onClick={join}>Join</button>}
+      {asking && <JoinRequestSheet group={group} onClose={() => setAsking(false)} />}
     </li>
   );
 }

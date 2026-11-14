@@ -33,9 +33,27 @@ export type FriendRequest = { id: string; from: string; to: string };
 
 export type Relation = "self" | "friends" | "incoming" | "outgoing" | "none";
 
-/** Stored at groups/{id}. Every group is open: anyone signed in can find it and join. */
+/**
+ * Public groups are open: anyone signed in can join. Private groups can still be found and opened (name, picture and
+ * description show), but joining needs an admin's or moderator's approval, and only members see what is shared inside.
+ */
+export type GroupPrivacy = "public" | "private";
+export const GROUP_PRIVACY: { id: GroupPrivacy; label: string; hint: string }[] = [
+  { id: "public", label: "Public", hint: "Anyone on VibeBook can find this group and join it. Only members see its entries." },
+  { id: "private", label: "Private", hint: "Anyone can find this group, but people ask to join and an admin or moderator approves them. Entries shared here are hidden from profiles, feeds and share links." },
+];
+/** Most questions an admin can ask people who want to join, and the longest question, answer and "why" message. */
+export const GROUP_QUESTIONS_MAX = 5;
+export const QUESTION_MAX = 120;
+export const ANSWER_MAX = 300;
+export const REQUEST_MESSAGE_MAX = 300;
+
+/** Stored at groups/{id}. Groups without a privacy field (made before it existed) are public. */
 export type Group = {
   id: string; name: string; description: string; ownerUid: string;
+  privacy: GroupPrivacy;
+  /** Asked of people requesting to join a private group. Empty for public groups. */
+  questions: string[];
   /** small square JPEG data URL, "" when none */
   avatar: string;
   /** 3:1 banner JPEG data URL, "" when none */
@@ -56,6 +74,12 @@ export const ROLES: { id: GroupRole; label: string; hint: string }[] = [
   { id: "member", label: "Member", hint: "Shares entries and reads the feed." },
 ];
 export type Member = { uid: string; role: GroupRole; joinedAt: number };
+
+/**
+ * Stored at groups/{groupId}/requests/{uid}: someone asking to join a private group. Only that person and the group's
+ * admins and moderators can read it. Approving it creates the membership and deletes it.
+ */
+export type JoinRequest = { uid: string; message: string; answers: string[]; createdAt: number };
 
 /** Stored at groupInvites/{groupId}_{toUid}: one person asking another to join a group. */
 export type GroupInvite = { id: string; groupId: string; from: string; to: string };

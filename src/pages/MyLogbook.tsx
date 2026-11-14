@@ -1,8 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { onSnapshot, orderBy, query } from "firebase/firestore";
-import { entriesRef, newestFirst, type Entry } from "../entries";
+import { entriesRef, newestFirst, stampOf, type Entry } from "../entries";
 import { useRepostedEntries } from "../reposts";
-import { allDescriptions, copyText, dailyReport, longDay, todayStr } from "../report";
+import { allDescriptions, copyText, dailyReport, longDay, todayStr, weeklyReport } from "../report";
+import { earliestDay, weekRange } from "../weeks";
+import HoursCard from "../HoursCard";
+import ReportSheet from "../ReportSheet";
+import DateRangeFilter, { inRange, NO_RANGE, rangeActive } from "../DateRangeFilter";
 import { useSession } from "../session";
 import { dateDir, useSortedEntries, useSortMode } from "../sorting";
 import { useLikedEntries } from "../likes";
@@ -21,7 +25,10 @@ function Logbook({ onViewAs }: { onViewAs: () => void }) {
   const [entries, setEntries] = useState<Entry[] | null>(null);
   const [loadError, setLoadError] = useState("");
   const [reportDate, setReportDate] = useState(todayStr());
+  const [reportWeek, setReportWeek] = useState(todayStr());
   const [friendsOpen, setFriendsOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
+  const [range, setRange] = useState(NO_RANGE);
 
   useEffect(
     () => onSnapshot(
@@ -43,7 +50,9 @@ function Logbook({ onViewAs }: { onViewAs: () => void }) {
   const reposts = useRepostedEntries(myUid, 50, dateDir(mode));
   const likes = useLikedEntries(s.uid, tab === "likes");
   const pool = tab === "notes" ? list : tab === "reposts" ? reposts : likes.entries;
-  const shown = useSortedEntries(pool, mode);
+  // The date filter narrows whatever tab is open; totals, hours and reports above are not affected by it.
+  const filtered = useMemo(() => (rangeActive(range) ? pool.filter((e) => inRange(stampOf(e).slice(0, 10), range)) : pool), [pool, range]);
+  const shown = useSortedEntries(filtered, mode);
   const stats = useMemo(() => {
     const days = new Set(list.map((e) => e.date));
     const skills = new Set(list.flatMap((e) => e.skills.map((x) => x.toLowerCase())));
@@ -58,6 +67,11 @@ function Logbook({ onViewAs }: { onViewAs: () => void }) {
     const text = dailyReport(list, reportDate);
     if (!text) return s.notify(`No entries on ${longDay(reportDate)}`);
     copy(text, "Daily report copied");
+  }
+  function copyWeekly() {
+    const text = weeklyReport(list, reportWeek, earliestDay(list));
+    if (!text) return s.notify(`No entries in the week of ${longDay(reportWeek)}`);
+    copy(text, "Weekly report copied");
   }
   function copyDescriptions() {
     const text = allDescriptions(list);
@@ -77,6 +91,8 @@ function Logbook({ onViewAs }: { onViewAs: () => void }) {
           ))}
         </div>
 
+        <HoursCard entries={list} />
+
         <div className="report">
           <div className="report-row">
             <label className="report-date">Report for
@@ -85,13 +101,29 @@ function Logbook({ onViewAs }: { onViewAs: () => void }) {
             <button type="button" className="btn primary" onClick={copyReport}>Copy for Daily Report</button>
             <button type="button" className="btn" onClick={copyDescriptions}>Copy descriptions</button>
           </div>
+          <div className="report-row">
+            <label className="report-date">Week of
+              <input type="date" value={reportWeek} onChange={(e) => setReportWeek(e.target.value || todayStr())} />
+            </label>
+            <button type="button" className="btn primary" onClick={copyWeekly}>Copy for Weekly Report</button>
+            <small className="report-range">{weekRange(reportWeek)}</small>
+          </div>
+          <div className="report-row">
+            <button type="button" className="btn primary export-btn" onClick={() => setExportOpen(true)}>Export as Word or PDF</button>
+          </div>
         </div>
       </ProfileHeader>
 
+      {exportOpen && (
+        <ReportSheet entries={list} onClose={() => setExportOpen(false)}
+          initialRange={range.from && range.to && range.from <= range.to ? range : undefined} />
+      )}
       {friendsOpen && <FriendsSheet uid={s.uid} onClose={() => setFriendsOpen(false)} />}
       <ProfileTabs tab={tab} onChange={setTab} showLikes>
         {shown.length > 1 && <SortMenu mode={mode} onChange={setMode} />}
       </ProfileTabs>
+
+      <DateRangeFilter value={range} onChange={setRange} shown={filtered.length} total={pool.length} />
 
       <div className="composer">
         <Avatar profile={s.me} />
@@ -106,28 +138,36 @@ function Logbook({ onViewAs }: { onViewAs: () => void }) {
 
       <div className="feed" aria-live="polite">
         {entries === null && <FeedSkeleton />}
-        {tab === "notes" && entries !== null && shown.length === 0 && !loadError && (
+        {tab === "notes" && entries !== null && pool.length === 0 && !loadError && (
           <div className="empty">
             <h2>Your logbook is empty</h2>
             <p>Add what you did today with a photo, the skills you picked up and a short description. Entries show up here, newest first.</p>
             <button type="button" className="btn primary" onClick={() => s.openEntry(null)}>Write the first entry</button>
           </div>
         )}
-        {tab === "reposts" && shown.length === 0 && (
+        {rangeActive(range) && pool.length > 0 && shown.length === 0 && (
+          <div className="empty">
+            <h2>Nothing in these dates</h2>
+            <p>No entries fall between the dates you picked.</p>
+            <button type="button" className="btn primary" onClick={() => setRange(NO_RANGE)}>Clear the dates</button>
+          </div>
+        )}
+        {tab === "reposts" && pool.length === 0 && (
           <div className="empty">
             <h2>No reposts yet</h2>
             <p>Tap Repost on a public entry to add it here and show it to your friends.</p>
             <a className="btn primary" href="#/feed">Browse the feed</a>
           </div>
         )}
-        {tab === "likes" && likes.loading && shown.length === 0 && <FeedSkeleton />}
-        {tab === "likes" && !likes.loading && shown.length === 0 && (
+        {tab === "likes" && likes.loading && pool.length === 0 && <FeedSkeleton />}
+        {tab === "likes" && !likes.loading && pool.length === 0 && (
           <div className="empty">
             <h2>Nothing liked yet</h2>
             <p>Entries you give a Vibe show up here, only for you. Likes from before this list existed are not included.</p>
           </div>
         )}
-        <EntryList entries={shown} onEdit={s.openEntry} dayHeadings={mode.kind === "newest" || mode.kind === "oldest"} />
+        <EntryList entries={shown} onEdit={s.openEntry} dayHeadings={mode.kind === "newest" || mode.kind === "oldest"}
+          weeks={tab === "notes" ? { origin: earliestDay(list) } : undefined} />
       </div>
     </>
   );

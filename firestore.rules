@@ -77,6 +77,21 @@ service cloud.firestore {
       allow delete: if isOwner(uid);
     }
 
+    // Teasers: a tiny note that one of your entries was posted to a PRIVATE group, so your profile can say
+    // "join the group to see this post" instead of showing it. It holds only the entry id, the date and the
+    // private group ids, never the entry's text or photos. Any signed-in person can read them; only you write them.
+    match /users/{uid}/teasers/{entryId} {
+      allow read: if signedIn();
+      allow create, update: if isOwner(uid)
+        && request.resource.data.keys().hasOnly(['entryId', 'groupIds', 'date', 'time'])
+        && request.resource.data.entryId == entryId
+        && request.resource.data.groupIds is list
+        && request.resource.data.groupIds.size() <= 5
+        && request.resource.data.date is string
+        && request.resource.data.time is string;
+      allow delete: if isOwner(uid);
+    }
+
     // Your Likes list: a private pointer, named "<ownerUid>_<entryId>", to every entry you gave a Vibing.
     // Only you can read or write it, and only for entries you can see.
     match /users/{uid}/likes/{likeId} {
@@ -117,7 +132,7 @@ service cloud.firestore {
         && request.auth.uid != uid
         && noteId.matches('^' + request.auth.uid + '_.{1,300}$')
         && request.resource.data.keys().hasOnly(['type', 'actorUid', 'ownerUid', 'entryId', 'photoId', 'title', 'groupId', 'groupName', 'createdAt', 'read'])
-        && request.resource.data.type in ['friend_request', 'friend_accept', 'follow', 'group_invite', 'like', 'comment', 'reply', 'comment_like', 'repost']
+        && request.resource.data.type in ['friend_request', 'friend_accept', 'follow', 'group_invite', 'group_request', 'group_approved', 'like', 'comment', 'reply', 'comment_like', 'repost']
         && request.resource.data.actorUid == request.auth.uid
         && request.resource.data.read == false
         && request.resource.data.createdAt == request.time
@@ -150,6 +165,43 @@ service cloud.firestore {
         && request.resource.data.get('href', '').size() <= 200;
       allow update: if isOwner(uid) && request.resource.data == resource.data;
       allow delete: if false;
+    }
+
+    // Hours: private documents that follow you to every device. Only you can read or write them.
+    //  - goal:   { requiredHours, workDays, daysOff, daysOn, hoursPerDay }: the hours your school or company requires
+    //            (1 to 10000, may have decimals; absent when no goal is set) and which days you can work. workDays are
+    //            weekday numbers 0 to 6; daysOff and daysOn are dates that differ from the usual week (400 at most each);
+    //  - clock:  { date, time }: the moment you clocked in, present only while the clock is running;
+    //  - report: the lines printed at the top of exported Word and PDF reports (names, school), each up to 120 characters.
+    // The hours worked are on the entries themselves (clockIn, clockOut, minutes).
+    match /users/{uid}/hours/{docId} {
+      allow read, delete: if isOwner(uid);
+      allow create, update: if isOwner(uid) && (
+        (docId == 'goal'
+          && request.resource.data.keys().hasOnly(['requiredHours', 'workDays', 'daysOff', 'daysOn', 'hoursPerDay'])
+          && request.resource.data.get('requiredHours', 1) is number
+          && request.resource.data.get('requiredHours', 1) > 0
+          && request.resource.data.get('requiredHours', 1) <= 10000
+          && request.resource.data.get('workDays', []) is list && request.resource.data.get('workDays', []).size() <= 7
+          && request.resource.data.get('daysOff', []) is list && request.resource.data.get('daysOff', []).size() <= 400
+          && request.resource.data.get('daysOn', []) is list && request.resource.data.get('daysOn', []).size() <= 400
+          && request.resource.data.get('hoursPerDay', 8) is number
+          && request.resource.data.get('hoursPerDay', 8) > 0
+          && request.resource.data.get('hoursPerDay', 8) <= 24)
+        || (docId == 'clock'
+          && request.resource.data.keys().hasOnly(['date', 'time'])
+          && request.resource.data.date is string && request.resource.data.date.size() == 10
+          && request.resource.data.time is string && request.resource.data.time.size() == 5)
+        || (docId == 'report'
+          && request.resource.data.keys().hasOnly(['traineeName', 'course', 'term', 'school', 'department', 'program', 'schoolYear'])
+          && request.resource.data.get('traineeName', '') is string && request.resource.data.get('traineeName', '').size() <= 120
+          && request.resource.data.get('course', '') is string && request.resource.data.get('course', '').size() <= 120
+          && request.resource.data.get('term', '') is string && request.resource.data.get('term', '').size() <= 120
+          && request.resource.data.get('school', '') is string && request.resource.data.get('school', '').size() <= 120
+          && request.resource.data.get('department', '') is string && request.resource.data.get('department', '').size() <= 120
+          && request.resource.data.get('program', '') is string && request.resource.data.get('program', '').size() <= 120
+          && request.resource.data.get('schoolYear', '') is string && request.resource.data.get('schoolYear', '').size() <= 120)
+      );
     }
 
     match /users/{uid}/following/{targetId} {
@@ -378,10 +430,20 @@ service cloud.firestore {
       allow delete: if signedIn() && request.auth.uid == uid;
     }
 
-    // Groups are open: any signed-in person can find one and join it.
+    // Any signed-in person can find a group and open its page. Public groups (privacy missing or "public")
+    // can be joined by anyone; private groups need an invitation or an approved request (see groupMembers).
+    // Up to five questions can be asked of people requesting to join a private group.
+    function privacyOk(d) {
+      return d.get('privacy', 'public') in ['public', 'private']
+        && d.get('questions', []) is list
+        && d.get('questions', []).size() <= 5;
+    }
+    function groupIsOpen(gid) { return get(/databases/$(database)/documents/groups/$(gid)).data.get('privacy', 'public') == 'public'; }
+
     match /groups/{gid} {
       allow read: if signedIn();
       allow create: if signedIn()
+        && privacyOk(request.resource.data)
         && request.resource.data.ownerUid == request.auth.uid
         && request.resource.data.name is string
         && request.resource.data.name.size() > 0
@@ -393,7 +455,8 @@ service cloud.firestore {
 
       // Only an admin can edit the group's name, description and photos. The owner never changes.
       allow update: if isAdminOf(gid)
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'nameKeys', 'description', 'avatar', 'coverPhoto'])
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'nameKeys', 'description', 'avatar', 'coverPhoto', 'privacy', 'questions'])
+        && privacyOk(request.resource.data)
         && request.resource.data.get('avatar', '').size() <= 120000
         && request.resource.data.get('coverPhoto', '').size() <= 120000
         && request.resource.data.name is string
@@ -401,6 +464,28 @@ service cloud.firestore {
         && request.resource.data.name.size() <= 60
         && request.resource.data.description is string
         && request.resource.data.description.size() <= 300;
+
+      // Requests to join a private group, named by the requester's uid. Only that person can send one (in their own
+      // name, to a private group, with a "why" message of 1 to 300 characters and one answer per question), and only
+      // they and the group's admins and moderators can read or delete it. Approving is an admin or moderator creating
+      // the membership (see groupMembers) and deleting the request.
+      match /requests/{requestUid} {
+        allow read: if isAdminOf(gid) || isModOf(gid) || (signedIn() && request.auth.uid == requestUid);
+        allow create: if signedIn()
+          && request.auth.uid == requestUid
+          && request.resource.data.keys().hasOnly(['message', 'answers', 'createdAt'])
+          && request.resource.data.message is string
+          && request.resource.data.message.size() > 0
+          && request.resource.data.message.size() <= 300
+          && request.resource.data.answers is list
+          && request.resource.data.answers.size() <= 5
+          && request.resource.data.createdAt == request.time
+          && !groupIsOpen(gid)
+          && !inMyGroup(gid)
+          && !exists(/databases/$(database)/documents/groups/$(gid)/bans/$(request.auth.uid));
+        allow update: if false;
+        allow delete: if signedIn() && (request.auth.uid == requestUid || isAdminOf(gid) || isModOf(gid));
+      }
 
       // People removed from the group, named by their uid. They cannot join again until an admin
       // deletes this. Admins can bar anyone but the owner; moderators only current plain members.
@@ -433,6 +518,8 @@ service cloud.firestore {
               && request.resource.data.ownerUid is string
               && request.resource.data.ownerUid != request.auth.uid
               && postId == request.auth.uid + '_rp_' + request.resource.data.ownerUid + '_' + request.resource.data.entryId
+              // an entry is in a group once: no repost into a group that already has the original post
+              && !exists(/databases/$(database)/documents/groups/$(gid)/posts/$(request.resource.data.ownerUid + '_' + request.resource.data.entryId))
               && entryIsPublic(request.resource.data.ownerUid, request.resource.data.entryId))
           );
         allow delete: if signedIn()
@@ -441,23 +528,35 @@ service cloud.firestore {
       }
     }
 
-    // Anyone can join for themselves (as a member, unless barred from the group) and leave for
-    // themselves, except the group's owner, who stays. Joining requires the group to exist after
-    // the write, so creating a group and its first member can be one batch; that first member
-    // is the owner and is the only one who can join as an admin.
+    // Joining, in three ways:
+    //  - for yourself, into a public group, or into a private group you were invited to (as a member, unless barred);
+    //  - an admin or moderator letting in someone who asked to join a private group (their request must exist);
+    //  - the group's owner creating it, together with the group, as its first member and admin.
+    // Anyone can leave for themselves, except the group's owner, who stays. Joining requires the group to exist after
+    // the write, so creating a group and its first member can be one batch.
     // Admins change roles (never the owner's, never their own). Admins remove anyone but the
     // owner, and moderators remove plain members.
     match /groupMembers/{memberId} {
       allow read: if signedIn();
       allow create: if signedIn()
         && request.resource.data.keys().hasOnly(['groupId', 'uid', 'joinedAt', 'role'])
-        && request.resource.data.uid == request.auth.uid
-        && memberId == request.resource.data.groupId + '_' + request.auth.uid
+        && request.resource.data.uid is string
+        && memberId == request.resource.data.groupId + '_' + request.resource.data.uid
         && existsAfter(/databases/$(database)/documents/groups/$(request.resource.data.groupId))
-        && !exists(/databases/$(database)/documents/groups/$(request.resource.data.groupId)/bans/$(request.auth.uid))
-        && (request.resource.data.get('role', 'member') == 'member'
-            || (request.resource.data.role == 'admin'
-                && getAfter(/databases/$(database)/documents/groups/$(request.resource.data.groupId)).data.ownerUid == request.auth.uid));
+        && !exists(/databases/$(database)/documents/groups/$(request.resource.data.groupId)/bans/$(request.resource.data.uid))
+        && (
+          (request.resource.data.uid == request.auth.uid
+            && request.resource.data.get('role', 'member') == 'member'
+            && (groupIsOpen(request.resource.data.groupId)
+                || exists(/databases/$(database)/documents/groupInvites/$(request.resource.data.groupId + '_' + request.auth.uid))))
+          || (request.resource.data.uid == request.auth.uid
+              && request.resource.data.get('role', 'member') == 'admin'
+              && getAfter(/databases/$(database)/documents/groups/$(request.resource.data.groupId)).data.ownerUid == request.auth.uid)
+          || (request.resource.data.uid != request.auth.uid
+              && request.resource.data.get('role', 'member') == 'member'
+              && exists(/databases/$(database)/documents/groups/$(request.resource.data.groupId)/requests/$(request.resource.data.uid))
+              && (isAdminOf(request.resource.data.groupId) || isModOf(request.resource.data.groupId)))
+        );
       allow update: if signedIn()
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role'])
         && request.resource.data.role in ['admin', 'moderator', 'member']
@@ -514,6 +613,46 @@ service cloud.firestore {
              (request.resource.data.members[0] == request.auth.uid
                ? request.resource.data.members[1] : request.resource.data.members[0]) + '_' + request.auth.uid));
       allow delete: if signedIn() && request.auth.uid in resource.data.members;
+    }
+
+    // Direct messages. One conversation per pair of friends, named like their friendship ("<uidA>_<uidB>", ids sorted).
+    // Only the two people can read it, and only while they are friends can either write to it. Messages cannot be
+    // edited or deleted. "seen" holds when each person last read the conversation, and you can only change your own.
+    function inPair(pid) { return signedIn() && request.auth.uid in pid.split('_'); }
+    function friendsInPair(pid) { return exists(/databases/$(database)/documents/friendships/$(pid)); }
+
+    match /conversations/{pid} {
+      // Judged on the document's own members (not its name) so the inbox query (members array-contains you) is allowed.
+      allow read: if signedIn() && request.auth.uid in resource.data.members;
+      allow create: if inPair(pid)
+        && friendsInPair(pid)
+        && request.resource.data.keys().hasOnly(['members', 'lastText', 'lastFrom', 'updatedAt', 'seen'])
+        && request.resource.data.members.size() == 2
+        && request.resource.data.members[0] < request.resource.data.members[1]
+        && pid == request.resource.data.members[0] + '_' + request.resource.data.members[1]
+        && request.resource.data.lastFrom == request.auth.uid
+        && request.resource.data.lastText is string && request.resource.data.lastText.size() <= 120
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.seen.keys().hasOnly([request.auth.uid]);
+      allow update: if inPair(pid)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastText', 'lastFrom', 'updatedAt', 'seen'])
+        && request.resource.data.seen.diff(resource.data.seen).affectedKeys().hasOnly([request.auth.uid])
+        && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['lastText', 'lastFrom', 'updatedAt'])
+            || (friendsInPair(pid)
+                && request.resource.data.lastFrom == request.auth.uid
+                && request.resource.data.lastText is string && request.resource.data.lastText.size() <= 120
+                && request.resource.data.updatedAt == request.time));
+
+      match /messages/{messageId} {
+        allow read: if inPair(pid);
+        allow create: if inPair(pid)
+          && friendsInPair(pid)
+          && request.resource.data.keys().hasOnly(['from', 'text', 'createdAt'])
+          && request.resource.data.from == request.auth.uid
+          && request.resource.data.text is string
+          && request.resource.data.text.size() > 0 && request.resource.data.text.size() <= 2000
+          && request.resource.data.createdAt == request.time;
+      }
     }
   }
 }

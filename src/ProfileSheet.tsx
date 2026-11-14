@@ -11,6 +11,7 @@ import Avatar from "./Avatar";
 import PhotoEditor from "./PhotoEditor";
 import { CloseIcon, ImageIcon, CameraIcon, EditIcon } from "./icons";
 import { canAutoFocus } from "./focus";
+import { useScrollLock } from "./scrollLock";
 
 type Props = {
   /** null = first-time setup, which cannot be dismissed until a name and username are saved. An older profile with no username is treated the same way. */
@@ -37,13 +38,12 @@ export default function ProfileSheet({ profile, suggestedName = "", onClose }: P
   const [error, setError] = useState("");
   const nameRef = useRef<HTMLInputElement>(null);
 
+  useScrollLock();
   useEffect(() => {
     if (canAutoFocus()) nameRef.current?.focus();
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && !locked && onClose();
     document.addEventListener("keydown", onKey);
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => { document.removeEventListener("keydown", onKey); document.body.style.overflow = prev; };
+    return () => { document.removeEventListener("keydown", onKey); };
   }, [onClose, locked]);
 
   // No username yet: use one already held, else the one typed at sign-up, else suggest one from the name. Never overwrites typing.

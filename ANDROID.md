@@ -60,14 +60,13 @@ A release APK must be signed before phones will install it. Create a keystore wi
 |---|---|
 | Sign up, verify email, sign in, stay signed in after closing the app | Firebase sign-in is kept inside the app |
 | Add photos from gallery and camera | The Android file chooser inside the app |
-| **Save photo** (download) | Likely not to work yet: `download.ts` uses a browser download. Needs the Tauri dialog and file plugins (next step) |
+| **Save photo** | Opens Android's "Save as" screen (Tauri dialog + fs plugins, wired in `download.ts`). Save one, open it in Gallery/Files. Saving several photos asks once per photo |
 | Copy for Daily Report, Share | Clipboard and Android share sheet |
 | Back button | It should go back through screens, then leave the app |
 | Keyboard and the notch/status bar | Safe areas are already handled in the CSS |
 | Copy a share link and open it in a browser | It should be the public website address |
 
 ## 8. Next steps (not done yet)
-1. **Saving photos on Android:** add the Tauri dialog and fs plugins and call them from `download.ts` when `isNativeApp` is true.
-2. **Opening share links in the app** (Android App Links): needs a Digital Asset Links file on your website and the Tauri deep-link plugin.
-3. **Push notifications:** the bell works while the app is open. Pushes when it is closed need Firebase Cloud Messaging.
-4. **Move image resizing into Rust** (see `RUST_PREP.md`, phase 2).
+1. **Opening share links in the app** (Android App Links): needs a Digital Asset Links file on your website and the Tauri deep-link plugin.
+2. **Push notifications:** the bell works while the app is open. Pushes when it is closed need Firebase Cloud Messaging.
+3. **Move image resizing into Rust** (see `RUST_PREP.md`, phase 2).

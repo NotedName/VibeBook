@@ -1,18 +1,19 @@
 import { useEffect, useMemo, useState } from "react";
-import { joinGroup, leaveGroup, useGroup, useGroupMembers, withRoles } from "../groups";
+import { acceptInvite, cancelRequest, joinGroup, leaveGroup, useGroup, useGroupMembers, useMyRequest, withRoles } from "../groups";
+import JoinRequestSheet from "../JoinRequestSheet";
 import { useGroupEntries } from "../groupFeed";
 import { useSession } from "../session";
 import { dateDir, useSortedEntries, useSortMode } from "../sorting";
 import SortMenu from "../SortMenu";
-import { ROLES, type GroupRole, type Member } from "../types";
+import { ROLES, type GroupRole } from "../types";
 import EntryList from "../EntryList";
-import PersonRow from "../PersonRow";
 import { GroupAvatar } from "../GroupRow";
 import InviteSheet from "../InviteSheet";
+import GroupMembersSheet from "../GroupMembersSheet";
 import GroupManageSheet from "../GroupManageSheet";
 import ImageViewer from "../ImageViewer";
-import { FeedSkeleton, GroupHeadSkeleton, RowsSkeleton } from "../Skeleton";
-import { PlusIcon, SettingsIcon } from "../icons";
+import { FeedSkeleton, GroupHeadSkeleton } from "../Skeleton";
+import { LockIcon, PlusIcon, SettingsIcon, UsersIcon } from "../icons";
 
 const roleLabel = (r: GroupRole) => ROLES.find((x) => x.id === r)!.label;
 const RoleBadge = ({ role }: { role: GroupRole }) => role === "member" ? null : <span className={`role-badge role-${role}`}>{roleLabel(role)}</span>;
@@ -46,21 +47,6 @@ function GroupFeed({ gid, name, canModerate }: { gid: string; name: string; canM
   );
 }
 
-function Members({ members, error }: { members: Member[] | null; error: string }) {
-  return (
-    <section className="people-section members-inline">
-      <h2>Members {members && <span>{members.length}</span>}</h2>
-      {error && <p className="error note">{error}</p>}
-      {!members && !error && <RowsSkeleton />}
-      {members && (
-        <ul className="people">
-          {members.map((m) => <PersonRow key={m.uid} uid={m.uid} badge={<RoleBadge role={m.role} />} />)}
-        </ul>
-      )}
-    </section>
-  );
-}
-
 export default function GroupPage({ gid }: { gid: string }) {
   const s = useSession();
   const group = useGroup(gid);
@@ -69,8 +55,12 @@ export default function GroupPage({ gid }: { gid: string }) {
   const [armed, setArmed] = useState(false);
   const [inviting, setInviting] = useState(false);
   const [managing, setManaging] = useState(false);
+  const [listing, setListing] = useState(false);
   const [viewing, setViewing] = useState<"avatar" | "cover" | null>(null);
+  const [asking, setAsking] = useState(false);
   const member = s.groups.ids.has(gid);
+  const invited = s.invites.some((i) => i.groupId === gid);
+  const request = useMyRequest(s.uid, gid, group?.privacy === "private" && !member && !invited);
   const { markGroupSeen } = s;
 
   // Looking at a group clears its "new posts" alert, on the way in and on the way out.
@@ -124,10 +114,14 @@ export default function GroupPage({ gid }: { gid: string }) {
         ) : <GroupAvatar name={group.name} size="lg" />}
         <div className="group-head-text">
           <h1 className="name">{group.name}</h1>
+          <p className="group-kind">{group.privacy === "private" ? <><LockIcon /> Private group</> : "Public group"}</p>
           {group.description && <p>{group.description}</p>}
           {myRole && myRole !== "member" && <p><RoleBadge role={myRole} /></p>}
         </div>
         <div className="group-head-actions">
+          {(member || group.privacy !== "private") && (
+            <button type="button" className="btn members-btn" onClick={() => setListing(true)}><UsersIcon /> Members</button>
+          )}
           {member && <button type="button" className="btn" onClick={() => setInviting(true)}><PlusIcon /> Invite</button>}
           {canManage && <button type="button" className="btn" onClick={() => setManaging(true)}><SettingsIcon /> Manage</button>}
           {member && !isOwner && (
@@ -136,9 +130,17 @@ export default function GroupPage({ gid }: { gid: string }) {
               {armed ? "Tap to leave" : "Leave"}
             </button>
           )}
-          {!member && (
+          {!member && (group.privacy !== "private" || invited) && (
             <button type="button" className="btn primary" disabled={busy}
-              onClick={() => run(() => joinGroup(s.uid, gid), `Joined ${group.name}`)}>Join group</button>
+              onClick={() => run(() => (group.privacy === "private" ? acceptInvite(s.uid, gid) : joinGroup(s.uid, gid)), `Joined ${group.name}`)}>Join group</button>
+          )}
+          {!member && group.privacy === "private" && !invited && (
+            request ? (
+              <button type="button" className="btn" disabled={busy} title="Cancel your request"
+                onClick={() => run(() => cancelRequest(s.uid, gid), "Request cancelled")}>Requested · Cancel</button>
+            ) : (
+              <button type="button" className="btn primary" disabled={busy || request === undefined} onClick={() => setAsking(true)}>Ask to join</button>
+            )
           )}
         </div>
       </section>
@@ -146,14 +148,24 @@ export default function GroupPage({ gid }: { gid: string }) {
 
       {member ? <GroupFeed gid={gid} name={group.name} canModerate={canManage} /> : (
         <div className="empty">
-          <h2>Join to see what is shared</h2>
-          <p>Entries in {group.name} are only visible to its members.</p>
+          <h2>{group.privacy === "private" ? "This group is private" : "Join to see what is shared"}</h2>
+          <p>
+            {group.privacy !== "private" ? `Entries in ${group.name} are only visible to its members.`
+              : request ? "Your request is waiting for an admin or moderator. You will be told when it is approved."
+              : invited ? "You were invited. Join to see what is shared."
+              : `Ask to join, and an admin or moderator will decide. Entries in ${group.name} are only visible to its members.`}
+          </p>
         </div>
       )}
-      <Members members={members} error={membersError} />
+      {asking && <JoinRequestSheet group={group} onClose={() => setAsking(false)} />}
       {viewing && (viewing === "avatar" ? group.avatar : group.coverPhoto) && (
         <ImageViewer src={viewing === "avatar" ? group.avatar : group.coverPhoto}
           label={viewing === "avatar" ? `${group.name} picture` : `${group.name} cover photo`} onClose={() => setViewing(null)} />
+      )}
+      {listing && (
+        <GroupMembersSheet members={members} error={membersError} ownerUid={group.ownerUid} onClose={() => setListing(false)}
+          onInvite={member ? () => { setListing(false); setInviting(true); } : undefined}
+          onManage={canManage ? () => { setListing(false); setManaging(true); } : undefined} />
       )}
       {inviting && <InviteSheet gid={gid} groupName={group.name} onClose={() => setInviting(false)} />}
       {managing && myRole && canManage && members && (

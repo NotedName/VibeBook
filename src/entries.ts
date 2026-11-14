@@ -1,12 +1,14 @@
 import { logActivity } from "./activity";
 import {
-  collection, doc, getDocs, orderBy, query, serverTimestamp, updateDoc, writeBatch,
+  collection, deleteField, doc, getDocs, orderBy, query, serverTimestamp, writeBatch,
   type DocumentReference, type Timestamp,
 } from "firebase/firestore";
 import { db } from "./firebase";
 import { compressImage } from "./image";
 import { groupPostRef } from "./groups";
+import { chosenVisibility, privateGroupIds, teaserOp, teaserRef, visibilityFields } from "./entryPrivacy";
 import type { Visibility } from "./types";
+import { spanMinutes } from "./weeks";
 
 export const MAX_PHOTOS = 8;
 /** Longest text an entry can hold. Longer descriptions show a few lines with a Show more button. */
@@ -20,7 +22,9 @@ export const SKILLS_MAX = 15;
 export const SKILLS_INPUT_MAX = SKILLS_MAX * (SKILL_MAX + 2);
 
 /** What is wrong with an entry's text, or "" when it fits the limits. */
-export function entryTextProblem(i: Pick<EntryInput, "title" | "description" | "skills">): string {
+export function entryTextProblem(i: Pick<EntryInput, "title" | "description" | "skills" | "clockIn" | "clockOut">): string {
+  if (!!i.clockIn !== !!i.clockOut) return "Fill in both Time in and Time out, or leave both empty.";
+  if (i.clockIn && i.clockIn === i.clockOut) return "Time out must be different from Time in.";
   if (i.title.length > TITLE_MAX) return `The activity is ${i.title.length - TITLE_MAX} characters too long (limit ${TITLE_MAX}).`;
   if (i.description.length > DESC_MAX) return `The description is ${i.description.length - DESC_MAX} characters too long (limit ${DESC_MAX}).`;
   if (i.skills.length > SKILLS_MAX) return `Add at most ${SKILLS_MAX} skills.`;
@@ -33,10 +37,17 @@ export function entryTextProblem(i: Pick<EntryInput, "title" | "description" | "
 
 export type EntryInput = {
   date: string; // YYYY-MM-DD
-  time: string; // HH:mm
+  /** HH:mm. The sort stamp: the clock-in time when the entry has hours, otherwise when it was logged. */
+  time: string;
+  /** Hours worked, HH:mm. Both or neither. Time out earlier than time in means the shift ran past midnight. */
+  clockIn?: string;
+  clockOut?: string;
+  /** Length of the shift in minutes, stored so reports and totals do not recompute it. Set with clockIn and clockOut. */
+  minutes?: number;
   title: string;
   skills: string[];
   description: string;
+  /** What the author chose. Stored as-is, except that an entry in a private group is stored as "private" (see entryPrivacy.ts). */
   visibility: Visibility;
   /** Groups whose members can see and comment on this entry. */
   groupIds: string[];
@@ -48,8 +59,15 @@ export type Entry = Omit<EntryInput, "visibility" | "videoUrl"> & {
   /** Entries written before video links existed have none. */
   videoUrl?: string;
   id: string;
-  /** Entries written before visibility existed have none, and count as private. */
+  /** Entries written before visibility existed have none, and count as private. An entry in a private group is stored as "private". */
   visibility?: Visibility;
+  /** The visibility chosen by the author while the entry sits in a private group; restored when it leaves. */
+  lockedVisibility?: Visibility;
+  /**
+   * Only on placeholder cards: this is a post in a private group that the viewer is not in, with its content left out.
+   * Never stored. Shown as "Join the group to see this post".
+   */
+  lockedGroupId?: string;
   /** Entries written before groups existed have none. */
   groupIds?: string[];
   /** Tucked away by its owner: hidden from the logbook, feeds, groups and share links, listed under Archived entries. */
@@ -74,6 +92,17 @@ const groupPost = (uid: string, entryId: string, input: EntryInput) => ({
   ownerUid: uid, entryId, date: input.date, time: input.time,
 });
 
+/** The hours fields to store. A new document is written with set(), which cannot use deleteField(), so they are left out there. */
+function hoursFields(input: EntryInput, isNew: boolean): Record<string, unknown> {
+  if (input.clockIn && input.clockOut) {
+    return { clockIn: input.clockIn, clockOut: input.clockOut, minutes: spanMinutes(input.clockIn, input.clockOut) };
+  }
+  return isNew ? {} : { clockIn: deleteField(), clockOut: deleteField(), minutes: deleteField() };
+}
+
+/** The input without its optional hours fields, so no undefined value reaches Firestore. */
+const withoutHours = ({ clockIn: _a, clockOut: _b, minutes: _c, ...rest }: EntryInput) => rest;
+
 export async function addEntry(uid: string, input: EntryInput, files: File[]): Promise<void> {
   if (files.length > MAX_PHOTOS) throw new Error(`Maximum ${MAX_PHOTOS} photos per entry`);
   const problem = entryTextProblem(input);
@@ -81,8 +110,10 @@ export async function addEntry(uid: string, input: EntryInput, files: File[]): P
   const photos = await Promise.all(files.map(compressImage));
 
   const entryRef = doc(entriesRef(uid));
+  const priv = await privateGroupIds(input.groupIds);
   const batch = writeBatch(db);
-  batch.set(entryRef, { ...input, photoCount: photos.length, createdAt: serverTimestamp() });
+  batch.set(entryRef, { ...withoutHours(input), ...hoursFields(input, true), ...visibilityFields(input.visibility, priv.length > 0, true), photoCount: photos.length, createdAt: serverTimestamp() });
+  teaserOp(batch, uid, entryRef.id, input.date, input.time, priv);
   photos.forEach((data, order) => batch.set(doc(collection(entryRef, "photos")), { data, order }));
   input.groupIds.forEach((gid) => batch.set(groupPostRef(gid, uid, entryRef.id), groupPost(uid, entryRef.id, input)));
   await batch.commit();
@@ -112,13 +143,17 @@ export async function updateEntry(
 
   const entryRef = doc(entriesRef(uid), entry.id);
   const extras = (await Promise.all(removeIds.map((id) => photoExtras(doc(collection(entryRef, "photos"), id))))).flat();
+  const priv = await privateGroupIds(input.groupIds);
   const batch = writeBatch(db);
   extras.forEach((r) => batch.delete(r));
   batch.update(entryRef, {
-    ...input,
+    ...withoutHours(input),
+    ...hoursFields(input, false),
+    ...visibilityFields(input.visibility, priv.length > 0, false),
     photoCount: keep.length + added.length,
     updatedAt: serverTimestamp(),
   });
+  teaserOp(batch, uid, entry.id, input.date, input.time, priv, entry.archived === true);
   removeIds.forEach((id) => batch.delete(doc(collection(entryRef, "photos"), id)));
   input.groupIds.forEach((gid) => batch.set(groupPostRef(gid, uid, entry.id), groupPost(uid, entry.id, input)));
   (entry.groupIds ?? [])
@@ -155,6 +190,7 @@ export async function deleteEntry(uid: string, entry: Entry): Promise<void> {
   comments.forEach((c) => batch.delete(c.ref));
   reactions.forEach((r) => batch.delete(r.ref));
   (entry.groupIds ?? []).forEach((gid) => batch.delete(groupPostRef(gid, uid, entry.id)));
+  batch.delete(teaserRef(uid, entry.id));
   batch.delete(entryRef);
   await batch.commit();
   logActivity(uid, `Deleted the entry “${entry.title}”`);
@@ -167,14 +203,21 @@ export const newestFirst = (a: Entry, b: Entry) => (stampOf(a) < stampOf(b) ? 1 
 
 /** Archives an entry, or brings it back. Nothing is deleted: photos, comments and reactions stay where they are. */
 export async function setEntryArchived(uid: string, entry: Entry, archived: boolean): Promise<void> {
-  await updateDoc(doc(entriesRef(uid), entry.id), { archived });
+  // An archived entry has no placeholder on the profile either.
+  const priv = archived ? [] : await privateGroupIds(entry.groupIds ?? []);
+  const batch = writeBatch(db);
+  batch.update(doc(entriesRef(uid), entry.id), { archived });
+  teaserOp(batch, uid, entry.id, entry.date, entry.time, priv, archived);
+  await batch.commit();
   logActivity(uid, `${archived ? "Archived" : "Unarchived"} the entry “${entry.title}”`);
 }
 
 /** Changes which groups an existing entry is shared to, without touching anything else. */
 export async function setEntryGroups(uid: string, entry: Entry, groupIds: string[]): Promise<void> {
+  const priv = await privateGroupIds(groupIds);
   const batch = writeBatch(db);
-  batch.update(doc(entriesRef(uid), entry.id), { groupIds });
+  batch.update(doc(entriesRef(uid), entry.id), { groupIds, ...visibilityFields(chosenVisibility(entry), priv.length > 0, false) });
+  teaserOp(batch, uid, entry.id, entry.date, entry.time, priv, entry.archived === true);
   groupIds.forEach((gid) => batch.set(groupPostRef(gid, uid, entry.id), { ownerUid: uid, entryId: entry.id, date: entry.date, time: entry.time }));
   (entry.groupIds ?? []).filter((gid) => !groupIds.includes(gid))
     .forEach((gid) => batch.delete(groupPostRef(gid, uid, entry.id)));

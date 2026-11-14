@@ -103,6 +103,58 @@
   .comment-list > li, .replies > li { animation: fade-in .35s ease-out backwards; }
 }
 
+/* ---------- more motion (all of it transform and opacity only, so it runs on the GPU without re-laying anything out) ---------- */
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes bell-ring { 0%, 100% { transform: rotate(0); } 15% { transform: rotate(14deg); } 30% { transform: rotate(-12deg); } 45% { transform: rotate(8deg); } 60% { transform: rotate(-5deg); } 75% { transform: rotate(2deg); } }
+  @keyframes dot-pulse { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent-text) 45%, transparent); } 100% { box-shadow: 0 0 0 8px transparent; } }
+  @keyframes slide-in-left { from { opacity: 0; transform: translateX(-12px); } }
+
+  /* notifications: rows settle in one after another, the unread dot pops, a pressed row dips */
+  .notes > li { animation: fade-up .38s var(--ease) backwards; }
+  .notes > li:nth-child(2) { animation-delay: .03s; }
+  .notes > li:nth-child(3) { animation-delay: .06s; }
+  .notes > li:nth-child(4) { animation-delay: .09s; }
+  .notes > li:nth-child(5) { animation-delay: .12s; }
+  .notes > li:nth-child(6) { animation-delay: .15s; }
+  .notes > li:nth-child(n+7) { animation-delay: .18s; }
+  .note-dot { animation: pop-in .4s var(--spring) backwards, dot-pulse 1.6s ease-out .4s 2; }
+  .note-row { transition: background-color .25s var(--ease), transform .15s var(--ease); }
+  .note-row:active { transform: scale(.985); }
+  .notes-readall:not(:disabled):active { transform: scale(.95); }
+  .bell-badge { animation: pop-in .45s var(--spring); }
+  .bell:has(.bell-badge) > svg { transform-origin: 50% 0; animation: bell-ring .9s ease-in-out .5s 1; }
+
+  /* lists of people and groups: the first rows stagger in; later rows (loaded as you scroll) simply appear */
+  .people > li:nth-child(-n+8), .people > .person:nth-child(-n+8) { animation: slide-in-left .38s var(--ease) backwards; }
+  .people > :nth-child(2) { animation-delay: .04s; }
+  .people > :nth-child(3) { animation-delay: .08s; }
+  .people > :nth-child(4) { animation-delay: .12s; }
+  .people > :nth-child(5) { animation-delay: .16s; }
+  .people > :nth-child(n+6) { animation-delay: .2s; }
+
+  /* small touches */
+  .person-link { transition: background-color .22s var(--ease), color .22s var(--ease), transform .15s var(--ease); }
+  .person-link:active { transform: scale(.99); }
+  .title-row .btn.primary { animation: pop-in .5s var(--spring) .12s backwards; }
+  .tab-new:active i { transition-duration: .12s; }
+  @media (hover: hover) { .back-btn svg { transition: transform .22s var(--ease); } .back-btn:hover svg { transform: translateX(-3px); } }
+}
+
+/* ---------- lighter on phones ---------- */
+/* Blurring whatever is behind a layer is the most expensive thing the page does: every frame of a scroll or an animation redraws it.
+   On phones and touch screens the backdrop blur goes (the scrim already dims the page) and the two bars keep a softer one. */
+@media (max-width: 599.98px), (pointer: coarse) {
+  .overlay { -webkit-backdrop-filter: none; backdrop-filter: none; }
+  .topbar::before { -webkit-backdrop-filter: blur(8px) saturate(1.3); backdrop-filter: blur(8px) saturate(1.3); }
+}
+@media (max-width: 599.98px) {
+  .tabs { -webkit-backdrop-filter: blur(10px) saturate(1.3); backdrop-filter: blur(10px) saturate(1.3); }
+}
+/* The sign-in screen's drifting glows and floating chips run forever, so on small screens they are switched off. */
+@media (max-width: 599.98px) { .fx-orb, .fx-chip { animation: none !important; } }
+/* Fast drags stay glued to the finger: no transition on a row while it is being dragged */
+.note-swipe.dragging .note-swipe-fg { transition: none !important; }
+
 /* Settings > Accessibility > Reduce motion: the same calm result as the device setting, chosen inside the app. */
 html[data-motion="reduced"] *, html[data-motion="reduced"] *::before, html[data-motion="reduced"] *::after {
   animation: none !important; transition: none !important; scroll-behavior: auto !important;

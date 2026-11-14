@@ -205,7 +205,6 @@
   .act { min-height: 44px; }
   .menu button { padding: 13px 14px; }
   .link-act { padding: 8px 0; }
-  .back-btn { padding-top: 10px; padding-bottom: 10px; }
   .emoji-grid button, .sticker-grid button { min-height: 44px; }
 }
 
@@ -362,4 +361,53 @@ html:has(.auth.split) { scrollbar-gutter: stable; }
 }
 @media (prefers-reduced-motion: reduce) {
   .topbar, .tab, .tab span, .brand, .brand-word { transition: none !important; }
+}
+
+
+/* ---------- small screens: compact notifications, and nothing sits on top of anything else ---------- */
+
+/* Page titles with a button beside them (Groups, Archived): equal space above and below, and the button drops under
+   the title instead of crowding it when the line is too narrow. It used to hug the top bar and the search box. */
+.title-row { flex-wrap: wrap; row-gap: 8px; padding-block: 14px 8px; }
+.title-row .page-title { margin-block: 0; min-width: 0; overflow-wrap: anywhere; }
+.title-row .btn { flex: none; }
+
+/* Phones: the notification list holds more. Rows go from about 62px to about 46px. */
+@media (max-width: 599.98px) {
+  .notes-body { padding: 8px 8px 12px; gap: 6px; }
+  .notes { gap: 0; }
+  .note-row { gap: 10px; padding: 6px 8px; }
+  .note-avatars .av { width: 34px; height: 34px; font-size: calc(13px * var(--ts)); }
+  .note-avatars .av svg { width: 17px; height: 17px; }
+  .note-avatars.stack .av { width: 28px; height: 28px; font-size: calc(11px * var(--ts)); }
+  .note-avatars.stack .av + .av { margin-left: -10px; }
+  .note-text { gap: 0; font-size: calc(13px * var(--ts)); line-height: 1.28; }
+  .note-text time { font-size: calc(11px * var(--ts)); }
+  .note-dot { width: 8px; height: 8px; }
+  .btn.notes-readall { min-height: 36px; padding: 6px 12px; font-size: calc(13px * var(--ts)); }
+  .title-row .btn { min-height: 40px; padding: 8px 12px; }
+  .title-row .btn.primary { box-shadow: 0 4px 12px -6px color-mix(in srgb, var(--accent) 80%, transparent), inset 0 1px 0 rgba(255, 255, 255, .18); }
+}
+
+/* Common 360-420px phones: the top bar's four 44px buttons plus the brand were wider than the screen, so the brand ran
+   under the buttons. Slightly smaller buttons and brand make them fit; the brand also clips instead of overlapping. */
+.brand { overflow: hidden; }
+.top-actions { flex: none; }
+@media (min-width: 360px) and (max-width: 419.98px) {
+  .topbar-in { gap: 8px; }
+  .top-actions { gap: 2px; }
+  .top-actions .icon-btn { width: 40px; height: 40px; }
+  .brand { font-size: calc(20px * var(--ts)); gap: 6px; }
+  .brand-mark { width: 30px; height: 30px; }
+}
+
+/* Buttons that share a row shrink and wrap their text rather than push into each other. */
+.sheet-actions .btn { min-width: 0; overflow-wrap: anywhere; }
+@media (max-width: 359.98px) {
+  .sheet-actions { gap: 8px; padding-inline: 12px; }
+  .sheet-actions .btn { padding-inline: 8px; }
+  .seg.four { grid-template-columns: repeat(2, 1fr); }
+  .sheet .seg label { flex-direction: column; gap: 3px; min-width: 0; text-align: center; overflow-wrap: anywhere; }
+  .group-head-actions { margin-left: 0; width: 100%; }
+  .group-head-actions .btn { flex: 1 1 120px; min-width: 0; }
 }

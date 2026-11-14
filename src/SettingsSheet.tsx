@@ -9,6 +9,7 @@ import { VISIBILITY } from "./types";
 import { BrandName } from "./Logo";
 import { TermsContent } from "./Terms";
 import { CloseIcon, GlobeIcon, LockIcon, MoonIcon, MonitorIcon, SunIcon, UsersIcon } from "./icons";
+import { useScrollLock } from "./scrollLock";
 
 const CATEGORIES = ["Appearance", "Media", "Entries", "Notifications", "Privacy", "Accessibility", "Activity", "About"] as const;
 type Category = (typeof CATEGORIES)[number];
@@ -192,6 +193,7 @@ function ActivityLog({ onNavigate }: { onNavigate: () => void }) {
 export default function SettingsSheet({ onClose }: { onClose: () => void }) {
   const [category, setCategory] = useState<Category>("Appearance");
 
+  useScrollLock();
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     document.addEventListener("keydown", onKey);

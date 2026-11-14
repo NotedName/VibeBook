@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { acceptRequest, cancelRequest, declineRequest, follow, sendRequest, unfollow, unfriend } from "./social";
 import { useSession } from "./session";
-import { CheckIcon } from "./icons";
+import { CheckIcon, MessagesIcon } from "./icons";
 
 /** Add friend / accept / follow controls for one other person. */
 export default function RelationButtons({ uid }: { uid: string }) {
@@ -43,6 +43,9 @@ export default function RelationButtons({ uid }: { uid: string }) {
           <button type="button" className="btn" disabled={busy}
             onClick={() => run(() => declineRequest(s.uid, uid), "Request declined")}>Decline</button>
         </>
+      )}
+      {rel === "friends" && (
+        <a className="btn" href={`#/m/${encodeURIComponent(uid)}`}><MessagesIcon /> Message</a>
       )}
       {rel === "friends" && (
         <button type="button" className={`btn${armed ? " armed" : ""}`} disabled={busy}

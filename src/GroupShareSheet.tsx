@@ -1,10 +1,12 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { setEntryGroups, type Entry } from "./entries";
-import { removeRepost, repostId, saveRepost } from "./reposts";
+import { AlreadyInGroupError, removeRepost, repostId, saveRepost } from "./reposts";
+import { groupsHoldingEntry } from "./groups";
 import { useSession } from "./session";
 import { MAX_GROUPS_PER_ENTRY } from "./types";
 import { GroupAvatar } from "./GroupRow";
 import { CloseIcon } from "./icons";
+import { useScrollLock } from "./scrollLock";
 
 type Props = {
   /** "own" shares your own entry to groups; "repost" reposts someone else's public entry. */
@@ -21,13 +23,24 @@ export default function GroupShareSheet({ kind, entry, onClose }: Props) {
   );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  // Reposting: groups that already have this post (the original, or someone's repost) cannot be picked. null while checking.
+  const [taken, setTaken] = useState<Set<string> | null>(kind === "repost" ? null : new Set());
+  const groupKey = s.groups.list.map((g) => g.id).join(",");
+  useEffect(() => {
+    if (kind !== "repost") return;
+    let live = true;
+    groupsHoldingEntry(groupKey ? groupKey.split(",") : [], entry.ownerUid!, entry.id, s.uid).then(
+      (t) => { if (!live) return; setTaken(t); setGroupIds((p) => p.filter((g) => !t.has(g))); },
+      () => { if (live) setTaken(new Set()); }, // the save itself checks again
+    );
+    return () => { live = false; };
+  }, [kind, groupKey, entry.ownerUid, entry.id, s.uid]);
 
+  useScrollLock();
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     document.addEventListener("keydown", onKey);
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => { document.removeEventListener("keydown", onKey); document.body.style.overflow = prev; };
+    return () => { document.removeEventListener("keydown", onKey); };
   }, [onClose]);
 
   const toggle = (id: string) => setGroupIds((p) => (p.includes(id) ? p.filter((g) => g !== id) : [...p, id]));
@@ -36,7 +49,13 @@ export default function GroupShareSheet({ kind, entry, onClose }: Props) {
     setBusy(true);
     setError("");
     try { await fn(); s.notify(ok); onClose(); }
-    catch { setError("That did not go through. Try again."); setBusy(false); }
+    catch (err) {
+      setError(err instanceof AlreadyInGroupError
+        ? "One of those groups already has this post. It can only be in a group once."
+        : "That did not go through. Try again.");
+      if (err instanceof AlreadyInGroupError) setTaken((p) => new Set([...(p ?? []), ...err.groupIds]));
+      setBusy(false);
+    }
   }
 
   function submit(e: FormEvent) {
@@ -64,6 +83,9 @@ export default function GroupShareSheet({ kind, entry, onClose }: Props) {
               ? "Members of the groups you tick can see and comment on this entry, whatever its visibility."
               : `"${entry.title}" is added to your logbook and shown to people who see your reposts. Tick groups to share it there too.`}
           </p>
+          {kind === "own" && groupIds.some((id) => s.groups.list.find((g) => g.id === id)?.privacy === "private") && (
+            <p className="hint unsaved">A private group is ticked. Only its members will see this entry: it comes off your profile, the feed and its share link, and visitors see "join the group to see this post".</p>
+          )}
           <fieldset className="group-pick">
             <legend>Groups</legend>
             {s.groups.list.length === 0 ? (
@@ -72,20 +94,22 @@ export default function GroupShareSheet({ kind, entry, onClose }: Props) {
               <ul>
                 {s.groups.list.map((g) => {
                   const on = groupIds.includes(g.id);
+                  const has = taken?.has(g.id) ?? false;
                   return (
                     <li key={g.id}>
-                      <label className={on ? "on" : ""}>
+                      <label className={`${on ? "on" : ""}${has ? " off" : ""}`}>
                         <input type="checkbox" checked={on} onChange={() => toggle(g.id)}
-                          disabled={!on && groupIds.length >= MAX_GROUPS_PER_ENTRY} />
+                          disabled={has || (!on && groupIds.length >= MAX_GROUPS_PER_ENTRY)} />
                         <GroupAvatar name={g.name} photo={g.avatar} size="sm" />
                         <span>{g.name}</span>
+                        {has && <small className="invite-status">Already in this group</small>}
                       </label>
                     </li>
                   );
                 })}
               </ul>
             )}
-            <p className="hint">Up to {MAX_GROUPS_PER_ENTRY} groups.</p>
+            <p className="hint">Up to {MAX_GROUPS_PER_ENTRY} groups.{kind === "repost" && " A post can only be in a group once, so groups that already have it are greyed out."}</p>
           </fieldset>
           {error && <p className="error" role="alert">{error}</p>}
         </div>

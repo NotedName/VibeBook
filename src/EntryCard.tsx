@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { deleteEntry, loadPhotos, setEntryArchived, type Entry, type Photo } from "./entries";
-import { clockTime, copyText, entryText, longDay } from "./report";
+import { copyText, entryText, entryWhen, longDay } from "./report";
 import { useProfile, useSession } from "./session";
 import { personHash } from "./profiles";
 import { VISIBILITY } from "./types";
@@ -19,6 +19,7 @@ import PhotoViewer from "./PhotoViewer";
 import { postLink } from "./share";
 import SkillChips from "./SkillChips";
 import { downloadPhotos } from "./download";
+import LockedPost from "./LockedPost";
 
 type Props = {
   entry: Entry;
@@ -37,7 +38,12 @@ function GroupLink({ id }: { id: string }) {
 
 const VIS_ICON = { private: <LockIcon />, friends: <UsersIcon />, public: <GlobeIcon /> };
 
-export default function EntryCard({ entry, onEdit, inGroup, single = false }: Props) {
+/** A post in a private group the viewer is not in shows as a placeholder; everything else is the full card. */
+export default function EntryCard(props: Props) {
+  return props.entry.lockedGroupId !== undefined ? <LockedPost entry={props.entry} /> : <FullEntryCard {...props} />;
+}
+
+function FullEntryCard({ entry, onEdit, inGroup, single = false }: Props) {
   const s = useSession();
   const ownerUid = entry.ownerUid ?? s.uid;
   const mine = ownerUid === s.uid;
@@ -55,6 +61,8 @@ export default function EntryCard({ entry, onEdit, inGroup, single = false }: Pr
   const menuRef = useRef<HTMLDivElement>(null);
   const groupIds = (entry.groupIds ?? []).filter((id) => s.groups.ids.has(id));
   const vis = VISIBILITY.find((v) => v.id === (entry.visibility ?? "private"))!;
+  // An entry in a private group is stored as "private"; say what is really going on.
+  const inPrivateGroup = (entry.groupIds ?? []).some((id) => s.groups.list.some((g) => g.id === id && g.privacy === "private"));
 
   // createdAt/updatedAt change once the server confirms a write, which refreshes photos
   // that were still being committed when the first local snapshot arrived.
@@ -94,7 +102,7 @@ export default function EntryCard({ entry, onEdit, inGroup, single = false }: Pr
 
   async function downloadAll() {
     setMenu(false);
-    if (await downloadPhotos(photos, entry.title)) s.notify(photos.length > 1 ? "Downloading photos" : "Downloading photo");
+    if (await downloadPhotos(photos, entry.title)) s.notify(photos.length > 1 ? "Photos saved" : "Photo saved");
     else s.notify("Could not download the photos");
   }
 
@@ -143,11 +151,13 @@ export default function EntryCard({ entry, onEdit, inGroup, single = false }: Pr
         )}
         <div className="post-who">
           {mine ? <b>{name}</b> : <a className="post-name" href={personHash(ownerUid, owner)}>{name}</a>}
-          <time>{longDay(entry.date)} · {clockTime(entry.time)}</time>
+          <time>{longDay(entry.date)} · {entryWhen(entry)}</time>
           {mine && entry.archived && <span className="archived-tag" title="Only you can see this entry"><ArchiveIcon />Archived</span>}
           {groupIds.length > 0 && <ul className="group-links" aria-label="Shared to groups">{groupIds.map((id) => <GroupLink key={id} id={id} />)}</ul>}
         </div>
-        {mine && <span className={`vis vis-${vis.id}`} title={vis.hint}>{VIS_ICON[vis.id]}{vis.label}</span>}
+        {mine && (inPrivateGroup
+          ? <span className="vis vis-group" title="Shared to a private group: only its members can see this entry."><LockIcon />Private group</span>
+          : <span className={`vis vis-${vis.id}`} title={vis.hint}>{VIS_ICON[vis.id]}{vis.label}</span>)}
         <div className="post-menu" ref={menuRef}>
           <button type="button" className="icon-btn menu-btn" aria-label="More actions" aria-haspopup="menu"
             aria-expanded={menu} onClick={() => setMenu(!menu)}><MoreIcon /></button>

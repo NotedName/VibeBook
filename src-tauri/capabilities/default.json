@@ -1,7 +1,13 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "What the main window may do. Add plugin permissions here as you add plugins (dialog, clipboard, notification).",
-  "windows": ["main"],
-  "permissions": ["core:default"]
+  "description": "What the main window may do: core, plus the save dialog and writing the chosen file (used by Save photo).",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "core:default",
+    "dialog:default",
+    "fs:allow-write-file"
+  ]
 }

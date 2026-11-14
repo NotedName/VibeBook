@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  collection, deleteDoc, doc, limit, onSnapshot, orderBy, query, serverTimestamp, setDoc, writeBatch, type Timestamp,
+  collection, deleteDoc, doc, limit, onSnapshot, orderBy, query, serverTimestamp, setDoc, updateDoc, writeBatch, type Timestamp,
 } from "firebase/firestore";
 import { db } from "./firebase";
 import { clip } from "./text";
@@ -12,7 +12,7 @@ import { interactionWeight, noteInteraction } from "./closeFriends";
  * and deletes it. Writing one is best effort: if it fails, the like or comment itself still went through.
  */
 export type NoteType =
-  | "friend_request" | "friend_accept" | "follow" | "group_invite"
+  | "friend_request" | "friend_accept" | "follow" | "group_invite" | "group_request" | "group_approved"
   | "like" | "comment" | "reply" | "comment_like" | "repost";
 
 export type Note = {
@@ -52,12 +52,18 @@ export async function dropNote(to: string, actor: string, key: string): Promise<
   try { await deleteDoc(noteRef(to, `${actor}_${key}`)); } catch { /* already gone */ }
 }
 
-export const markRead = (uid: string, ids: string[]) => {
-  if (ids.length === 0) return Promise.resolve();
-  const batch = writeBatch(db);
-  ids.slice(0, 400).forEach((id) => batch.update(noteRef(uid, id), { read: true }));
-  return batch.commit();
-};
+/**
+ * Marks notifications as read. Each one is its own update, not a single batch: a batch is all-or-nothing, so one
+ * notification the sender had just taken back (an undone like) made "Mark all as read" fail for every other one.
+ * A notification that no longer exists counts as done; any other failure is reported.
+ */
+export async function markRead(uid: string, ids: string[]): Promise<void> {
+  const unique = [...new Set(ids)];
+  if (unique.length === 0) return;
+  const results = await Promise.allSettled(unique.map((id) => updateDoc(noteRef(uid, id), { read: true })));
+  const failed = results.find((r): r is PromiseRejectedResult => r.status === "rejected" && (r.reason as { code?: string })?.code !== "not-found");
+  if (failed) throw failed.reason;
+}
 
 export const removeNotes = (uid: string, ids: string[]) => {
   if (ids.length === 0) return Promise.resolve();
@@ -107,7 +113,10 @@ export type NoteItem = {
 const ENTRY_TYPES = new Set<NoteType>(["like", "comment", "reply", "comment_like", "repost"]);
 
 /** What notifications are about: the kind of request for people-things, the kind plus the entry for entry-things. */
-const subjectOf = (n: Note) => (ENTRY_TYPES.has(n.type) ? `${n.type}:${n.ownerUid}/${n.entryId}` : n.type);
+const subjectOf = (n: Note) =>
+  ENTRY_TYPES.has(n.type) ? `${n.type}:${n.ownerUid}/${n.entryId}`
+  : n.type === "group_request" || n.type === "group_approved" ? `${n.type}:${n.groupId}`
+  : n.type;
 
 /**
  * Folds notifications by subject (all friend requests, all likes on one entry, …). A subject with
@@ -138,7 +147,8 @@ export function noteHref(item: NoteItem): string {
   const n = item.notes[0];
   switch (n.type) {
     case "friend_request": return "#/people";
-    case "group_invite": return item.compiled ? "#/groups" : "#/groups";
+    case "group_invite": return "#/groups";
+    case "group_request": case "group_approved": return n.groupId ? `#/g/${encodeURIComponent(n.groupId)}` : "#/groups";
     case "follow": case "friend_accept": return item.compiled ? "#/people" : `#/u/${encodeURIComponent(n.actorUid)}`;
     default: return n.ownerUid && n.entryId ? `#/p/${encodeURIComponent(n.ownerUid)}/${encodeURIComponent(n.entryId)}` : "#/feed";
   }

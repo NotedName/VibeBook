@@ -1,19 +1,16 @@
 import { useGroup, useGroupMembers, withRoles } from "./groups";
-import { ROLES, type GroupRole } from "./types";
 import { useProfile } from "./session";
 import { personHash } from "./profiles";
 import Avatar from "./Avatar";
+import RoleTiers from "./RoleTiers";
 
-const roleLabel = (r: GroupRole) => ROLES.find((x) => x.id === r)!.label;
-
-function Row({ uid, role }: { uid: string; role: GroupRole }) {
+function Row({ uid }: { uid: string }) {
   const p = useProfile(uid);
   return (
     <li>
       <a href={personHash(uid, p)}>
         <Avatar profile={p} size="sm" />
         <span>{p === undefined ? "…" : p?.displayName || "VibeBook member"}</span>
-        {role !== "member" && <i className={`role-badge role-${role}`}>{roleLabel(role)}</i>}
       </a>
     </li>
   );
@@ -29,7 +26,7 @@ export default function GroupMembersCard({ gid }: { gid: string }) {
       <h2>Members {list && <span>{list.length}</span>}</h2>
       {error && <p className="error note">{error}</p>}
       {!list && !error && <p className="hint">Loading…</p>}
-      {list && <ul>{list.map((m) => <Row key={m.uid} uid={m.uid} role={m.role} />)}</ul>}
+      {list && group && <RoleTiers members={list} ownerUid={group.ownerUid} list="tier-list" render={(m) => <Row key={m.uid} uid={m.uid} />} />}
     </section>
   );
 }

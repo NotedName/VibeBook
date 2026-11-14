@@ -3,22 +3,26 @@ import { createGroup, GROUP_DESC_MAX, GROUP_NAME_MAX } from "./groups";
 import { useSession } from "./session";
 import { CloseIcon } from "./icons";
 import { canAutoFocus } from "./focus";
+import GroupAccessFields from "./GroupAccessFields";
+import type { GroupPrivacy } from "./types";
+import { useScrollLock } from "./scrollLock";
 
 export default function GroupSheet({ onClose, onCreated }: { onClose: () => void; onCreated: (id: string) => void }) {
   const { uid } = useSession();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [privacy, setPrivacy] = useState<GroupPrivacy>("public");
+  const [questions, setQuestions] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const nameRef = useRef<HTMLInputElement>(null);
 
+  useScrollLock();
   useEffect(() => {
     if (canAutoFocus()) nameRef.current?.focus();
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     document.addEventListener("keydown", onKey);
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => { document.removeEventListener("keydown", onKey); document.body.style.overflow = prev; };
+    return () => { document.removeEventListener("keydown", onKey); };
   }, [onClose]);
 
   async function submit(e: FormEvent) {
@@ -26,7 +30,7 @@ export default function GroupSheet({ onClose, onCreated }: { onClose: () => void
     setBusy(true);
     setError("");
     try {
-      onCreated(await createGroup(uid, name, description));
+      onCreated(await createGroup(uid, name, description, privacy, questions));
     } catch (err) {
       setError((err as Error).message);
       setBusy(false);
@@ -49,7 +53,7 @@ export default function GroupSheet({ onClose, onCreated }: { onClose: () => void
             <textarea rows={3} value={description} onChange={(e) => setDescription(e.target.value)}
               maxLength={GROUP_DESC_MAX} placeholder="Who should join, and what do you share here?" />
           </label>
-          <p className="hint">Anyone on VibeBook can find this group and join it. Only members see its entries.</p>
+          <GroupAccessFields privacy={privacy} questions={questions} onPrivacy={setPrivacy} onQuestions={setQuestions} disabled={busy} />
           {error && <p className="error" role="alert">{error}</p>}
         </div>
         <div className="sheet-actions">

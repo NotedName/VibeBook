@@ -1,4 +1,17 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
-export default defineConfig({ plugins: [react()] });
+// Tauri sets TAURI_DEV_HOST when it runs on a phone or emulator.
+const host = process.env.TAURI_DEV_HOST;
+
+export default defineConfig({
+  plugins: [react()],
+  clearScreen: false,
+  server: {
+    port: 5173,
+    strictPort: true,
+    host: host ? "0.0.0.0" : false,
+    hmr: host ? { protocol: "ws", host, port: 5174 } : undefined,
+    watch: { ignored: ["**/src-tauri/**"] },
+  },
+});

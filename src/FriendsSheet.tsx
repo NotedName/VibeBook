@@ -4,6 +4,7 @@ import { useProfile, useSession } from "./session";
 import PersonRow from "./PersonRow";
 import { RowsSkeleton } from "./Skeleton";
 import { CloseIcon } from "./icons";
+import { useScrollLock } from "./scrollLock";
 
 /** A person's friends in a popup. Your own list is always shown; other people's only when they have not hidden it. */
 export default function FriendsSheet({ uid, onClose, initialView = "all" }: { uid: string; onClose: () => void; initialView?: "all" | "mutual" }) {
@@ -19,6 +20,7 @@ export default function FriendsSheet({ uid, onClose, initialView = "all" }: { ui
   const list = !mine && view === "mutual" && all ? all.filter((id) => mutualIds.has(id)) : all;
   const name = mine ? "You" : p?.displayName || "This person";
 
+  useScrollLock();
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     document.addEventListener("keydown", onKey);

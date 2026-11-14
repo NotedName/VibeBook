@@ -4,6 +4,7 @@ import { useSession } from "./session";
 import { MAX_GROUPS_PER_ENTRY } from "./types";
 import { GroupAvatar } from "./GroupRow";
 import { CloseIcon, ShareIcon } from "./icons";
+import { useScrollLock } from "./scrollLock";
 
 type Props = {
   entry: Entry;
@@ -25,12 +26,11 @@ export default function ShareSheet({ entry, linkable, onLink, onClose }: Props) 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
+  useScrollLock();
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     document.addEventListener("keydown", onKey);
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => { document.removeEventListener("keydown", onKey); document.body.style.overflow = prev; };
+    return () => { document.removeEventListener("keydown", onKey); };
   }, [onClose]);
 
   const toggle = (id: string) => setGroupIds((p) => (p.includes(id) ? p.filter((g) => g !== id) : [...p, id]));

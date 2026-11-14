@@ -1,8 +1,12 @@
 import { photoQuality } from "./preferences";
+import { nativeImage } from "./native";
 
 const MAX_CHARS = 900_000; // Firestore documents are capped at 1 MiB
 
 export async function compressImage(file: File): Promise<string> {
+  const wanted = photoQuality();
+  const fromRust = await nativeImage(file, "photo", wanted.side, wanted.quality, MAX_CHARS);
+  if (fromRust) return fromRust;
   const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
   const { side, quality } = photoQuality();
   const scale = Math.min(1, side / Math.max(bitmap.width, bitmap.height));
@@ -21,6 +25,8 @@ export async function compressImage(file: File): Promise<string> {
 
 /** Center-crops to a square and shrinks to a small JPEG data URL for profile photos. */
 export async function squareAvatar(file: File, side = 256): Promise<string> {
+  const fromRust = await nativeImage(file, "avatar", side, 0.85, 60_000);
+  if (fromRust) return fromRust;
   const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
   const size = Math.min(bitmap.width, bitmap.height);
   const canvas = document.createElement("canvas");
@@ -38,6 +44,8 @@ export async function squareAvatar(file: File, side = 256): Promise<string> {
 
 /** Center-crops to a 3:1 banner and shrinks to a JPEG data URL for the profile cover. */
 export async function coverBanner(file: File, width = 900, maxChars = 100_000): Promise<string> {
+  const fromRust = await nativeImage(file, "cover", width, 0.8, maxChars);
+  if (fromRust) return fromRust;
   const height = width / 3;
   const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
   const cropH = Math.min(bitmap.height, bitmap.width / 3);

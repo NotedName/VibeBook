@@ -4,11 +4,13 @@ import { auth } from "./firebase";
 import { useSession } from "./session";
 import Avatar from "./Avatar";
 import { ArchiveIcon, BookIcon, CloseIcon } from "./icons";
+import { useScrollLock } from "./scrollLock";
 
 /** Opened from the profile picture in the top bar: who you are signed in as, a way to your profile, and Sign out. */
 export default function AccountSheet({ email, onClose }: { email: string; onClose: () => void }) {
   const { me } = useSession();
 
+  useScrollLock();
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     document.addEventListener("keydown", onKey);

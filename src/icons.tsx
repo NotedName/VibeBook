@@ -53,3 +53,4 @@ export const MenuIcon = () => <Svg><path d="M4 7h16M4 12h16M4 17h16" /></Svg>;
 export const ArchiveIcon = () => <Svg><rect x="3" y="4" width="18" height="4" rx="1" /><path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8" /><path d="M10 12h4" /></Svg>;
 export const UnarchiveIcon = () => <Svg><rect x="3" y="4" width="18" height="4" rx="1" /><path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8" /><path d="M12 17v-6M9.5 13.5L12 11l2.5 2.5" /></Svg>;
 export const DownloadIcon = () => <Svg><path d="M12 4v11M7.5 10.5L12 15l4.5-4.5" /><path d="M5 19h14" /></Svg>;
+export const MessagesIcon = () => <Svg><path d="M4 5h16v11H9.5L4 20.5z" /></Svg>;

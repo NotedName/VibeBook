@@ -6,6 +6,7 @@ import { VISIBILITY } from "./types";
 import Avatar from "./Avatar";
 import { CommentIcon, CopyIcon, EditIcon, GlobeIcon, GroupsIcon, LockIcon, MoreIcon, RepostIcon, ShareIcon, TrashIcon, UsersIcon } from "./icons";
 import GroupShareSheet from "./GroupShareSheet";
+import ShareSheet from "./ShareSheet";
 import { removeRepost, repostId } from "./reposts";
 import { removePostFromGroup, useGroup } from "./groups";
 import Comments from "./Comments";
@@ -41,7 +42,7 @@ export default function EntryCard({ entry, onEdit, inGroup }: Props) {
   const [armedRemove, setArmedRemove] = useState(false);
   const [commenting, setCommenting] = useState(false);
   const [menu, setMenu] = useState(false);
-  const [sharing, setSharing] = useState<"own" | "repost" | null>(null);
+  const [sharing, setSharing] = useState<"share" | "repost" | null>(null);
   const reposter = useProfile(entry.repostedBy);
   const menuRef = useRef<HTMLDivElement>(null);
   const groupIds = (entry.groupIds ?? []).filter((id) => s.groups.ids.has(id));
@@ -88,11 +89,8 @@ export default function EntryCard({ entry, onEdit, inGroup }: Props) {
   const iReposted = entry.repostedBy === s.uid;
   const reposterName = entry.repostedBy === s.uid ? "You" : reposter?.displayName || "Someone";
 
-  async function share() {
-    if (!isPublic) {
-      s.notify("Set this entry to Public to share it with a link");
-      return;
-    }
+  /** Copies the link to this entry, or opens the phone's share sheet. Only for Public entries. */
+  async function shareLink() {
     const url = postLink(ownerUid, entry.id);
     if (typeof navigator.share === "function") {
       try {
@@ -132,9 +130,6 @@ export default function EntryCard({ entry, onEdit, inGroup }: Props) {
           {menu && (
             <div className="menu" role="menu">
               <button type="button" role="menuitem" onClick={copy}><CopyIcon />Copy</button>
-              {mine && (
-                <button type="button" role="menuitem" onClick={() => { setMenu(false); setSharing("own"); }}><GroupsIcon />Share to group</button>
-              )}
               {myRepost && (
                 <button type="button" role="menuitem" onClick={() => {
                   setMenu(false);
@@ -193,7 +188,7 @@ export default function EntryCard({ entry, onEdit, inGroup }: Props) {
       {entry.videoUrl && <VideoPlayer url={entry.videoUrl} title={entry.title} />}
 
       <div className="post-actions">
-        <ReactionBar ownerUid={ownerUid} entryId={entry.id} myUid={s.uid} onError={s.notify} />
+        <ReactionBar ownerUid={ownerUid} entryId={entry.id} title={entry.title} myUid={s.uid} onError={s.notify} />
         <button type="button" className={`act${commenting ? " on" : ""}`} aria-expanded={commenting}
           onClick={() => setCommenting(!commenting)}><CommentIcon /><span>Comment</span></button>
         {isPublic && !mine && (
@@ -201,12 +196,13 @@ export default function EntryCard({ entry, onEdit, inGroup }: Props) {
             onClick={() => setSharing("repost")}><RepostIcon /><span>{myRepost ? "Reposted" : "Repost"}</span></button>
         )}
         {(isPublic || mine) && (
-          <button type="button" className="act" onClick={share}><ShareIcon /><span>Share</span></button>
+          <button type="button" className="act" onClick={() => setSharing("share")}><ShareIcon /><span>Share</span></button>
         )}
       </div>
 
-      {sharing && <GroupShareSheet kind={sharing} entry={entry} onClose={() => setSharing(null)} />}
-      {commenting && <Comments ownerUid={ownerUid} entryId={entry.id} />}
+      {sharing === "share" && <ShareSheet entry={entry} linkable={isPublic} onLink={shareLink} onClose={() => setSharing(null)} />}
+      {sharing === "repost" && <GroupShareSheet kind="repost" entry={entry} onClose={() => setSharing(null)} />}
+      {commenting && <Comments ownerUid={ownerUid} entryId={entry.id} title={entry.title} />}
 
       {viewing !== null && photos.length > 0 && (
         <PhotoViewer ownerUid={ownerUid} entryId={entry.id} title={entry.title} photos={photos}

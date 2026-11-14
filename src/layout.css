@@ -32,7 +32,7 @@
     border: 1px solid var(--line); border-radius: 28px; box-shadow: var(--shadow-pop);
   }
   .tab {
-    flex-direction: column; gap: 2px; font-size: 11px; padding: 8px 2px 7px;
+    flex-direction: column; gap: 2px; font-size: calc(11px * var(--ts)); padding: 8px 2px 7px;
     border-bottom: 0; border-radius: 22px;
   }
   .tab.on, .tab.on:hover { background: var(--accent-soft); }
@@ -45,33 +45,32 @@
 @media (max-width: 359.98px) {
   .topbar { padding-left: max(10px, env(safe-area-inset-left, 0px)); padding-right: max(10px, env(safe-area-inset-right, 0px)); }
   .topbar-in { gap: 6px; }
-  .brand { font-size: 18px; gap: 6px; }
+  .brand { font-size: calc(18px * var(--ts)); gap: 6px; }
   .brand-mark { width: 28px; height: 28px; }
   .top-actions { gap: 6px; }
-  .top-actions .btn.small { padding: 6px 10px; font-size: 13px; }
   .tabs { left: max(6px, env(safe-area-inset-left, 0px)); right: max(6px, env(safe-area-inset-right, 0px)); padding: 4px; }
-  .tab { font-size: 10px; letter-spacing: -.01em; }
+  .tab { font-size: calc(10px * var(--ts)); letter-spacing: -.01em; }
   .tab svg { width: 18px; height: 18px; }
   .stats { grid-template-columns: repeat(2, 1fr); }
   .row { grid-template-columns: 1fr; }
   .editor-tools { grid-template-columns: repeat(2, 1fr); }
   .covers { grid-template-columns: repeat(2, 1fr); }
-  .name { font-size: 19px; }
+  .name { font-size: calc(19px * var(--ts)); }
   /* avatar above the name, so a two-line name never rides up into the cover photo */
   .who { flex-direction: column; align-items: flex-start; gap: 6px; margin-top: -36px; }
   .who-text { padding-bottom: 0; }
-  .av-lg { width: 80px; height: 80px; font-size: 28px; }
+  .av-lg { width: 80px; height: 80px; font-size: calc(28px * var(--ts)); }
   .auth { padding-left: 12px; padding-right: 12px; }
   .auth-card { padding: 18px 16px; }
   .sheet-body { padding: 14px 12px; }
-  .brand.big { font-size: 26px; }
+  .brand.big { font-size: calc(26px * var(--ts)); }
   .brand.big .brand-mark { width: 44px; height: 44px; }
 }
 /* Phones up to about 430px wide (most iPhones and Androids): tighten the stat tiles so labels such as FOLLOWERS fit. */
 @media (min-width: 360px) and (max-width: 429.98px) {
   .stat { padding: 9px 8px; }
-  .stat b { font-size: 20px; }
-  .stat span { font-size: 10px; letter-spacing: 0; }
+  .stat b { font-size: calc(20px * var(--ts)); }
+  .stat span { font-size: calc(10px * var(--ts)); letter-spacing: 0; }
 }
 
 /* ---------- desktop: top bar and a wide two-column page ---------- */
@@ -85,7 +84,7 @@
   .topbar-in { display: contents; }
   .brand { grid-column: 1; grid-row: 1; justify-self: start; height: 60px; }
   .tabs { grid-column: 2; grid-row: 1; display: flex; gap: 6px; max-width: none; margin: 0; }
-  .tab { flex-direction: row; gap: 10px; padding: 9px 20px; border-radius: 999px; border-bottom: 0; font-size: 15px; }
+  .tab { flex-direction: row; gap: 10px; padding: 9px 20px; border-radius: 999px; border-bottom: 0; font-size: calc(15px * var(--ts)); }
   .tab:hover { background: var(--surface-2); }
   .tab.on, .tab.on:hover { background: var(--accent-soft); }
   .badge { position: static; }
@@ -99,8 +98,8 @@
   .logbook { max-width: none; margin: 0; padding-bottom: 72px; }
   .side { display: grid; gap: 14px; position: sticky; top: 80px; align-content: start; }
   .side-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 14px 16px; display: grid; gap: 8px; }
-  .side-card h2 { font-family: var(--font-display); font-size: 15px; }
-  .side-card h2 span { color: var(--muted); font-weight: 400; font-size: 13px; }
+  .side-card h2 { font-family: var(--font-display); font-size: calc(15px * var(--ts)); }
+  .side-card h2 span { color: var(--muted); font-weight: 400; font-size: calc(13px * var(--ts)); }
   .side-card ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
   .side-card li a {
     display: flex; align-items: center; gap: 10px; padding: 7px 8px; margin: 0 -8px; border-radius: var(--radius-sm);
@@ -109,7 +108,7 @@
   .side-card li a:hover { background: var(--surface-2); }
   .side-card li a span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .side-card li a .badge { margin-left: auto; }
-  .side-more { color: var(--accent-text); font-weight: 600; font-size: 13px; text-decoration: none; }
+  .side-more { color: var(--accent-text); font-weight: 600; font-size: calc(13px * var(--ts)); text-decoration: none; }
   .side-more:hover { text-decoration: underline; }
   .tab-new { display: none; }
   .toast { bottom: 28px; }
@@ -137,12 +136,11 @@
   .brand { order: 0; justify-content: center; height: auto; }
   .brand-word { display: none; }
   .tabs { order: 1; display: grid; grid-template-columns: 1fr; gap: 4px; max-width: none; margin: 8px 0 0; }
-  .tab { flex-direction: column; gap: 4px; font-size: 12px; padding: 10px 4px; border-radius: var(--radius-md); border-bottom: 0; }
+  .tab { flex-direction: column; gap: 4px; font-size: calc(12px * var(--ts)); padding: 10px 4px; border-radius: var(--radius-md); border-bottom: 0; }
   .tab.on, .tab.on:hover { background: var(--accent-soft); }
   .tab:hover { background: var(--surface-2); }
   .badge { position: absolute; top: 4px; left: calc(50% + 8px); }
   .top-actions { order: 2; margin-top: auto; flex-direction: column; align-items: stretch; }
-  .top-actions .btn { padding: 8px 4px; font-size: 12px; }
   .top-actions .icon-btn { align-self: center; }
 
   .page {
@@ -165,7 +163,6 @@
   .tab { padding: 6px 4px; gap: 2px; }
   .tab svg { width: 18px; height: 18px; }
   .top-actions { flex-direction: row; justify-content: center; flex-wrap: wrap; gap: 4px; }
-  .top-actions .btn { display: none; }
 }
 
 /* ---------- book fold: the rail takes the left screen, the page the right one ---------- */
@@ -173,11 +170,10 @@
   :root { --rail: env(viewport-segment-width 0 0, 88px); }
   .topbar { width: env(viewport-segment-width 0 0, 88px); padding-right: 8px; }
   .brand-word { display: inline; }
-  .tab { flex-direction: row; justify-content: flex-start; gap: 12px; font-size: 15px; padding: 12px 14px; }
+  .tab { flex-direction: row; justify-content: flex-start; gap: 12px; font-size: calc(15px * var(--ts)); padding: 12px 14px; }
   .tab svg { width: 22px; height: 22px; }
   .badge { position: static; margin-left: auto; }
   .top-actions { flex-direction: row; justify-content: space-between; align-items: center; }
-  .top-actions .btn { display: inline-flex; padding: 8px 14px; font-size: 14px; }
   .page { margin-left: env(viewport-segment-left 1 0, 88px); max-width: env(viewport-segment-width 1 0, var(--col)); }
   .toast { left: calc(env(viewport-segment-left 1 0, 88px) + env(viewport-segment-width 1 0, 600px) / 2); }
   .overlay { padding-left: env(viewport-segment-left 1 0, 0px); }

@@ -77,6 +77,31 @@ service cloud.firestore {
       allow delete: if isOwner(uid);
     }
 
+    // Notifications for {uid}: requests, likes, comments, reposts and the like. The person who did the
+    // thing writes it (so it is created by someone else, as themselves), and its id starts with their
+    // uid so nobody can overwrite another person's. The recipient reads them, marks them read and
+    // deletes them; the writer can take theirs back (an undone like or a cancelled request).
+    match /users/{uid}/notifications/{noteId} {
+      allow read: if isOwner(uid);
+      allow create: if signedIn()
+        && request.auth.uid != uid
+        && noteId.matches('^' + request.auth.uid + '_.{1,300}$')
+        && request.resource.data.keys().hasOnly(['type', 'actorUid', 'ownerUid', 'entryId', 'photoId', 'title', 'groupId', 'groupName', 'createdAt', 'read'])
+        && request.resource.data.type in ['friend_request', 'friend_accept', 'follow', 'group_invite', 'like', 'comment', 'reply', 'comment_like', 'repost']
+        && request.resource.data.actorUid == request.auth.uid
+        && request.resource.data.read == false
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.get('title', '').size() <= 140
+        && request.resource.data.get('groupName', '').size() <= 60
+        && request.resource.data.get('ownerUid', '').size() <= 128
+        && request.resource.data.get('entryId', '').size() <= 128
+        && request.resource.data.get('photoId', '').size() <= 128
+        && request.resource.data.get('groupId', '').size() <= 128;
+      allow update: if isOwner(uid)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
+      allow delete: if isOwner(uid) || (signedIn() && resource.data.actorUid == request.auth.uid);
+    }
+
     match /users/{uid}/following/{targetId} {
       allow read, write: if isOwner(uid);
     }

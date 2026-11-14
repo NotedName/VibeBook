@@ -95,13 +95,13 @@ export default function PhotoViewer({ ownerUid, entryId, title, photos, index, o
       <div className="viewer-foot">
         <div className="post-actions">
           <ReactionBar key={photo.id} ownerUid={ownerUid} entryId={entryId} photoId={photo.id}
-            myUid={myUid} onError={onError} onLocked={() => { setLocked(true); onLocked?.(); }} />
+            title={myUid ? title : undefined} myUid={myUid} onError={onError} onLocked={() => { setLocked(true); onLocked?.(); }} />
           <button type="button" className={`act${showComments ? " on" : ""}`} aria-expanded={showComments}
             onClick={() => setShowComments(!showComments)}><CommentIcon /><span>Comment</span></button>
         </div>
         {!myUid && locked && <p className="locked-hint" role="status">Sign in or join to react and comment.</p>}
         {showComments && (myUid
-          ? <Comments key={photo.id} ownerUid={ownerUid} entryId={entryId} photoId={photo.id} />
+          ? <Comments key={photo.id} ownerUid={ownerUid} entryId={entryId} photoId={photo.id} title={title} />
           : <ReadOnlyComments key={photo.id} ownerUid={ownerUid} entryId={entryId} photoId={photo.id} />)}
       </div>
     </div>

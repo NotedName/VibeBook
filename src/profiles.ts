@@ -1,3 +1,4 @@
+import { logActivity } from "./activity";
 import {
   collection, doc, getDoc, getDocs, limit, query, serverTimestamp, setDoc, where,
 } from "firebase/firestore";
@@ -66,6 +67,7 @@ export async function saveProfile(uid: string, p: Omit<Profile, "uid">): Promise
   });
   const saved: Profile = { uid, ...clean };
   primeProfile(saved);
+  logActivity(uid, "Updated your profile");
   return saved;
 }
 

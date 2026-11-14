@@ -10,9 +10,10 @@ import ProfileHeader from "../ProfileHeader";
 import Avatar from "../Avatar";
 import EntryList from "../EntryList";
 import { FeedSkeleton } from "../Skeleton";
-import { EditIcon } from "../icons";
+import PersonPage from "./PersonPage";
+import { EyeIcon } from "../icons";
 
-export default function MyLogbook() {
+function Logbook({ onViewAs }: { onViewAs: () => void }) {
   const s = useSession();
   const [entries, setEntries] = useState<Entry[] | null>(null);
   const [loadError, setLoadError] = useState("");
@@ -61,11 +62,7 @@ export default function MyLogbook() {
   if (!s.me) return null;
   return (
     <>
-      <ProfileHeader profile={s.me} editable>
-        <div className="profile-actions">
-          <button type="button" className="btn" onClick={s.editProfile}><EditIcon /> Edit profile</button>
-        </div>
-
+      <ProfileHeader profile={s.me} editable onEditProfile={s.editProfile} onViewAs={onViewAs}>
         <div className="stats">
           {stats.map(([label, n]) => (
             <div className="stat" key={label}><b>{n}</b><span>{label}</span></div>
@@ -104,6 +101,23 @@ export default function MyLogbook() {
         {shown.length > 1 && <SortBar mode={mode} onChange={setMode} />}
         <EntryList entries={shown} onEdit={s.openEntry} dayHeadings={mode.kind === "newest" || mode.kind === "oldest"} />
       </div>
+    </>
+  );
+}
+
+/** Your logbook, or your profile as someone outside your friends sees it (no edit controls, public entries only). */
+export default function MyLogbook() {
+  const s = useSession();
+  const [viewAs, setViewAs] = useState(false);
+  if (!viewAs) return <Logbook onViewAs={() => setViewAs(true)} />;
+  return (
+    <>
+      <div className="viewas-bar" role="status">
+        <EyeIcon />
+        <span>Viewing your profile as someone else sees it</span>
+        <button type="button" className="btn small" onClick={() => setViewAs(false)}>Exit</button>
+      </div>
+      <PersonPage uid={s.uid} />
     </>
   );
 }

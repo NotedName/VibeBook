@@ -1,3 +1,4 @@
+import { logActivity } from "./activity";
 import { useEffect, useState } from "react";
 import {
   addDoc, arrayRemove, arrayUnion, collection, deleteDoc, doc, onSnapshot, orderBy, query, serverTimestamp,
@@ -5,6 +6,7 @@ import {
 } from "firebase/firestore";
 import { db } from "./firebase";
 import { NO_MEDIA, type Media } from "./stickers";
+import { dropNote, pushNote } from "./notifications";
 
 export const COMMENT_MAX = 500;
 /** Levels of replies shown: a top-level comment is level 1. Comments on the last level cannot be replied to. */
@@ -39,11 +41,47 @@ const commentsRef = (ownerUid: string, entryId: string) =>
 const commentRef = (ownerUid: string, entryId: string, commentId: string) =>
   doc(commentsRef(ownerUid, entryId), commentId);
 
-export const addComment = (ownerUid: string, entryId: string, authorUid: string, text: string, parentId = "", media: Media = NO_MEDIA) =>
-  addDoc(commentsRef(ownerUid, entryId), { authorUid, text, sticker: media.sticker, gif: media.gif, createdAt: serverTimestamp(), parentId, likes: [] });
+/** "<entryId>" or "<entryId>/photos/<photoId>" back into its parts. */
+const splitSubject = (subject: string) => {
+  const [entryId, , photoId] = subject.split("/");
+  return { entryId, photoId };
+};
 
-export const setCommentLike = (ownerUid: string, entryId: string, commentId: string, uid: string, liked: boolean) =>
-  updateDoc(commentRef(ownerUid, entryId, commentId), { likes: liked ? arrayRemove(uid) : arrayUnion(uid) });
+/** Who to tell about a comment: the title of the entry, and the author of the comment being replied to. */
+export type CommentNote = { title: string; parentAuthorUid?: string };
+
+export async function addComment(
+  ownerUid: string, entryId: string, authorUid: string, text: string, parentId = "", media: Media = NO_MEDIA, note?: CommentNote,
+) {
+  const ref = await addDoc(commentsRef(ownerUid, entryId), {
+    authorUid, text, sticker: media.sticker, gif: media.gif, createdAt: serverTimestamp(), parentId, likes: [],
+  });
+  logActivity(authorUid, `${parentId ? "Replied to a comment on" : "Commented on"} ${note?.title ? `“${note.title}”` : "an entry"}`);
+  if (note) {
+    const { entryId: entry, photoId } = splitSubject(entryId);
+    const fields = { ownerUid, entryId: entry, photoId, title: note.title };
+    const reply = note.parentAuthorUid;
+    // The entry's owner hears about every comment; whoever was replied to hears about the reply (once, not twice).
+    if (ownerUid !== reply) await pushNote(ownerUid, authorUid, `comment_${ref.id}`, "comment", fields);
+    if (reply) await pushNote(reply, authorUid, `reply_${ref.id}`, "reply", fields);
+  }
+  return ref;
+}
+
+/** `liked` is whether you like it now; the call flips it. Liking tells the comment's author. */
+export async function setCommentLike(
+  ownerUid: string, entryId: string, commentId: string, uid: string, liked: boolean, note?: { authorUid: string; title: string },
+) {
+  await updateDoc(commentRef(ownerUid, entryId, commentId), { likes: liked ? arrayRemove(uid) : arrayUnion(uid) });
+  logActivity(uid, `${liked ? "Removed your like from a comment" : "Liked a comment"}${note?.title ? ` on “${note.title}”` : ""}`);
+  if (!note) return;
+  const key = `comment_like_${commentId}`;
+  if (liked) await dropNote(note.authorUid, uid, key);
+  else {
+    const { entryId: entry, photoId } = splitSubject(entryId);
+    await pushNote(note.authorUid, uid, key, "comment_like", { ownerUid, entryId: entry, photoId, title: note.title });
+  }
+}
 
 /** Removes a comment, or blanks it to "[deleted]" when it has replies so the thread keeps its shape. */
 export const removeComment = (ownerUid: string, entryId: string, commentId: string, hasReplies: boolean) =>

@@ -114,3 +114,18 @@ After pulling these changes run `npm run deploy` so the new rules go live togeth
 - Each photo has its own **Vibing / Not vibing** and **Comment** (replies, likes, stickers and GIFs work as on entries). Data: `users/{uid}/entries/{id}/photos/{photoId}/reactions/{uid}` and `.../photos/{photoId}/comments/{id}`. Deleting an entry, or removing a photo while editing, deletes these too.
 - On share links, signed-out visitors can flip through the photos and read photo comments and counts; reacting and commenting ask them to sign in.
 - Run `npm run deploy` so the new rules go live.
+
+## Notifications
+
+- The bell in the top bar counts what you have not seen and opens the list. It tells you about friend requests, accepted requests, new followers, group invitations, Vibing on your entries and photos, comments, replies, likes on your comments, and reposts of your entries. Tapping one opens what it is about and marks it read; **Mark all as read** clears the count.
+- Notifications about the same thing are folded: more than three of one kind become a single line ("Ana, Ben and 4 others sent you friend requests"). The subject is the kind of request for friend requests, follows and invitations, and the kind plus the entry for likes, comments, replies and reposts. Three or fewer stay separate.
+- A friend request or invitation you have already answered stops showing. Undoing a like, cancelling a request, unfollowing or undoing a repost takes the notification back.
+- Data: `users/{recipient}/notifications/{actorUid}_{key}`, written by the person who did the thing (best effort; a failed notification never blocks the like or comment). The newest 100 are loaded. `firestore.rules` lets only the recipient read, mark read and delete them, and only the actor create or retract theirs. Run `npm run deploy` for the rules. Notifications are only created from now on; nothing is back-filled.
+
+## Sharing from a post
+
+- **Share** on a post opens a popup: copy or share the link (Public entries only) and, on your own entries, pick the groups to share it to. Choosing groups is no longer part of the New entry form. A new entry started inside a group is still shared with that group, and editing keeps the groups an entry is already in. Other people's posts keep **Repost** for adding them to your logbook and groups.
+
+## Photo editor sliders
+
+- Zoom, Brightness, Contrast and Saturation use the app's own sliders: an accent-coloured fill from the neutral point to the thumb, a round thumb, and the value beside the name. Tap the value to put that slider back to neutral.

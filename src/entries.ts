@@ -1,3 +1,4 @@
+import { logActivity } from "./activity";
 import {
   collection, doc, getDocs, orderBy, query, serverTimestamp, writeBatch,
   type DocumentReference, type Timestamp,
@@ -60,6 +61,7 @@ export async function addEntry(uid: string, input: EntryInput, files: File[]): P
   photos.forEach((data, order) => batch.set(doc(collection(entryRef, "photos")), { data, order }));
   input.groupIds.forEach((gid) => batch.set(groupPostRef(gid, uid, entryRef.id), groupPost(uid, entryRef.id, input)));
   await batch.commit();
+  logActivity(uid, `Added the entry “${input.title}”`);
 }
 
 export async function loadPhotos(uid: string, entryId: string): Promise<Photo[]> {
@@ -100,6 +102,7 @@ export async function updateEntry(
     batch.set(doc(collection(entryRef, "photos")), { data, order: nextOrder + i }),
   );
   await batch.commit();
+  logActivity(uid, `Edited the entry “${input.title}”`);
 }
 
 /** Every comment and reaction on one photo, so they can be deleted along with it. */
@@ -127,6 +130,7 @@ export async function deleteEntry(uid: string, entry: Entry): Promise<void> {
   (entry.groupIds ?? []).forEach((gid) => batch.delete(groupPostRef(gid, uid, entry.id)));
   batch.delete(entryRef);
   await batch.commit();
+  logActivity(uid, `Deleted the entry “${entry.title}”`);
 }
 
 /** Sort and day-heading key: a repost sits where it was reposted, not where the original was written. */

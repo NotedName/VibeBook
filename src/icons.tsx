@@ -44,3 +44,5 @@ export const RepostIcon = () => <Svg><path d="M17 3l4 4-4 4" /><path d="M3 11V9a
 export const SettingsIcon = () => <Svg><path d="M4 7h9M17 7h3M4 17h3M11 17h9" /><circle cx="15" cy="7" r="2" /><circle cx="9" cy="17" r="2" /></Svg>;
 export const ChevronLeftIcon = () => <Svg><path d="M15 5l-7 7 7 7" /></Svg>;
 export const ChevronRightIcon = () => <Svg><path d="M9 5l7 7-7 7" /></Svg>;
+export const BellIcon = () => <Svg><path d="M6 9a6 6 0 0 1 12 0c0 6 2.5 7.5 2.5 7.5h-17S6 15 6 9z" /><path d="M10 20a2 2 0 0 0 4 0" /></Svg>;
+export const MonitorIcon = () => <Svg><rect x="3" y="4" width="18" height="12" rx="2" /><path d="M8 20h8M12 16v4" /></Svg>;

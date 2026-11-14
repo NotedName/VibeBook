@@ -9,6 +9,8 @@ type Props = {
   entryId: string;
   /** React to this photo of the entry instead of the entry itself. */
   photoId?: string;
+  /** Entry title, for the owner's notification. */
+  title?: string;
   /** Signed-in viewer. Leave out for the read-only view on shared links. */
   myUid?: string;
   onError?: (message: string) => void;
@@ -17,7 +19,7 @@ type Props = {
 };
 
 /** "Vibing" and "Not vibing" buttons with live counts, for the post's bottom action bar. One reaction per person per entry. */
-export default function ReactionBar({ ownerUid, entryId: entry, photoId, myUid, onError, onLocked }: Props) {
+export default function ReactionBar({ ownerUid, entryId: entry, photoId, title, myUid, onError, onLocked }: Props) {
   const entryId = subjectId(entry, photoId);
   const { summary, error } = useReactions(ownerUid, entryId, myUid);
   const [busy, setBusy] = useState(false);
@@ -28,7 +30,7 @@ export default function ReactionBar({ ownerUid, entryId: entry, photoId, myUid, 
     if (busy) return;
     setBusy(true);
     try {
-      await setReaction(ownerUid, entryId, myUid, summary?.mine ?? null, type);
+      await setReaction(ownerUid, entryId, myUid, summary?.mine ?? null, type, title === undefined ? undefined : { entryId: entry, photoId, title });
     } catch {
       onError?.("Could not save your reaction");
     } finally {

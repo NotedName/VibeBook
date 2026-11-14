@@ -1,21 +1,29 @@
+import { logActivity } from "./activity";
 import { useEffect, useMemo, useState } from "react";
 import {
   collection, deleteDoc, doc, onSnapshot, query, serverTimestamp, setDoc, where, writeBatch,
 } from "firebase/firestore";
 import { db } from "./firebase";
 import type { FriendRequest, Relation } from "./types";
+import { dropNote, pushNote } from "./notifications";
 
 const pairId = (a: string, b: string) => (a < b ? `${a}_${b}` : `${b}_${a}`);
 
 export const sendRequest = (me: string, them: string) =>
-  setDoc(doc(db, "friendRequests", `${me}_${them}`), { from: me, to: them, createdAt: serverTimestamp() });
+  setDoc(doc(db, "friendRequests", `${me}_${them}`), { from: me, to: them, createdAt: serverTimestamp() })
+    .then(() => { logActivity(me, "Sent a friend request to", { who: them }); return pushNote(them, me, "friend_request", "friend_request"); });
 
-export const declineRequest = (me: string, from: string) => deleteDoc(doc(db, "friendRequests", `${from}_${me}`));
-export const cancelRequest = (me: string, to: string) => deleteDoc(doc(db, "friendRequests", `${me}_${to}`));
-export const unfriend = (me: string, other: string) => deleteDoc(doc(db, "friendships", pairId(me, other)));
+export const declineRequest = (me: string, from: string) =>
+  deleteDoc(doc(db, "friendRequests", `${from}_${me}`)).then(() => { logActivity(me, "Declined a friend request from", { who: from }); return dropNote(me, from, "friend_request"); });
+export const cancelRequest = (me: string, to: string) =>
+  deleteDoc(doc(db, "friendRequests", `${me}_${to}`)).then(() => { logActivity(me, "Cancelled your friend request to", { who: to }); return dropNote(to, me, "friend_request"); });
+export const unfriend = (me: string, other: string) =>
+  deleteDoc(doc(db, "friendships", pairId(me, other))).then(() => logActivity(me, "Unfriended", { who: other }));
 export const follow = (me: string, target: string) =>
-  setDoc(doc(db, "users", me, "following", target), { createdAt: serverTimestamp() });
-export const unfollow = (me: string, target: string) => deleteDoc(doc(db, "users", me, "following", target));
+  setDoc(doc(db, "users", me, "following", target), { createdAt: serverTimestamp() })
+    .then(() => { logActivity(me, "Started following", { who: target }); return pushNote(target, me, "follow", "follow"); });
+export const unfollow = (me: string, target: string) =>
+  deleteDoc(doc(db, "users", me, "following", target)).then(() => { logActivity(me, "Stopped following", { who: target }); return dropNote(target, me, "follow"); });
 
 /** Accepting creates the friendship and removes the request in one step. */
 export async function acceptRequest(me: string, from: string, alsoDeleteOutgoing: boolean) {
@@ -25,6 +33,9 @@ export async function acceptRequest(me: string, from: string, alsoDeleteOutgoing
   batch.delete(doc(db, "friendRequests", `${from}_${me}`));
   if (alsoDeleteOutgoing) batch.delete(doc(db, "friendRequests", `${me}_${from}`));
   await batch.commit();
+  logActivity(me, "Became friends with", { who: from });
+  await dropNote(me, from, "friend_request");
+  await pushNote(from, me, "friend_accept", "friend_accept");
 }
 
 export type SocialState = {

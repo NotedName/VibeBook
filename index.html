@@ -18,13 +18,18 @@
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Poppins:wght@600;700&display=swap"
     />
     <script>
-      // Apply a saved light/dark choice before first paint so the page does not flash,
-      // and tint the phone's browser/status bar to match.
+      // Apply the saved appearance (colour mode, AMOLED, text size) before first paint so the page does not flash,
+      // and tint the phone's browser/status bar to match. Keys and attributes mirror src/theme.ts.
       try {
-        var t = localStorage.getItem("vibebook-theme");
-        if (t === "light" || t === "dark") document.documentElement.setAttribute("data-theme", t);
-        var light = t ? t === "light" : window.matchMedia("(prefers-color-scheme: light)").matches;
-        document.querySelector('meta[name="theme-color"]').setAttribute("content", light ? "#f3f2f5" : "#1e1c23");
+        var root = document.documentElement;
+        var mode = localStorage.getItem("vibebook-theme");
+        var amoled = localStorage.getItem("vibebook-amoled") === "on";
+        var size = localStorage.getItem("vibebook-text-size");
+        var light = mode === "light" || (mode !== "dark" && window.matchMedia("(prefers-color-scheme: light)").matches);
+        root.setAttribute("data-theme", light ? "light" : "dark");
+        if (amoled) root.setAttribute("data-amoled", "on");
+        if (size !== null && /^[0-4]$/.test(size)) root.setAttribute("data-text-size", size);
+        document.querySelector('meta[name="theme-color"]').setAttribute("content", light ? "#f3f2f5" : amoled ? "#000000" : "#1e1c23");
       } catch (e) {}
     </script>
 
@@ -42,6 +47,7 @@
         html:not([data-theme="dark"]) #splash { --sp-bg: #d9d8dc; --sp-text: #141414; --sp-accent: #6a3a9c; --sp-glow: rgba(126, 73, 179, .3); }
       }
       html[data-theme="light"] #splash { --sp-bg: #d9d8dc; --sp-text: #141414; --sp-accent: #6a3a9c; --sp-glow: rgba(126, 73, 179, .3); }
+      html[data-theme="dark"][data-amoled="on"] #splash { --sp-bg: #000000; }
       #splash.out { opacity: 0; visibility: hidden; transform: scale(1.04); pointer-events: none; }
 
       .sp-glow {

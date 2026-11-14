@@ -1,19 +1,21 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { signOut, type User } from "firebase/auth";
+import type { User } from "firebase/auth";
 import { doc, onSnapshot } from "firebase/firestore";
-import { auth, db } from "./firebase";
+import { db } from "./firebase";
 import type { Entry } from "./entries";
 import { toProfile } from "./profiles";
 import { useSocial } from "./social";
 import { useGroupInvites, useMyGroups } from "./groups";
 import { useMyReposts } from "./reposts";
 import { SessionProvider, type Session } from "./session";
-import { useTheme } from "./theme";
 import type { Profile } from "./types";
-import { ArrowLeftIcon, BookIcon, CloseIcon, FeedIcon, GroupsIcon, MoonIcon, PlusIcon, SunIcon, UsersIcon } from "./icons";
+import { ArrowLeftIcon, BookIcon, CloseIcon, FeedIcon, GroupsIcon, PlusIcon, SettingsIcon, UsersIcon } from "./icons";
 import EntrySheet from "./EntrySheet";
 import SideColumn from "./SideColumn";
 import ProfileSheet from "./ProfileSheet";
+import SettingsSheet from "./SettingsSheet";
+import AccountSheet from "./AccountSheet";
+import Avatar from "./Avatar";
 import MyLogbook from "./pages/MyLogbook";
 import FeedPage from "./pages/FeedPage";
 import GroupsPage from "./pages/GroupsPage";
@@ -23,6 +25,7 @@ import PersonPage from "./pages/PersonPage";
 import PostPage from "./pages/PostPage";
 import { parsePostHash } from "./share";
 import { BrandName } from "./Logo";
+import NotificationBell from "./NotificationBell";
 import { FeedSkeleton, ProfileSkeleton } from "./Skeleton";
 import { hideSplash } from "./splash";
 
@@ -58,7 +61,8 @@ export default function Shell({ user }: { user: User }) {
   const [editingProfile, setEditingProfile] = useState(false);
   const [notice, setNotice] = useState("");
   const [manualCopy, setManualCopy] = useState<string | null>(null);
-  const [theme, toggleTheme] = useTheme();
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
   const noticeTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   useEffect(
@@ -94,6 +98,8 @@ export default function Shell({ user }: { user: User }) {
   }, []);
   const closeEntry = useCallback(() => setEntrySheet(null), []);
   const closeProfile = useCallback(() => setEditingProfile(false), []);
+  const closeSettings = useCallback(() => setSettingsOpen(false), []);
+  const closeAccount = useCallback(() => setAccountOpen(false), []);
   const entrySaved = useCallback((message: string) => { setEntrySheet(null); notify(message); }, [notify]);
 
   const session = useMemo<Session>(() => ({
@@ -124,11 +130,15 @@ export default function Shell({ user }: { user: User }) {
         <div className="topbar-in">
           <a className="brand" href="#/feed"><BrandName /></a>
           <div className="top-actions">
-            <button type="button" className="icon-btn" onClick={toggleTheme}
-              aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}>
-              {theme === "dark" ? <SunIcon /> : <MoonIcon />}
+            <NotificationBell />
+            <button type="button" className="icon-btn" onClick={() => setSettingsOpen(true)}
+              aria-label="Settings" aria-haspopup="dialog">
+              <SettingsIcon />
             </button>
-            <button type="button" className="btn small" onClick={() => signOut(auth)}>Sign out</button>
+            <button type="button" className="icon-btn avatar-btn" onClick={() => setAccountOpen(true)}
+              aria-label="Account" aria-haspopup="dialog">
+              <Avatar profile={me} />
+            </button>
           </div>
         </div>
         <nav className="tabs" aria-label="Sections">
@@ -171,6 +181,9 @@ export default function Shell({ user }: { user: User }) {
       {(me === null || editingProfile) && (
         <ProfileSheet profile={me} suggestedName={user.displayName ?? ""} onClose={closeProfile} />
       )}
+
+      {settingsOpen && <SettingsSheet onClose={closeSettings} />}
+      {accountOpen && <AccountSheet email={user.email ?? ""} onClose={closeAccount} />}
 
       {manualCopy !== null && (
         <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && setManualCopy(null)}>

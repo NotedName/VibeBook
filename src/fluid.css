@@ -90,3 +90,8 @@
   .tab.on svg { animation: tab-pop .4s var(--spring); }
   .comment-list > li, .replies > li { animation: fade-in .35s ease-out backwards; }
 }
+
+/* Settings > Accessibility > Reduce motion: the same calm result as the device setting, chosen inside the app. */
+html[data-motion="reduced"] *, html[data-motion="reduced"] *::before, html[data-motion="reduced"] *::after {
+  animation: none !important; transition: none !important; scroll-behavior: auto !important;
+}

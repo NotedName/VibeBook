@@ -1,3 +1,4 @@
+import { logActivity } from "./activity";
 import { useMemo, useRef, useState, type FormEvent } from "react";
 import { addComment, COMMENT_MAX, removeComment, setCommentLike, subjectId, useComments } from "./commentStore";
 import { useSession } from "./session";
@@ -13,7 +14,7 @@ import { LinesSkeleton } from "./Skeleton";
  * Comment thread under an entry, or under one of its photos when photoId is given. Anyone who can see
  * the entry can read, like and reply to comments.
  */
-export default function Comments({ ownerUid, entryId: entry, photoId }: { ownerUid: string; entryId: string; photoId?: string }) {
+export default function Comments({ ownerUid, entryId: entry, photoId, title }: { ownerUid: string; entryId: string; photoId?: string; title?: string }) {
   const entryId = subjectId(entry, photoId);
   const { uid, me, notify } = useSession();
   const { comments, error } = useComments(ownerUid, entryId);
@@ -27,11 +28,14 @@ export default function Comments({ ownerUid, entryId: entry, photoId }: { ownerU
   const actions = useMemo<CommentActions>(() => ({
     myUid: uid,
     ownerUid,
-    like: (c, liked) => { setCommentLike(ownerUid, entryId, c.id, uid, liked).catch(() => notify("Could not save your like")); },
+    like: (c, liked) => { setCommentLike(ownerUid, entryId, c.id, uid, liked, title === undefined ? undefined : { authorUid: c.authorUid, title }).catch(() => notify("Could not save your like")); },
     reply: (parent, reply, media) =>
-      addComment(ownerUid, entryId, uid, reply, parent.id, media).then(() => true, () => { notify("Could not post your reply"); return false; }),
-    remove: (c, hasReplies) => { removeComment(ownerUid, entryId, c.id, hasReplies).catch(() => notify("Could not delete comment")); },
-  }), [uid, ownerUid, entryId, notify]);
+      addComment(ownerUid, entryId, uid, reply, parent.id, media, title === undefined ? undefined : { title, parentAuthorUid: parent.authorUid }).then(() => true, () => { notify("Could not post your reply"); return false; }),
+    remove: (c, hasReplies) => {
+      removeComment(ownerUid, entryId, c.id, hasReplies)
+        .then(() => logActivity(uid, `Deleted a comment${title ? ` on “${title}”` : ""}`), () => notify("Could not delete comment"));
+    },
+  }), [uid, ownerUid, entryId, title, notify]);
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -39,7 +43,7 @@ export default function Comments({ ownerUid, entryId: entry, photoId }: { ownerU
     if (!clean && !hasMedia) return;
     setBusy(true);
     try {
-      await addComment(ownerUid, entryId, uid, clean, "", media);
+      await addComment(ownerUid, entryId, uid, clean, "", media, title === undefined ? undefined : { title });
       setText("");
       setMedia(NO_MEDIA);
       setPicking(false);

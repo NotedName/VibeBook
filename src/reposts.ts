@@ -1,3 +1,4 @@
+import { logActivity } from "./activity";
 import { useEffect, useMemo, useState } from "react";
 import {
   collection, doc, limit, onSnapshot, orderBy, query, serverTimestamp, writeBatch,
@@ -6,6 +7,7 @@ import { db } from "./firebase";
 import { newestFirst, type Entry } from "./entries";
 import { repostPostRef } from "./groups";
 import { nowStr, todayStr } from "./report";
+import { dropNote, pushNote } from "./notifications";
 
 /**
  * A repost puts someone else's public entry in your own logbook, and optionally in groups.
@@ -38,6 +40,8 @@ export async function saveRepost(me: string, entry: Entry, groupIds: string[], p
   r.groupIds.filter((gid) => !groupIds.includes(gid))
     .forEach((gid) => batch.delete(repostPostRef(gid, me, ownerUid, entry.id)));
   await batch.commit();
+  logActivity(me, prev ? `Changed the groups of your repost of “${entry.title}”` : `Reposted “${entry.title}”`, { who: ownerUid });
+  if (!prev) await pushNote(ownerUid, me, `repost_${entry.id}`, "repost", { ownerUid, entryId: entry.id, title: entry.title });
 }
 
 export async function removeRepost(me: string, r: Repost): Promise<void> {
@@ -45,6 +49,8 @@ export async function removeRepost(me: string, r: Repost): Promise<void> {
   r.groupIds.forEach((gid) => batch.delete(repostPostRef(gid, me, r.ownerUid, r.entryId)));
   batch.delete(repostRef(me, r.ownerUid, r.entryId));
   await batch.commit();
+  logActivity(me, "Removed a repost", { who: r.ownerUid });
+  await dropNote(r.ownerUid, me, `repost_${r.entryId}`);
 }
 
 /** Live map of the signed-in person's reposts, by "<ownerUid>_<entryId>". */

@@ -1,3 +1,5 @@
+import { logActivity } from "./activity";
+import { pushNote } from "./notifications";
 import { useEffect, useMemo, useState } from "react";
 import {
   arrayRemove, collection, deleteDoc, doc, getDoc, getDocs, limit, onSnapshot, orderBy, query,
@@ -72,11 +74,13 @@ export async function createGroup(uid: string, name: string, description: string
   batch.set(ref, { ...clean, nameKeys: nameKeys(clean.name), ownerUid: uid, createdAt: serverTimestamp() });
   batch.set(memberRef(ref.id, uid), { groupId: ref.id, uid, role: "admin", joinedAt: serverTimestamp() });
   await batch.commit();
+  logActivity(uid, `Created the group “${clean.name}”`, { href: `#/g/${ref.id}` });
   return ref.id;
 }
 
 export const joinGroup = (uid: string, gid: string) =>
-  setDoc(memberRef(gid, uid), { groupId: gid, uid, role: "member", joinedAt: serverTimestamp() });
+  setDoc(memberRef(gid, uid), { groupId: gid, uid, role: "member", joinedAt: serverTimestamp() })
+    .then(() => logActivity(uid, "Joined a group", { href: `#/g/${gid}` }));
 
 /** Leaving also takes your entries out of the group, so its members stop seeing them. */
 export async function leaveGroup(uid: string, gid: string): Promise<void> {
@@ -101,15 +105,17 @@ export async function leaveGroup(uid: string, gid: string): Promise<void> {
     await batch.commit();
   }
   await deleteDoc(memberRef(gid, uid));
+  logActivity(uid, "Left a group", { href: `#/g/${gid}` });
 }
 
 const inviteRef = (gid: string, to: string) => doc(db, "groupInvites", `${gid}_${to}`);
 
 /** Invites every person in one batch. Only members of the group can invite. */
-export async function inviteToGroup(from: string, gid: string, toUids: string[]): Promise<void> {
+export async function inviteToGroup(from: string, gid: string, toUids: string[], groupName = ""): Promise<void> {
   const batch = writeBatch(db);
   toUids.forEach((to) => batch.set(inviteRef(gid, to), { groupId: gid, from, to, createdAt: serverTimestamp() }));
   await batch.commit();
+  await Promise.all(toUids.map((to) => pushNote(to, from, `group_invite_${gid}`, "group_invite", { groupId: gid, groupName })));
 }
 
 /** Accepting joins the group and clears the invite in one step. */

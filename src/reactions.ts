@@ -1,7 +1,9 @@
+import { logActivity } from "./activity";
 import { useEffect, useState } from "react";
 import { collection, deleteDoc, doc, onSnapshot, serverTimestamp, setDoc } from "firebase/firestore";
 import { db } from "./firebase";
 import type { ReactionType } from "./types";
+import { dropNote, pushNote } from "./notifications";
 
 export type ReactionSummary = { vibing: number; notvibing: number; mine: ReactionType | null };
 
@@ -34,8 +36,23 @@ export function useReactions(ownerUid: string, entryId: string, myUid?: string) 
   return { summary, error };
 }
 
-/** Picking the reaction you already have takes it back. */
-export function setReaction(ownerUid: string, entryId: string, uid: string, current: ReactionType | null, next: ReactionType) {
-  const ref = doc(reactionsRef(ownerUid, entryId), uid);
-  return current === next ? deleteDoc(ref) : setDoc(ref, { type: next, createdAt: serverTimestamp() });
+/** What a like is about, so the owner's notification can say it. */
+export type ReactionNote = { entryId: string; photoId?: string; title: string };
+
+/**
+ * Picking the reaction you already have takes it back. A "vibing" tells the owner; taking it back, or
+ * switching to "not vibing", takes that notification back too.
+ */
+export async function setReaction(
+  ownerUid: string, subject: string, uid: string, current: ReactionType | null, next: ReactionType, note?: ReactionNote,
+) {
+  const ref = doc(reactionsRef(ownerUid, subject), uid);
+  if (current === next) await deleteDoc(ref);
+  else await setDoc(ref, { type: next, createdAt: serverTimestamp() });
+  const about = note?.title ? `“${note.title}”` : "an entry";
+  logActivity(uid, current === next ? `Took back your reaction on ${about}` : next === "vibing" ? `Vibed ${about}` : `Marked ${about} as not vibing`);
+  if (!note) return;
+  const key = `like_${note.entryId}${note.photoId ? `_${note.photoId}` : ""}`;
+  if (next === "vibing" && current !== "vibing") await pushNote(ownerUid, uid, key, "like", { ownerUid, ...note });
+  else if (current === "vibing") await dropNote(ownerUid, uid, key);
 }

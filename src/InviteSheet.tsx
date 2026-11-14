@@ -83,7 +83,7 @@ export default function InviteSheet({ gid, groupName, onClose }: { gid: string; 
     setBusy(true);
     setError("");
     try {
-      await inviteToGroup(s.uid, gid, picked);
+      await inviteToGroup(s.uid, gid, picked, groupName);
       s.notify(picked.length === 1 ? "Invite sent" : `${picked.length} invites sent`);
       onClose();
     } catch {

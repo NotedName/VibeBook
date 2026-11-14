@@ -5,7 +5,7 @@ import { coverBanner, squareAvatar } from "./image";
 import { useSession } from "./session";
 import Avatar from "./Avatar";
 import PhotoEditor from "./PhotoEditor";
-import { CameraIcon, EditIcon, ImageIcon, TrashIcon } from "./icons";
+import { CameraIcon, EditIcon, EyeIcon, ImageIcon, MoreIcon, TrashIcon } from "./icons";
 
 type Kind = "avatar" | "cover";
 
@@ -14,6 +14,9 @@ type Props = {
   children?: ReactNode;
   /** Your own profile: shows buttons to change or adjust the profile photo and the cover photo in place. */
   editable?: boolean;
+  /** Your own profile: the three-dot menu in the top right offers these. */
+  onEditProfile?: () => void;
+  onViewAs?: () => void;
 };
 
 /** The photo menu and editor for your own profile photo or cover, saving straight to your profile. */
@@ -100,8 +103,16 @@ function usePhotoEditing(profile: Profile) {
   return { menu, setMenu, busy, photoMenu, editor };
 }
 
-export default function ProfileHeader({ profile, children, editable = false }: Props) {
+export default function ProfileHeader({ profile, children, editable = false, onEditProfile, onViewAs }: Props) {
   const photos = usePhotoEditing(profile);
+  const [more, setMore] = useState(false);
+  useEffect(() => {
+    if (!more) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setMore(false);
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [more]);
+  const choose = (action?: () => void) => () => { setMore(false); action?.(); };
   const { menu, setMenu, busy, photoMenu, editor } = photos;
   return (
     <section className="profile" aria-label="Profile">
@@ -114,6 +125,19 @@ export default function ProfileHeader({ profile, children, editable = false }: P
             aria-expanded={menu === "cover"} onClick={() => setMenu(menu === "cover" ? null : "cover")}>
             <EditIcon /> Edit cover
           </button>
+        )}
+        {editable && (
+          <button type="button" className="icon-btn profile-more" aria-label="Profile options" aria-haspopup="menu"
+            aria-expanded={more} onClick={() => setMore(!more)}><MoreIcon /></button>
+        )}
+        {editable && more && (
+          <div className="photo-menu-anchor more-anchor">
+            <button type="button" className="menu-scrim" aria-label="Close menu" onClick={() => setMore(false)} />
+            <div className="menu photo-menu" role="menu">
+              <button type="button" role="menuitem" onClick={choose(onEditProfile)}><EditIcon />Edit profile</button>
+              <button type="button" role="menuitem" onClick={choose(onViewAs)}><EyeIcon />View as</button>
+            </div>
+          </div>
         )}
         {editable && menu === "cover" && <div className="photo-menu-anchor cover-anchor">{photoMenu("cover")}</div>}
       </div>

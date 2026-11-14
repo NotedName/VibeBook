@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent } from "react";
 import { createPortal } from "react-dom";
 import { CloseIcon, FlipIcon, RotateIcon } from "./icons";
 
@@ -157,11 +157,28 @@ export default function PhotoEditor({ file, onApply, onCancel, fixedRatio, outSi
     }, "image/jpeg", 0.9);
   }
 
-  const slider = (label: string, value: number, min: number, max: number, step: number, set: (v: number) => void) => (
-    <label>{label}
-      <input type="range" min={min} max={max} step={step} value={value} onChange={(e) => set(Number(e.target.value))} />
-    </label>
-  );
+  /** A slider that fills from its neutral point (where "reset" lands) to the thumb, with the value beside the name. */
+  const slider = (
+    label: string, value: number, min: number, max: number, step: number, neutral: number,
+    set: (v: number) => void, show: (v: number) => string,
+  ) => {
+    const at = (v: number) => ((v - min) / (max - min)) * 100;
+    const [lo, hi] = [Math.min(at(value), at(neutral)), Math.max(at(value), at(neutral))];
+    return (
+      <div className="slider">
+        <div className="slider-head">
+          <span>{label}</span>
+          <button type="button" className="slider-value" disabled={value === neutral} onClick={() => set(neutral)}
+            title={value === neutral ? undefined : `Reset ${label.toLowerCase()}`}
+            aria-label={value === neutral ? `${label} ${show(value)}` : `${label} ${show(value)}, reset`}>{show(value)}</button>
+        </div>
+        <input type="range" min={min} max={max} step={step} value={value} aria-label={label}
+          style={{ "--lo": `${lo}%`, "--hi": `${hi}%` } as CSSProperties}
+          onChange={(e) => set(Number(e.target.value))} />
+      </div>
+    );
+  };
+  const signed = (v: number) => (v === 100 ? "0" : v > 100 ? `+${v - 100}` : `\u2212${100 - v}`);
 
   return createPortal(
     <div className="overlay editor">
@@ -195,10 +212,12 @@ export default function PhotoEditor({ file, onApply, onCancel, fixedRatio, outSi
             <button type="button" className="btn" onClick={reset}>Reset</button>
           </div>
 
-          {slider("Zoom", zoom, 1, 3, 0.05, setZoom)}
-          {slider("Brightness", look.brightness, 50, 150, 1, (v) => setLook({ ...look, brightness: v }))}
-          {slider("Contrast", look.contrast, 50, 150, 1, (v) => setLook({ ...look, contrast: v }))}
-          {slider("Saturation", look.saturation, 0, 200, 1, (v) => setLook({ ...look, saturation: v }))}
+          <div className="sliders">
+            {slider("Zoom", zoom, 1, 3, 0.05, 1, setZoom, (v) => `${v.toFixed(2).replace(/0$/, "")}\u00d7`)}
+            {slider("Brightness", look.brightness, 50, 150, 1, 100, (v) => setLook({ ...look, brightness: v }), signed)}
+            {slider("Contrast", look.contrast, 50, 150, 1, 100, (v) => setLook({ ...look, contrast: v }), signed)}
+            {slider("Saturation", look.saturation, 0, 200, 1, 100, (v) => setLook({ ...look, saturation: v }), signed)}
+          </div>
         </div>
 
         <div className="sheet-actions">

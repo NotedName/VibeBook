@@ -1,23 +1,86 @@
-import { useCallback, useState } from "react";
+import { useSyncExternalStore } from "react";
 
-type Theme = "light" | "dark";
-const KEY = "vibebook-theme";
+/**
+ * Appearance settings: colour mode, AMOLED black and text size. Saved on this device and applied as attributes on <html>
+ * (data-theme, data-amoled, data-text-size) that styles.css reads. index.html applies the same saved values before first
+ * paint, so keep the keys and the attribute names in sync with the script there.
+ */
+export type ThemeMode = "system" | "light" | "dark";
 
-function current(): Theme {
-  const set = document.documentElement.getAttribute("data-theme");
-  if (set === "light" || set === "dark") return set;
-  return window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+export const TEXT_SIZES = ["Smallest", "Small", "Default", "Large", "Largest"] as const;
+const DEFAULT_TEXT_SIZE = 2;
+
+type Appearance = { mode: ThemeMode; amoled: boolean; textSize: number };
+
+const MODE_KEY = "vibebook-theme";
+const AMOLED_KEY = "vibebook-amoled";
+const SIZE_KEY = "vibebook-text-size";
+const lightQuery = window.matchMedia("(prefers-color-scheme: light)");
+
+function read(key: string): string | null {
+  try { return localStorage.getItem(key); } catch { return null; }
+}
+function write(key: string, value: string) {
+  try { localStorage.setItem(key, value); } catch { /* private mode */ }
 }
 
-/** Light/dark toggle. The page starts dark (the palette's home) unless the device asks for light. */
-export function useTheme(): [Theme, () => void] {
-  const [theme, setTheme] = useState<Theme>(current);
-  const toggle = useCallback(() => {
-    const next: Theme = current() === "dark" ? "light" : "dark";
-    document.documentElement.setAttribute("data-theme", next);
-    try { localStorage.setItem(KEY, next); } catch { /* private mode */ }
-    document.querySelector('meta[name="theme-color"]')?.setAttribute("content", next === "light" ? "#f3f2f5" : "#1e1c23");
-    setTheme(next);
-  }, []);
-  return [theme, toggle];
+function load(): Appearance {
+  const mode = read(MODE_KEY);
+  const size = Number(read(SIZE_KEY));
+  return {
+    mode: mode === "light" || mode === "dark" ? mode : "system",
+    amoled: read(AMOLED_KEY) === "on",
+    textSize: Number.isInteger(size) && size >= 0 && size < TEXT_SIZES.length ? size : DEFAULT_TEXT_SIZE,
+  };
+}
+
+/** What is actually on screen: "system" follows the device. */
+export function resolveTheme(mode: ThemeMode): "light" | "dark" {
+  return mode === "system" ? (lightQuery.matches ? "light" : "dark") : mode;
+}
+
+let state = load();
+const listeners = new Set<() => void>();
+
+function apply() {
+  const root = document.documentElement;
+  const theme = resolveTheme(state.mode);
+  root.setAttribute("data-theme", theme);
+  if (state.amoled) root.setAttribute("data-amoled", "on"); else root.removeAttribute("data-amoled");
+  root.setAttribute("data-text-size", String(state.textSize));
+  const bar = theme === "light" ? "#f3f2f5" : state.amoled ? "#000000" : "#1e1c23";
+  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", bar);
+}
+
+function update(change: Partial<Appearance>) {
+  state = { ...state, ...change };
+  write(MODE_KEY, state.mode);
+  write(AMOLED_KEY, state.amoled ? "on" : "off");
+  write(SIZE_KEY, String(state.textSize));
+  apply();
+  listeners.forEach((l) => l());
+}
+
+// "System" has to follow the device when it flips between light and dark while the app is open.
+lightQuery.addEventListener("change", () => {
+  if (state.mode !== "system") return;
+  apply();
+  listeners.forEach((l) => l());
+});
+apply();
+
+function subscribe(listener: () => void) {
+  listeners.add(listener);
+  return () => { listeners.delete(listener); };
+}
+
+export function useAppearance() {
+  const a = useSyncExternalStore(subscribe, () => state);
+  return {
+    ...a,
+    theme: resolveTheme(a.mode),
+    setMode: (mode: ThemeMode) => update({ mode }),
+    setAmoled: (amoled: boolean) => update({ amoled }),
+    setTextSize: (textSize: number) => update({ textSize }),
+  };
 }

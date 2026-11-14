@@ -1,10 +1,10 @@
+import { defaultVisibility } from "./preferences";
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { addEntry, loadPhotos, MAX_PHOTOS, updateEntry, type Entry, type Photo } from "./entries";
 import { clockTime, longDay, nowStr, todayStr } from "./report";
 import { CameraIcon, ClockIcon, CloseIcon, EditIcon, GlobeIcon, ImageIcon, LockIcon, SmileIcon, UsersIcon } from "./icons";
 import { useSession } from "./session";
-import { MAX_GROUPS_PER_ENTRY, VISIBILITY, type Visibility } from "./types";
-import { GroupAvatar } from "./GroupRow";
+import { VISIBILITY, type Visibility } from "./types";
 import { parseVideo, VIDEO_URL_MAX } from "./video";
 import PhotoEditor from "./PhotoEditor";
 import EmojiPicker from "./EmojiPicker";
@@ -27,8 +27,10 @@ export default function EntrySheet({ uid, entry, defaultGroupId, onClose, onSave
   const [skills, setSkills] = useState(entry?.skills.join(", ") ?? "");
   const [description, setDescription] = useState(entry?.description ?? "");
   const [videoUrl, setVideoUrl] = useState(entry?.videoUrl ?? "");
-  const [visibility, setVisibility] = useState<Visibility>(entry?.visibility ?? "private");
-  const [groupIds, setGroupIds] = useState<string[]>(() =>
+  const [visibility, setVisibility] = useState<Visibility>(entry?.visibility ?? defaultVisibility());
+  // Groups are chosen with Share on the post, not here. A new entry started inside a group goes to that group,
+  // and an entry being edited keeps the groups it is already shared to.
+  const [groupIds] = useState<string[]>(() =>
     (entry ? entry.groupIds ?? [] : defaultGroupId ? [defaultGroupId] : []).filter((id) => s.groups.ids.has(id)));
   const [saved, setSaved] = useState<Photo[]>([]); // photos already stored on the entry
   const [removed, setRemoved] = useState<string[]>([]);
@@ -76,10 +78,6 @@ export default function EntrySheet({ uid, entry, defaultGroupId, onClose, onSave
   useEffect(() => () => previews.forEach(URL.revokeObjectURL), [previews]);
 
   const total = saved.length + files.length;
-
-  function toggleGroup(id: string) {
-    setGroupIds((prev) => (prev.includes(id) ? prev.filter((g) => g !== id) : [...prev, id]));
-  }
 
   function addFiles(e: ChangeEvent<HTMLInputElement>) {
     const picked = Array.from(e.target.files ?? []);
@@ -194,35 +192,10 @@ export default function EntrySheet({ uid, entry, defaultGroupId, onClose, onSave
             <p className="hint">{VISIBILITY.find((v) => v.id === visibility)!.hint}</p>
           </fieldset>
 
-          <fieldset className="group-pick">
-            <legend>Share to groups</legend>
-            {s.groups.list.length === 0 ? (
-              <p className="hint">You have not joined any groups yet. <a href="#/groups" onClick={onClose}>Find or create one</a>.</p>
-            ) : (
-              <>
-                <ul>
-                  {s.groups.list.map((g) => {
-                    const on = groupIds.includes(g.id);
-                    return (
-                      <li key={g.id}>
-                        <label className={on ? "on" : ""}>
-                          <input type="checkbox" checked={on} onChange={() => toggleGroup(g.id)}
-                            disabled={!on && groupIds.length >= MAX_GROUPS_PER_ENTRY} />
-                          <GroupAvatar name={g.name} size="sm" />
-                          <span>{g.name}</span>
-                        </label>
-                      </li>
-                    );
-                  })}
-                </ul>
-                <p className="hint">
-                  Members of the groups you tick can see and comment on this entry, whatever you chose above.
-                  It is also saved in your own logbook.
-                  Up to {MAX_GROUPS_PER_ENTRY} groups.
-                </p>
-              </>
-            )}
-          </fieldset>
+          {!entry && defaultGroupId && s.groups.ids.has(defaultGroupId) && (
+            <p className="hint">This entry will also be shared with {s.groups.list.find((g) => g.id === defaultGroupId)?.name ?? "the group"}.</p>
+          )}
+          {entry && <p className="hint">To change which groups this is shared to, press Share on the post.</p>}
 
           {error && <p className="error" role="alert">{error}</p>}
         </div>

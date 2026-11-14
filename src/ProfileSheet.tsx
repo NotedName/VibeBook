@@ -1,5 +1,9 @@
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
-import { BIO_MAX, HEADLINE_MAX, NAME_MAX, saveProfile } from "./profiles";
+import {
+  BIO_MAX, HEADLINE_MAX, NAME_MAX, UsernameTakenError, fetchMyUsername, normalizeUsername, pendingUsername, saveProfile, suggestUsername,
+  usernameProblem,
+} from "./profiles";
+import UsernameField from "./UsernameField";
 import { coverBanner, squareAvatar } from "./image";
 import { COVERS, type CoverId, type Profile } from "./types";
 import { useSession } from "./session";
@@ -8,7 +12,7 @@ import PhotoEditor from "./PhotoEditor";
 import { CloseIcon, ImageIcon, CameraIcon, EditIcon } from "./icons";
 
 type Props = {
-  /** null = first-time setup, which cannot be dismissed until a name is saved */
+  /** null = first-time setup, which cannot be dismissed until a name and username are saved. An older profile with no username is treated the same way. */
   profile: Profile | null;
   suggestedName?: string;
   onClose: () => void;
@@ -17,7 +21,9 @@ type Props = {
 export default function ProfileSheet({ profile, suggestedName = "", onClose }: Props) {
   const { uid, notify } = useSession();
   const setup = profile === null;
+  const locked = profile === null || !profile.username; // cannot be closed until a username is saved
   const [name, setName] = useState(profile?.displayName ?? suggestedName);
+  const [username, setUsername] = useState(profile?.username ?? "");
   const [headline, setHeadline] = useState(profile?.headline ?? "OJT intern");
   const [workplace, setWorkplace] = useState(profile?.workplace ?? "");
   const [bio, setBio] = useState(profile?.bio ?? "");
@@ -32,12 +38,24 @@ export default function ProfileSheet({ profile, suggestedName = "", onClose }: P
 
   useEffect(() => {
     nameRef.current?.focus();
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && !setup && onClose();
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && !locked && onClose();
     document.addEventListener("keydown", onKey);
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => { document.removeEventListener("keydown", onKey); document.body.style.overflow = prev; };
-  }, [onClose, setup]);
+  }, [onClose, locked]);
+
+  // No username yet: use one already held, else the one typed at sign-up, else suggest one from the name. Never overwrites typing.
+  useEffect(() => {
+    if (!locked) return;
+    let live = true;
+    fetchMyUsername(uid).then(
+      (held) => live && setUsername((cur) => cur || held || pendingUsername(uid) || suggestUsername(name)),
+      () => live && setUsername((cur) => cur || pendingUsername(uid) || suggestUsername(name)),
+    );
+    return () => { live = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [locked, uid]);
 
   // Choosing a photo opens the editor so it can be framed before it is used.
   function pick(kind: "avatar" | "cover") {
@@ -70,27 +88,30 @@ export default function ProfileSheet({ profile, suggestedName = "", onClose }: P
   async function submit(e: FormEvent) {
     e.preventDefault();
     if (!name.trim()) { setError("Add your name so people can find you."); return; }
+    const problem = usernameProblem(username);
+    if (problem) { setError(problem); return; }
     setBusy(true); setError("");
     try {
-      await saveProfile(uid, { displayName: name, headline, workplace, bio, avatar, cover, coverPhoto });
+      await saveProfile(uid, { displayName: name, username: normalizeUsername(username), headline, workplace, bio, avatar, cover, coverPhoto });
       notify(setup ? "Welcome to VibeBook" : "Profile saved");
       onClose();
-    } catch {
-      setError("Could not save your profile. Check your connection and try again.");
+    } catch (err) {
+      setError(err instanceof UsernameTakenError ? err.message : "Could not save your profile. Check your connection and try again.");
       setBusy(false);
     }
   }
 
   return (
-    <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && !setup && onClose()}>
-      <form className="sheet profile-sheet" role="dialog" aria-modal="true" aria-label={setup ? "Set up your profile" : "Edit profile"} onSubmit={submit}>
+    <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && !locked && onClose()}>
+      <form className="sheet profile-sheet" role="dialog" aria-modal="true" aria-label={setup ? "Set up your profile" : locked ? "Choose a username" : "Edit profile"} onSubmit={submit}>
         <div className="sheet-head">
-          <h2>{setup ? "Set up your profile" : "Edit profile"}</h2>
-          {!setup && <button type="button" className="icon-btn close" aria-label="Close" onClick={onClose}><CloseIcon /></button>}
+          <h2>{setup ? "Set up your profile" : locked ? "Choose a username" : "Edit profile"}</h2>
+          {!locked && <button type="button" className="icon-btn close" aria-label="Close" onClick={onClose}><CloseIcon /></button>}
         </div>
 
         <div className="sheet-body">
           {setup && <p className="hint">This is what friends see when they find you. Your email address is never shown.</p>}
+          {!setup && locked && <p className="hint">VibeBook profiles now have a unique username. It is part of your profile link, and you can change it later.</p>}
 
           <div className="ps-grid">
             <div className="ps-photos">
@@ -136,6 +157,7 @@ export default function ProfileSheet({ profile, suggestedName = "", onClose }: P
                 <input ref={nameRef} value={name} onChange={(e) => setName(e.target.value)} maxLength={NAME_MAX} required
                   placeholder="Your full name" autoComplete="name" />
               </label>
+              <UsernameField value={username} onChange={setUsername} selfUid={uid} />
               <label>Headline
                 <input value={headline} onChange={(e) => setHeadline(e.target.value)} maxLength={HEADLINE_MAX}
                   placeholder="e.g. OJT intern, IT department" />
@@ -156,7 +178,7 @@ export default function ProfileSheet({ profile, suggestedName = "", onClose }: P
         </div>
 
         <div className="sheet-actions">
-          {!setup && <button type="button" className="btn" onClick={onClose}>Cancel</button>}
+          {!locked && <button type="button" className="btn" onClick={onClose}>Cancel</button>}
           <button type="submit" className="btn primary" disabled={busy}>{busy ? "Saving…" : setup ? "Continue" : "Save profile"}</button>
         </div>
       </form>

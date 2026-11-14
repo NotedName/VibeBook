@@ -69,6 +69,13 @@ export default function GroupPage({ gid }: { gid: string }) {
   const [inviting, setInviting] = useState(false);
   const [managing, setManaging] = useState(false);
   const member = s.groups.ids.has(gid);
+  const { markGroupSeen } = s;
+
+  // Looking at a group clears its "new posts" alert, on the way in and on the way out.
+  useEffect(() => {
+    markGroupSeen(gid);
+    return () => markGroupSeen(gid);
+  }, [gid, markGroupSeen]);
 
   useEffect(() => {
     if (!armed) return;

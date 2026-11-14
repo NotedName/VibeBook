@@ -4,7 +4,8 @@ import {
 } from "firebase/auth";
 import { auth } from "./firebase";
 import { authMessage } from "./authErrors";
-import { NAME_MAX } from "./profiles";
+import { NAME_MAX, isUsernameAvailable, normalizeUsername, rememberPendingUsername, suggestUsername, usernameProblem } from "./profiles";
+import UsernameField from "./UsernameField";
 import { EyeIcon, EyeOffIcon } from "./icons";
 import { BrandName } from "./Logo";
 
@@ -24,6 +25,8 @@ type Props = { initialMode?: "signin" | "signup"; onBack?: () => void };
 export default function AuthForm({ initialMode = "signin", onBack }: Props) {
   const [mode, setMode] = useState<"signin" | "signup">(initialMode);
   const [name, setName] = useState("");
+  const [username, setUsername] = useState("");
+  const [usernameTouched, setUsernameTouched] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -41,15 +44,26 @@ export default function AuthForm({ initialMode = "signin", onBack }: Props) {
   async function submit(e: FormEvent) {
     e.preventDefault();
     setError("");
+    const handle = normalizeUsername(username);
     if (signup) {
+      const problem = usernameProblem(handle);
+      if (problem) return setError(problem);
       if (password.length < MIN_PASSWORD) return setError(`Your password needs at least ${MIN_PASSWORD} characters.`);
       if (password !== confirm) return setError("The two passwords do not match.");
     }
     setBusy(true);
     try {
       if (signup) {
+        if (!(await isUsernameAvailable(handle))) {
+          setError(`@${handle} is already taken. Try another username.`);
+          setBusy(false);
+          return;
+        }
         const { user } = await createUserWithEmailAndPassword(auth, email.trim(), password);
         await updateProfile(user, { displayName: name.trim() });
+        // The name is reserved after the email is verified (profile setup). Until then it is only remembered here;
+        // if someone else takes it first, profile setup asks for another one.
+        rememberPendingUsername(user.uid, handle);
         await sendEmailVerification(user);
       } else {
         await signInWithEmailAndPassword(auth, email.trim(), password);
@@ -74,9 +88,16 @@ export default function AuthForm({ initialMode = "signin", onBack }: Props) {
         <h1>{signup ? "Join VibeBook" : "Welcome back"}</h1>
         {signup && (
           <label>Your name
-            <input value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" required
-              minLength={2} maxLength={NAME_MAX} placeholder="Juan Dela Cruz" />
+            <input value={name} autoComplete="name" required
+              minLength={2} maxLength={NAME_MAX} placeholder="Juan Dela Cruz"
+              onChange={(e) => {
+                setName(e.target.value);
+                if (!usernameTouched) setUsername(suggestUsername(e.target.value)); // follows the name until they type their own
+              }} />
           </label>
+        )}
+        {signup && (
+          <UsernameField value={username} onChange={(v) => { setUsername(v); setUsernameTouched(true); }} />
         )}
         <label>Email
           <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" required
@@ -112,9 +133,9 @@ export default function AuthForm({ initialMode = "signin", onBack }: Props) {
         <button type="submit" className="btn primary wide" disabled={busy}>
           {busy ? "Please wait…" : signup ? "Create account" : "Sign in"}
         </button>
-        {signup && <p className="hint">We will email you a link to confirm your address before you can start.</p>}
+        {signup && <p className="hint">We will email you a link to confirm your address before you can start. Your username is reserved once you confirm.</p>}
       </form>
-      {onBack && <button type="button" className="link" onClick={onBack}>← Back to the post</button>}
+      {onBack && <button type="button" className="btn" onClick={onBack}>← Back to the post</button>}
     </main>
   );
 }

@@ -40,9 +40,11 @@ export const RotateIcon = () => <Svg><path d="M21 4v6h-6" /><path d="M20.5 15a9 
 export const FlipIcon = () => <Svg><path d="M12 3v18" /><path d="M8 7l-5 5 5 5z" /><path d="M16 7l5 5-5 5z" /></Svg>;
 export const SmileIcon = () => <Svg><circle cx="12" cy="12" r="9" /><path d="M8 14s1.4 2.2 4 2.2 4-2.2 4-2.2" /><path d="M9 9.5h.01M15 9.5h.01" /></Svg>;
 export const ArrowLeftIcon = () => <Svg><path d="M19 12H5" /><path d="M11 6l-6 6 6 6" /></Svg>;
+export const NoteIcon = () => <Svg><path d="M6 3h9l4 4v14H6z" /><path d="M14 3v5h5M9 13h7M9 17h5" /></Svg>;
 export const RepostIcon = () => <Svg><path d="M17 3l4 4-4 4" /><path d="M3 11V9a2 2 0 0 1 2-2h16" /><path d="M7 21l-4-4 4-4" /><path d="M21 13v2a2 2 0 0 1-2 2H3" /></Svg>;
 export const SettingsIcon = () => <Svg><path d="M4 7h9M17 7h3M4 17h3M11 17h9" /><circle cx="15" cy="7" r="2" /><circle cx="9" cy="17" r="2" /></Svg>;
 export const ChevronLeftIcon = () => <Svg><path d="M15 5l-7 7 7 7" /></Svg>;
 export const ChevronRightIcon = () => <Svg><path d="M9 5l7 7-7 7" /></Svg>;
 export const BellIcon = () => <Svg><path d="M6 9a6 6 0 0 1 12 0c0 6 2.5 7.5 2.5 7.5h-17S6 15 6 9z" /><path d="M10 20a2 2 0 0 0 4 0" /></Svg>;
 export const MonitorIcon = () => <Svg><rect x="3" y="4" width="18" height="12" rx="2" /><path d="M8 20h8M12 16v4" /></Svg>;
+export const MenuIcon = () => <Svg><path d="M4 7h16M4 12h16M4 17h16" /></Svg>;

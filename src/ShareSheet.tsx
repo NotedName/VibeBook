@@ -74,7 +74,7 @@ export default function ShareSheet({ entry, linkable, onLink, onClose }: Props) 
             <fieldset className="group-pick">
               <legend>Share to groups</legend>
               {s.groups.list.length === 0 ? (
-                <p className="hint">You have not joined any groups yet. <a href="#/groups" onClick={onClose}>Find or create one</a>.</p>
+                <div className="empty-groups"><p className="hint">You have not joined any groups yet.</p><a className="btn small" href="#/groups" onClick={onClose}>Find or create a group</a></div>
               ) : (
                 <>
                   <ul>

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { deleteEntry, loadPhotos, type Entry, type Photo } from "./entries";
 import { clockTime, copyText, entryText, longDay } from "./report";
 import { useProfile, useSession } from "./session";
+import { personHash } from "./profiles";
 import { VISIBILITY } from "./types";
 import Avatar from "./Avatar";
 import { CommentIcon, CopyIcon, EditIcon, GlobeIcon, GroupsIcon, LockIcon, MoreIcon, RepostIcon, ShareIcon, TrashIcon, UsersIcon } from "./icons";
@@ -111,15 +112,15 @@ export default function EntryCard({ entry, onEdit, inGroup }: Props) {
     <article className="post">
       {entry.repostedBy && (
         <p className="repost-note"><RepostIcon />
-          {entry.repostedBy === s.uid ? <b>{reposterName}</b> : <a href={`#/u/${encodeURIComponent(entry.repostedBy)}`}><b>{reposterName}</b></a>} reposted
+          {entry.repostedBy === s.uid ? <b>{reposterName}</b> : <a href={personHash(entry.repostedBy, reposter)}><b>{reposterName}</b></a>} reposted
         </p>
       )}
       <header className="post-head">
         {mine ? <Avatar profile={owner} /> : (
-          <a href={`#/u/${encodeURIComponent(ownerUid)}`} aria-label={`${name}'s profile`}><Avatar profile={owner} /></a>
+          <a href={personHash(ownerUid, owner)} aria-label={`${name}'s profile`}><Avatar profile={owner} /></a>
         )}
         <div className="post-who">
-          {mine ? <b>{name}</b> : <a className="post-name" href={`#/u/${encodeURIComponent(ownerUid)}`}>{name}</a>}
+          {mine ? <b>{name}</b> : <a className="post-name" href={personHash(ownerUid, owner)}>{name}</a>}
           <time>{longDay(entry.date)} · {clockTime(entry.time)}</time>
           {groupIds.length > 0 && <ul className="group-links" aria-label="Shared to groups">{groupIds.map((id) => <GroupLink key={id} id={id} />)}</ul>}
         </div>

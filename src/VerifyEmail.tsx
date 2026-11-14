@@ -79,7 +79,7 @@ export default function VerifyEmail({ user, onVerified }: Props) {
           {cooldown > 0 ? `Resend email in ${cooldown}s` : "Resend email"}
         </button>
       </section>
-      <button type="button" className="link" onClick={() => signOut(auth)}>Use a different account</button>
+      <button type="button" className="btn" onClick={() => signOut(auth)}>Use a different account</button>
     </main>
   );
 }

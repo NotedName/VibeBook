@@ -59,6 +59,7 @@
   /* avatar above the name, so a two-line name never rides up into the cover photo */
   .who { flex-direction: column; align-items: flex-start; gap: 6px; margin-top: -36px; }
   .who-text { padding-bottom: 0; }
+  .profile .who-text { margin-top: 0; padding-top: 0; }
   .av-lg { width: 80px; height: 80px; font-size: calc(28px * var(--ts)); }
   .auth { padding-left: 12px; padding-right: 12px; }
   .auth-card { padding: 18px 16px; }
@@ -106,10 +107,9 @@
     color: var(--text); text-decoration: none; font-weight: 500; min-width: 0;
   }
   .side-card li a:hover { background: var(--surface-2); }
+  .side-card .av { width: 28px; height: 28px; font-size: calc(12px * var(--ts)); }
   .side-card li a span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .side-card li a .badge { margin-left: auto; }
-  .side-more { color: var(--accent-text); font-weight: 600; font-size: calc(13px * var(--ts)); text-decoration: none; }
-  .side-more:hover { text-decoration: underline; }
   .tab-new { display: none; }
   .toast { bottom: 28px; }
 }

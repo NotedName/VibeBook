@@ -5,6 +5,7 @@ import type { MyGroups } from "./groups";
 import { fetchProfile } from "./profiles";
 import type { Repost } from "./reposts";
 import type { SocialState } from "./social";
+import type { GroupAlert } from "./groupAlerts";
 import type { GroupInvite, Profile } from "./types";
 
 export type Session = SocialState & {
@@ -17,6 +18,9 @@ export type Session = SocialState & {
   invites: GroupInvite[];
   /** entries you have reposted, by "<ownerUid>_<entryId>" */
   reposts: Map<string, Repost>;
+  /** groups with posts you have not looked at yet */
+  groupAlerts: GroupAlert[];
+  markGroupSeen: (gid: string) => void;
   notify: (message: string) => void;
   manualCopy: (text: string) => void;
   editProfile: () => void;

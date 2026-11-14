@@ -190,21 +190,31 @@ a.btn { text-decoration: none; }
 }
 .who { display: flex; gap: 14px; align-items: flex-end; margin-top: -44px; position: relative; z-index: 1; }
 .who-text { padding-bottom: 6px; min-width: 0; flex: 1; }
+/* Only the photo rides up over the cover. The name starts where the cover ends, so a light cover photo never hides it. */
+.profile .who { align-items: flex-start; }
+.profile .who-text { margin-top: 44px; padding: 8px 0 0; }
 .name { font-family: var(--font-display); font-weight: 700; font-size: calc(22px * var(--ts)); line-height: 1.2; overflow-wrap: anywhere; }
 .role { color: var(--muted); font-size: calc(14px * var(--ts)); }
 .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; padding-block: 16px; }
 .stat { background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 10px 12px; min-width: 0; }
 .stat b { display: block; font-family: var(--font-display); font-size: calc(22px * var(--ts)); line-height: 1.1; font-variant-numeric: tabular-nums; }
 .stat span { color: var(--muted); font-size: calc(11px * var(--ts)); letter-spacing: .04em; text-transform: uppercase; }
-.report { display: grid; gap: 10px; padding-bottom: 16px; }
+/* Date and both buttons share one row (stacked on narrow cards) with one height, so they read as a set. */
+.report { container-type: inline-size; padding-bottom: 16px; }
+.report-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.report-row > * { min-height: 44px; }
+.report-row .btn { justify-content: center; text-align: center; line-height: 1.2; }
 .report-date {
-  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 0 6px 0 14px; background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius-sm);
   color: var(--muted); font-size: calc(13px * var(--ts)); font-weight: 600;
 }
-.report-date input {
-  background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 7px 10px; font-weight: 400;
+.report-date input { border: 0; background: none; padding: 7px 8px; font-weight: 400; min-width: 0; color: var(--text); }
+.report-date:focus-within { border-color: var(--accent); }
+@container (min-width: 520px) {
+  .report-row { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr) minmax(0, 1fr); }
+  .report-date { grid-column: auto; }
 }
-.report-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 
 .av {
   border-radius: 50%; flex: none; overflow: hidden; background: var(--accent); color: var(--accent-ink);
@@ -217,7 +227,7 @@ a.btn { text-decoration: none; }
 .about { padding-top: 12px; display: grid; gap: 6px; }
 .about p { white-space: pre-wrap; overflow-wrap: anywhere; }
 .workplace { color: var(--muted); font-size: calc(14px * var(--ts)); }
-.profile-actions { padding-top: 14px; }
+.profile-actions { padding: 14px 0 16px; }
 .pad-b { padding-bottom: 14px; }
 
 /* ---------- composer ---------- */
@@ -855,9 +865,6 @@ a.btn { text-decoration: none; }
 .settings-tabs button[aria-selected="true"] { color: var(--accent-text); border-bottom-color: var(--accent); }
 .setting { border: 0; padding: 0; margin: 0; min-width: 0; display: grid; gap: 8px; }
 .setting legend, .setting-title { font-weight: 600; font-size: calc(13px * var(--ts)); color: var(--muted); letter-spacing: .02em; padding: 0 0 6px; }
-.seg.five { grid-template-columns: repeat(5, 1fr); gap: 4px; }
-.sheet .seg.five label { flex-direction: column; gap: 2px; padding: 10px 2px; font-size: calc(11px * var(--ts)); text-align: center; }
-.size-a { font-weight: 600; line-height: 1; color: inherit; }
 .sheet .switch-row {
   display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px 14px; cursor: pointer;
   background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius-sm); color: var(--text); letter-spacing: 0;
@@ -888,3 +895,64 @@ a.btn { text-decoration: none; }
 .activity li > span { min-width: 0; overflow-wrap: anywhere; }
 .activity a { color: var(--accent-text); font-weight: 600; text-decoration: none; }
 .activity time { flex: none; color: var(--muted); font-size: calc(12px * var(--ts)); }
+
+/* ---------- sort menu (hamburger) ---------- */
+.menu-title { padding: 8px 12px 4px; color: var(--muted); font-size: calc(12px * var(--ts)); font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
+.menu button.on { color: var(--accent-text); }
+.menu-gap { width: 18px; height: 18px; flex: none; }
+.composer .menu { min-width: 190px; }
+.composer .menu-btn { color: var(--text); background: var(--surface-2); }
+
+/* ---------- text size slider, about ---------- */
+.setting-title { display: block; }
+.size-slider { display: flex; align-items: center; gap: 12px; }
+.size-slider input { flex: 1; min-width: 0; }
+.sheet .size-slider input[type="range"] { width: auto; height: 28px; }
+.size-a { font-weight: 600; line-height: 1; color: var(--muted); flex: none; }
+.size-a.small { font-size: 12px; }
+.size-a.large { font-size: 24px; }
+.size-ticks { display: flex; justify-content: space-between; margin: -4px 35px 0 26px; }
+.size-ticks i { width: 4px; height: 4px; border-radius: 50%; background: var(--line); }
+.size-preview { padding: 12px 14px; background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius-sm); }
+.about-brand { justify-content: center; font-size: calc(26px * var(--ts)); padding: 6px 0; }
+.about-list { margin: 0; padding-left: 20px; display: grid; gap: 6px; }
+.note-avatars .av svg { width: 20px; height: 20px; }
+
+/* Username field: "@" prefix inside one bordered box, with live availability feedback underneath. */
+.username-field {
+  display: flex; align-items: center; background: var(--surface-2); border: 1px solid var(--line);
+  border-radius: var(--radius-sm); padding-left: 12px;
+}
+.username-field:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.username-field .at { color: var(--muted); font-weight: 600; }
+.username-field input,
+.sheet .username-field input:not([type="file"]),
+.auth-card .username-field input {
+  border: 0; background: none; box-shadow: none; padding-left: 4px; min-width: 0; flex: 1;
+}
+.username-field input:focus { outline: none; box-shadow: none; }
+.username-status { min-height: 1.2em; font-weight: 400; color: var(--muted); overflow-wrap: anywhere; }
+.username-status.free { color: var(--accent-text); }
+.username-status.invalid, .username-status.taken { color: var(--danger); }
+.handle { color: var(--muted); font-size: calc(14px * var(--ts)); overflow-wrap: anywhere; }
+
+/* Overlays keep their own scroll: reaching the end of a photo's comments does not scroll the page behind. */
+.overlay { overscroll-behavior: contain; }
+
+/* ---------- logbook sections: Notes / Reposts / Likes ---------- */
+.profile-tabs { display: flex; margin: 14px var(--gutter) 0; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 4px; gap: 4px; }
+.profile-tabs button {
+  flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 40px; padding: 8px 10px;
+  background: none; border: 0; border-radius: var(--radius-sm); color: var(--muted); font-weight: 600; font-size: calc(14px * var(--ts));
+}
+.profile-tabs button svg { width: 17px; height: 17px; flex: none; }
+.profile-tabs button:hover { background: var(--surface-2); color: var(--text); }
+.profile-tabs button[aria-selected="true"] { background: var(--accent-soft); color: var(--accent-text); }
+.composer-input.static { cursor: default; }
+.composer-input.static:hover { background: inherit; }
+.empty-groups { display: grid; gap: 8px; justify-items: start; }
+.empty-groups .hint { margin: 0; }
+
+/* Links that act as buttons (Find people, Find or create a group) read as real buttons. */
+.side-card .btn { border-color: var(--accent); color: var(--accent-text); box-shadow: var(--shadow); }
+.side-card .btn:hover { background: var(--accent-soft); }

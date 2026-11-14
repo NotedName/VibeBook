@@ -10,6 +10,7 @@
 ## Profiles, friends and sharing
 
 - Every person has a public profile at `profiles/{uid}` (name, headline, company or school, bio, photo, cover color, optional cover photo). The email address is never stored there.
+- **Usernames** are each person's unique identifier and the end of their profile link (`#/u/<username>`). Create account asks for one next to the name (it follows the name until you type your own, and shows "available" or "taken" as you type). The name is only reserved once the email is verified and the profile is saved, so unconfirmed sign-ups can never hold names; the profile setup screen pre-fills the one typed at sign-up and checks it again; Edit profile lets you change it, with the same check. 3 to 20 lowercase letters, numbers or underscores, not case-sensitive. Each name is a document at `usernames/{username}` whose id is the name, so it can only exist once: `firestore.rules` allows creating it only while nobody holds it, and a profile can only carry a username it owns. Saving a profile claims the new name and frees the old one in a single transaction, so changing it makes the old link stop working. Links made before usernames (`#/u/<uid>`) still open, and accounts from before usernames are asked to pick one the next time they open the app. Search finds people by name or `@username`. Redeploy the rules (`npm run deploy`) for this to work.
 - Each entry is **Only me**, **Friends** or **Public**. Entries made before this feature count as Only me.
 - People can send friend requests (the other person accepts or declines) or follow someone without approval. Friends see Friends and Public entries; followers see Public ones.
 - `npm run deploy` publishes hosting, the Firestore rules and the Firestore index. The new feed query needs that index, which can take a minute or two to build after the first deploy.
@@ -58,7 +59,11 @@
 
 ## Sign-up and email verification
 
-- Create account asks for a name (used as the first profile name), email and a password of 8+ characters with a strength hint.
+- **Profile layout:** the photo rides up over the cover, but the name, `@username` and headline start below it, so a white or light cover photo never hides them. Other people's profiles have the same spacing under their buttons as yours.
+- **Pictures:** while the photo viewer is open the page behind cannot scroll (`src/scrollLock.ts`, counted so stacked overlays release it only when the last one closes).
+- **Friends on the right:** the 5 friends you interact with most, then **Find people** (`src/closeFriends.ts`). What you did to them (likes, comments, replies, reposts) is counted on this device; what they did to you comes from your notifications. Comments and replies count most, then reposts, then likes; ties go to the most recent. Friends with no interactions yet fill spare places.
+- **Report for:** the date and the two copy buttons share one row and one height (stacked on narrow screens).
+- Create account asks for a name (used as the first profile name), a unique username, email and a password of 8+ characters with a strength hint.
 - A verification email is sent on sign-up. Until the address is verified the app shows a "Verify your email" screen (resend with a 30 second cooldown, and it re-checks when you return to the tab).
 - `firestore.rules` also requires `email_verified`, so the data is locked until then. **Accounts created before this change that never verified will see the verify screen once.**
 - Firebase console: Authentication > Templates lets you edit the verification email's wording and sender name.
@@ -129,3 +134,10 @@ After pulling these changes run `npm run deploy` so the new rules go live togeth
 ## Photo editor sliders
 
 - Zoom, Brightness, Contrast and Saturation use the app's own sliders: an accent-coloured fill from the neutral point to the thumb, a round thumb, and the value beside the name. Tap the value to put that slider back to neutral.
+
+## Logbook sections, Likes, buttons and the activity log
+
+- **Notes / Reposts / Likes:** every logbook has columns, like the tabs on a Threads profile. **Notes** are the entries a person wrote, **Reposts** are the public entries they reposted. On your own logbook there is a third, **Likes**, listing the entries you gave a Vibing, most recent first. Likes are private: other people's profiles only show Notes and Reposts. Stats and reports count Notes only. The sort menu works on every column.
+- Likes data: `users/{me}/likes/{ownerUid}_{entryId}` (`src/likes.ts`), a pointer written together with the Vibing in one batch and removed when you take it back or switch to Not vibing. Only you can read it (`firestore.rules`). Vibing given before this list existed is not back-filled, and photo reactions are not included. Run `npm run deploy` so the rules go live.
+- **Buttons:** Find people, Find or create a group, See all groups and the "Use a different account" / "Back to the post" actions are real buttons (bordered, filled), not plain text links.
+- **Activity log:** it can no longer be cleared or deleted from the app (the Clear button and `clearActivity` are gone). It is still stored on this device only, so clearing the browser's site data removes it. The safety cap is now 2000 items.

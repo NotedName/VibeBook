@@ -4,6 +4,7 @@ import {
 } from "./groups";
 import { ROLES, type Group, type GroupRole, type Member } from "./types";
 import { useProfile, useSession } from "./session";
+import { personHash } from "./profiles";
 import Avatar from "./Avatar";
 import { CloseIcon } from "./icons";
 
@@ -48,7 +49,7 @@ function MemberRow({ gid, member, myRole, ownerUid }: { gid: string; member: Mem
 
   return (
     <li className="person">
-      <a href={`#/u/${encodeURIComponent(member.uid)}`} className="person-link">
+      <a href={personHash(member.uid, p)} className="person-link">
         <Avatar profile={p} size="md" />
         <span className="person-text">
           <b>{name}{member.uid === s.uid && " (you)"}</b>

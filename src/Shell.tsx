@@ -7,6 +7,7 @@ import { toProfile } from "./profiles";
 import { useSocial } from "./social";
 import { useGroupInvites, useMyGroups } from "./groups";
 import { useMyReposts } from "./reposts";
+import { useGroupAlerts } from "./groupAlerts";
 import { SessionProvider, type Session } from "./session";
 import type { Profile } from "./types";
 import { ArrowLeftIcon, BookIcon, CloseIcon, FeedIcon, GroupsIcon, PlusIcon, SettingsIcon, UsersIcon } from "./icons";
@@ -21,7 +22,7 @@ import FeedPage from "./pages/FeedPage";
 import GroupsPage from "./pages/GroupsPage";
 import GroupPage from "./pages/GroupPage";
 import PeoplePage from "./pages/PeoplePage";
-import PersonPage from "./pages/PersonPage";
+import { PersonRoute } from "./pages/PersonPage";
 import PostPage from "./pages/PostPage";
 import { parsePostHash } from "./share";
 import { BrandName } from "./Logo";
@@ -31,12 +32,12 @@ import { hideSplash } from "./splash";
 
 type Route =
   | { name: "me" } | { name: "feed" } | { name: "people" } | { name: "groups" }
-  | { name: "person"; uid: string } | { name: "group"; id: string } | { name: "post"; uid: string; id: string };
+  | { name: "person"; handle: string } | { name: "group"; id: string } | { name: "post"; uid: string; id: string };
 
 function parse(hash: string): Route {
   const post = parsePostHash(hash);
   if (post) return { name: "post", uid: post.uid, id: post.id };
-  if (hash.startsWith("#/u/")) return { name: "person", uid: decodeURIComponent(hash.slice(4)) };
+  if (hash.startsWith("#/u/")) return { name: "person", handle: decodeURIComponent(hash.slice(4)) }; // a username, or a uid from an older link
   if (hash.startsWith("#/g/")) return { name: "group", id: decodeURIComponent(hash.slice(4)) };
   if (hash === "#/me" || hash === "#/logbook") return { name: "me" };
   if (hash === "#/groups") return { name: "groups" };
@@ -51,6 +52,8 @@ export default function Shell({ user }: { user: User }) {
   const groups = useMyGroups(uid);
   const reposts = useMyReposts(uid);
   const allInvites = useGroupInvites(uid);
+  const groupIdList = useMemo(() => [...groups.ids].sort(), [groups.ids]);
+  const { alerts: groupAlerts, markSeen: markGroupSeen } = useGroupAlerts(uid, groupIdList);
   const invites = useMemo(() => allInvites.filter((i) => !groups.ids.has(i.groupId)), [allInvites, groups.ids]);
   const [me, setMe] = useState<Profile | null | undefined>(undefined);
   const [profileError, setProfileError] = useState("");
@@ -103,16 +106,17 @@ export default function Shell({ user }: { user: User }) {
   const entrySaved = useCallback((message: string) => { setEntrySheet(null); notify(message); }, [notify]);
 
   const session = useMemo<Session>(() => ({
-    ...social, user, uid, me, groups, invites, reposts, notify,
+    ...social, user, uid, me, groups, invites, reposts, groupAlerts, markGroupSeen, notify,
     manualCopy: setManualCopy,
     editProfile: () => setEditingProfile(true),
     openEntry: (entry, groupId) => setEntrySheet({ entry, groupId }),
-  }), [social, groups, invites, reposts, user, uid, me, notify]);
+  }), [social, groups, invites, reposts, groupAlerts, markGroupSeen, user, uid, me, notify]);
 
   if (profileError) return <p className="center error">{profileError}</p>;
   if (me === undefined) return <div className="page"><main className="logbook"><ProfileSkeleton /><FeedSkeleton /></main></div>;
 
-  const active = route.name === "person" && route.uid === uid ? { name: "me" } as Route : route;
+  const isMe = route.name === "person" && (route.handle === uid || route.handle.toLowerCase() === me?.username);
+  const active = isMe ? { name: "me" } as Route : route;
   const incomingCount = social.incoming.length;
   const subPage = active.name === "person" || active.name === "group" || active.name === "post";
   const backTo = active.name === "group" ? "#/groups" : active.name === "person" ? "#/people" : "#/feed";
@@ -168,7 +172,7 @@ export default function Shell({ user }: { user: User }) {
         {active.name === "groups" && <GroupsPage />}
         {active.name === "group" && <GroupPage key={active.id} gid={active.id} />}
         {active.name === "people" && <PeoplePage />}
-        {active.name === "person" && <PersonPage key={active.uid} uid={active.uid} />}
+        {active.name === "person" && <PersonRoute key={active.handle} handle={active.handle} />}
         {active.name === "post" && <PostPage key={`${active.uid}/${active.id}`} uid={active.uid} id={active.id} />}
       </main>
       {me && <SideColumn onNewEntry={newEntry} />}
@@ -178,7 +182,7 @@ export default function Shell({ user }: { user: User }) {
         <EntrySheet key={entrySheet.entry?.id ?? "new"} uid={uid} entry={entrySheet.entry}
           defaultGroupId={entrySheet.groupId} onClose={closeEntry} onSaved={entrySaved} />
       )}
-      {(me === null || editingProfile) && (
+      {(me === null || editingProfile || !me.username) && (
         <ProfileSheet profile={me} suggestedName={user.displayName ?? ""} onClose={closeProfile} />
       )}
 

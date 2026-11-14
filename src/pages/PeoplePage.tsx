@@ -43,7 +43,7 @@ export default function PeoplePage() {
       <div className="search">
         <SearchIcon />
         <input type="search" value={text} onChange={(e) => setText(e.target.value)}
-          placeholder="Search by name" aria-label="Search people by name" />
+          placeholder="Search by name or @username" aria-label="Search people by name or username" />
       </div>
       {s.error && <p className="error note" role="alert">{s.error}</p>}
 
@@ -51,7 +51,7 @@ export default function PeoplePage() {
         <section className="people-section">
           <h2>Results {searching && <span>searching…</span>}</h2>
           {error && <p className="error note">{error}</p>}
-          {!searching && !error && results.length === 0 && <p className="note">No one found. Try the start of a first or last name.</p>}
+          {!searching && !error && results.length === 0 && <p className="note">No one found. Try the start of a first or last name, or an @username.</p>}
           <ul className="people">{results.map((id) => <PersonRow key={id} uid={id} />)}</ul>
         </section>
       ) : (

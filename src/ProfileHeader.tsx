@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState, type ChangeEvent, type ReactNode } from "react";
 import type { Profile } from "./types";
-import { saveProfile } from "./profiles";
+import { personHash, saveProfile } from "./profiles";
+import { copyText } from "./report";
 import { coverBanner, squareAvatar } from "./image";
 import { useSession } from "./session";
 import Avatar from "./Avatar";
 import PhotoEditor from "./PhotoEditor";
-import { CameraIcon, EditIcon, EyeIcon, ImageIcon, MoreIcon, TrashIcon } from "./icons";
+import { CameraIcon, CopyIcon, EditIcon, EyeIcon, ImageIcon, MoreIcon, TrashIcon } from "./icons";
 
 type Kind = "avatar" | "cover";
 
@@ -113,6 +114,13 @@ export default function ProfileHeader({ profile, children, editable = false, onE
     return () => document.removeEventListener("keydown", onKey);
   }, [more]);
   const choose = (action?: () => void) => () => { setMore(false); action?.(); };
+  const { notify, manualCopy } = useSession();
+  async function copyLink() {
+    setMore(false);
+    const url = `${location.origin}${location.pathname}${personHash(profile.uid, profile)}`;
+    if (await copyText(url)) notify("Profile link copied");
+    else manualCopy(url);
+  }
   const { menu, setMenu, busy, photoMenu, editor } = photos;
   return (
     <section className="profile" aria-label="Profile">
@@ -136,6 +144,7 @@ export default function ProfileHeader({ profile, children, editable = false, onE
             <div className="menu photo-menu" role="menu">
               <button type="button" role="menuitem" onClick={choose(onEditProfile)}><EditIcon />Edit profile</button>
               <button type="button" role="menuitem" onClick={choose(onViewAs)}><EyeIcon />View as</button>
+              <button type="button" role="menuitem" onClick={copyLink}><CopyIcon />Copy profile link</button>
             </div>
           </div>
         )}
@@ -155,6 +164,7 @@ export default function ProfileHeader({ profile, children, editable = false, onE
           </div>
           <div className="who-text">
             <h1 className="name">{profile.displayName}</h1>
+            {profile.username && <div className="handle">@{profile.username}</div>}
             {profile.headline && <div className="role">{profile.headline}</div>}
           </div>
         </div>

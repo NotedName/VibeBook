@@ -4,6 +4,7 @@ import {
 } from "firebase/firestore";
 import { db } from "./firebase";
 import { clip } from "./text";
+import { interactionWeight, noteInteraction } from "./closeFriends";
 
 /**
  * Notifications live at users/{recipient}/notifications/{actorUid}_{key}. The person who did the thing
@@ -37,6 +38,7 @@ const noteRef = (to: string, id: string) => doc(db, "users", to, "notifications"
 /** Tells `to` that `actor` did something. `key` makes the id unique per actor and action, so repeating it cannot pile up. */
 export async function pushNote(to: string, actor: string, key: string, type: NoteType, fields: NoteFields = {}): Promise<void> {
   if (!to || to === actor) return;
+  noteInteraction(actor, to, interactionWeight(type)); // feeds "most interacted friends"
   const data: Record<string, string> = {};
   for (const [k, v] of Object.entries(fields)) if (typeof v === "string" && v) data[k] = k === "title" ? clip(v, 140) : clip(v, 60 + (k === "groupName" ? 0 : 80));
   try {

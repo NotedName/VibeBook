@@ -2,7 +2,7 @@ import { useSyncExternalStore } from "react";
 
 /**
  * Your activity log: a short record of what you did in VibeBook (entries, comments, reactions, reposts, friends, groups).
- * It is kept on this device only, per account, and holds the latest MAX items. Logging never throws or blocks an action.
+ * It is kept on this device only, per account, and is append-only: nothing in the app can delete or clear it. Logging never throws or blocks an action.
  */
 export type Activity = {
   id: string;
@@ -14,7 +14,8 @@ export type Activity = {
   href?: string;
 };
 
-const MAX = 200;
+/** Only a safety cap on storage, far above what anyone does; there is no way to clear the log. */
+const MAX = 2000;
 const key = (uid: string) => `vibebook-activity-${uid}`;
 const cache = new Map<string, Activity[]>();
 const listeners = new Set<() => void>();
@@ -40,8 +41,6 @@ export function logActivity(uid: string, text: string, extra: Pick<Activity, "wh
   const item: Activity = { id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, at: Date.now(), text, ...extra };
   save(uid, [item, ...items(uid)].slice(0, MAX));
 }
-
-export const clearActivity = (uid: string) => save(uid, []);
 
 /** Newest first. */
 export function useActivity(uid: string): Activity[] {

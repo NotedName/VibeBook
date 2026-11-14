@@ -4,6 +4,7 @@ import { subjectId, useComments } from "./commentStore";
 import Comments from "./Comments";
 import CommentThread from "./CommentThread";
 import ReactionBar from "./ReactionBar";
+import { useScrollLock } from "./scrollLock";
 import { ChevronLeftIcon, ChevronRightIcon, CloseIcon, CommentIcon } from "./icons";
 
 type Props = {
@@ -43,6 +44,7 @@ const typing = (t: EventTarget | null) => {
  * through the entry's photos, and each photo has its own reactions and comments.
  */
 export default function PhotoViewer({ ownerUid, entryId, title, photos, index, onIndex, onClose, myUid, onError, onLocked }: Props) {
+  useScrollLock(); // the page behind must not scroll while a picture is open
   const [showComments, setShowComments] = useState(false);
   const [locked, setLocked] = useState(false);
   const touchX = useRef<number | null>(null);

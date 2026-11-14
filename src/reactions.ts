@@ -1,9 +1,10 @@
 import { logActivity } from "./activity";
 import { useEffect, useState } from "react";
-import { collection, deleteDoc, doc, onSnapshot, serverTimestamp, setDoc } from "firebase/firestore";
+import { collection, deleteDoc, doc, onSnapshot, serverTimestamp, setDoc, writeBatch } from "firebase/firestore";
 import { db } from "./firebase";
 import type { ReactionType } from "./types";
 import { dropNote, pushNote } from "./notifications";
+import { likeRef } from "./likes";
 
 export type ReactionSummary = { vibing: number; notvibing: number; mine: ReactionType | null };
 
@@ -47,8 +48,17 @@ export async function setReaction(
   ownerUid: string, subject: string, uid: string, current: ReactionType | null, next: ReactionType, note?: ReactionNote,
 ) {
   const ref = doc(reactionsRef(ownerUid, subject), uid);
-  if (current === next) await deleteDoc(ref);
-  else await setDoc(ref, { type: next, createdAt: serverTimestamp() });
+  // A "vibing" on a whole entry (not a single photo) also goes on your private Likes list, in the same write.
+  const wholeEntry = !subject.includes("/"); // photo subjects look like "<entryId>/photos/<photoId>"
+  const batch = writeBatch(db);
+  if (current === next) batch.delete(ref);
+  else batch.set(ref, { type: next, createdAt: serverTimestamp() });
+  if (wholeEntry) {
+    const like = likeRef(uid, ownerUid, subject);
+    if (next === "vibing" && current !== "vibing") batch.set(like, { ownerUid, entryId: subject, createdAt: serverTimestamp() });
+    else if (current === "vibing") batch.delete(like);
+  }
+  await batch.commit();
   const about = note?.title ? `“${note.title}”` : "an entry";
   logActivity(uid, current === next ? `Took back your reaction on ${about}` : next === "vibing" ? `Vibed ${about}` : `Marked ${about} as not vibing`);
   if (!note) return;

@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { ago, markRead, noteHref, useNoteItems, useNotes, type NoteItem } from "./notifications";
 import { useProfile, useSession } from "./session";
+import { usePreferences } from "./preferences";
+import type { GroupAlert } from "./groupAlerts";
 import Avatar from "./Avatar";
-import { BellIcon, CheckIcon, CloseIcon } from "./icons";
+import { BellIcon, CheckIcon, CloseIcon, GroupsIcon } from "./icons";
 
 const nameOf = (p: { displayName: string } | null | undefined) => p?.displayName || "Someone";
 
@@ -66,8 +68,24 @@ function Row({ item, onOpen }: { item: NoteItem; onOpen: (item: NoteItem) => voi
   );
 }
 
-function NotificationsSheet({ items, unreadIds, onOpen, onClose }: {
-  items: NoteItem[]; unreadIds: string[]; onOpen: (item: NoteItem) => void; onClose: () => void;
+function GroupAlertRow({ alert, onOpen }: { alert: GroupAlert; onOpen: (gid: string) => void }) {
+  const { groups } = useSession();
+  const name = groups.list.find((g) => g.id === alert.gid)?.name || "a group";
+  return (
+    <li>
+      <a className="note unread" href={`#/g/${encodeURIComponent(alert.gid)}`} onClick={() => onOpen(alert.gid)}>
+        <span className="note-avatars"><span className="av av-sm" aria-hidden="true"><GroupsIcon /></span></span>
+        <span className="note-text">
+          <span><b>{alert.count === 1 ? "1 new post" : `${alert.count} new posts`}</b> in <b className="note-title">{name}</b></span>
+        </span>
+        <i className="note-dot" aria-label="Unread" />
+      </a>
+    </li>
+  );
+}
+
+function NotificationsSheet({ items, alerts, unreadIds, onOpen, onOpenGroup, onClose }: {
+  items: NoteItem[]; alerts: GroupAlert[]; unreadIds: string[]; onOpen: (item: NoteItem) => void; onOpenGroup: (gid: string) => void; onClose: () => void;
 }) {
   const s = useSession();
   useEffect(() => {
@@ -86,15 +104,23 @@ function NotificationsSheet({ items, unreadIds, onOpen, onClose }: {
           <button type="button" className="icon-btn close" aria-label="Close" onClick={onClose}><CloseIcon /></button>
         </div>
         <div className="sheet-body notes-body">
-          {unreadIds.length > 0 && (
+          {(unreadIds.length > 0 || alerts.length > 0) && (
             <button type="button" className="btn small notes-readall"
-              onClick={() => markRead(s.uid, unreadIds).catch(() => s.notify("Could not mark them as read"))}>
+              onClick={() => {
+                if (unreadIds.length) markRead(s.uid, unreadIds).catch(() => s.notify("Could not mark them as read"));
+                alerts.forEach((a) => s.markGroupSeen(a.gid));
+              }}>
               <CheckIcon /> Mark all as read
             </button>
           )}
-          {items.length === 0
+          {items.length === 0 && alerts.length === 0
             ? <p className="hint notes-empty">You are all caught up. Requests, likes, comments and reposts show up here.</p>
-            : <ul className="notes">{items.map((it) => <Row key={it.key} item={it} onOpen={onOpen} />)}</ul>}
+            : (
+              <ul className="notes">
+                {alerts.map((a) => <GroupAlertRow key={a.gid} alert={a} onOpen={onOpenGroup} />)}
+                {items.map((it) => <Row key={it.key} item={it} onOpen={onOpen} />)}
+              </ul>
+            )}
         </div>
       </div>
     </div>
@@ -105,16 +131,22 @@ function NotificationsSheet({ items, unreadIds, onOpen, onClose }: {
 export default function NotificationBell() {
   const s = useSession();
   const all = useNotes(s.uid);
+  const prefs = usePreferences();
   const [open, setOpen] = useState(false);
 
   // A friend request or group invite you have already answered is no longer news.
   const live = useMemo(() => all.filter((n) =>
     n.type === "friend_request" ? s.incoming.some((r) => r.from === n.actorUid)
-      : n.type === "group_invite" ? s.invites.some((i) => i.groupId === n.groupId)
-      : true), [all, s.incoming, s.invites]);
+      : n.type === "group_invite" ? prefs.groupInvites && s.invites.some((i) => i.groupId === n.groupId)
+      : true), [all, s.incoming, s.invites, prefs.groupInvites]);
   const items = useNoteItems(live);
   const unreadIds = useMemo(() => live.filter((n) => !n.read).map((n) => n.id), [live]);
-  const count = unreadIds.length;
+  const count = unreadIds.length + s.groupAlerts.length;
+
+  function openedGroup(gid: string) {
+    s.markGroupSeen(gid);
+    setOpen(false);
+  }
 
   function opened(item: NoteItem) {
     const ids = item.notes.filter((n) => !n.read).map((n) => n.id);
@@ -129,7 +161,7 @@ export default function NotificationBell() {
         <BellIcon />
         {count > 0 && <i className="badge bell-badge">{count > 99 ? "99+" : count}</i>}
       </button>
-      {open && <NotificationsSheet items={items} unreadIds={unreadIds} onOpen={opened} onClose={() => setOpen(false)} />}
+      {open && <NotificationsSheet items={items} alerts={s.groupAlerts} unreadIds={unreadIds} onOpen={opened} onOpenGroup={openedGroup} onClose={() => setOpen(false)} />}
     </>
   );
 }

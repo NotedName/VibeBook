@@ -13,10 +13,12 @@ export const COVERS: { id: CoverId; label: string }[] = [
   { id: "steel", label: "Steel" },
 ];
 
-/** Public profile, stored at profiles/{uid}. Never contains the email address. */
+/** Public profile, stored at profiles/{uid}. Never contains the email address. The username is the person's unique identifier: #/u/<username> opens their profile. */
 export type Profile = {
   uid: string;
   displayName: string;
+  /** Unique handle (lowercase letters, numbers, underscore). Reserved at usernames/{username}; used in the profile link. "" for accounts that predate usernames. */
+  username: string;
   headline: string;
   workplace: string;
   bio: string;

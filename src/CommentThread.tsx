@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import type { Timestamp } from "firebase/firestore";
 import { COMMENT_MAX, MAX_DEPTH, type Comment } from "./commentStore";
-import { fetchProfile } from "./profiles";
+import { fetchProfile, personHash } from "./profiles";
 import type { Profile } from "./types";
 import Avatar from "./Avatar";
 import { CommentIcon, MoreIcon, SendIcon, SmileIcon, ThumbUpIcon, TrashIcon } from "./icons";
@@ -143,7 +143,7 @@ function CommentNode({ node, depth, actions, replyTo, setReplyTo }: NodeProps) {
           <>
             <Avatar profile={author} />
             {actions && !mine
-              ? <a className="post-name" href={`#/u/${encodeURIComponent(c.authorUid)}`}>{name}</a>
+              ? <a className="post-name" href={personHash(c.authorUid, author)}>{name}</a>
               : <b>{name}</b>}
             <time>{stamp(c.createdAt)}</time>
             {canDelete && <CommentMenu onDelete={() => actions.remove(c, kids.length > 0)} />}

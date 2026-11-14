@@ -77,6 +77,21 @@ service cloud.firestore {
       allow delete: if isOwner(uid);
     }
 
+    // Your Likes list: a private pointer, named "<ownerUid>_<entryId>", to every entry you gave a Vibing.
+    // Only you can read or write it, and only for entries you can see.
+    match /users/{uid}/likes/{likeId} {
+      allow read: if isOwner(uid);
+      allow create: if isOwner(uid)
+        && request.resource.data.keys().hasOnly(['ownerUid', 'entryId', 'createdAt'])
+        && request.resource.data.ownerUid is string
+        && request.resource.data.entryId is string
+        && likeId == request.resource.data.ownerUid + '_' + request.resource.data.entryId
+        && request.resource.data.createdAt == request.time
+        && (request.resource.data.ownerUid == uid
+            || entryReadable(request.resource.data.ownerUid, request.resource.data.entryId));
+      allow delete: if isOwner(uid);
+    }
+
     // Notifications for {uid}: requests, likes, comments, reposts and the like. The person who did the
     // thing writes it (so it is created by someone else, as themselves), and its id starts with their
     // uid so nobody can overwrite another person's. The recipient reads them, marks them read and
@@ -267,6 +282,36 @@ service cloud.firestore {
       }
     }
 
+    // Usernames. One document per name, and the document id IS the name (lowercase letters, numbers and
+    // underscores, 3 to 20 long), so a name can only ever belong to one person. It can be created only
+    // while nobody holds it (a create on an existing document counts as an update, which is not allowed),
+    // and only released by the person it belongs to.
+    //  - get: anyone, even signed out, so the sign-up form can say "taken" and profile links can find the person.
+    //  - list: only your own, which is how profile setup finds the name you picked at sign-up.
+    //  - create: verified accounts only, so unconfirmed or throwaway sign-ups can never hold a name.
+    match /usernames/{name} {
+      allow get: if true;
+      allow list: if signedIn() && resource.data.uid == request.auth.uid;
+      allow create: if signedIn()
+        && name.matches('^[a-z0-9_]{3,20}$')
+        && request.resource.data.keys().hasOnly(['uid', 'createdAt'])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.createdAt == request.time;
+      allow update: if false;
+      allow delete: if signedIn() && resource.data.uid == request.auth.uid;
+    }
+
+    // A profile's username must be one it owns. getAfter() sees the usernames document written in the same
+    // transaction. Profiles from before usernames existed keep an empty one until their owner picks a name.
+    function usernameOk(uid) {
+      let d = request.resource.data;
+      return d.username is string && (
+        (d.username.matches('^[a-z0-9_]{3,20}$')
+          && getAfter(/databases/$(database)/documents/usernames/$(d.username)).data.uid == uid)
+        || (d.username == '' && resource != null && resource.data.get('username', '') == '')
+      );
+    }
+
     // Public profile cards. Any signed-in person can read them (that is how search works);
     // only the owner can write theirs. The email address is never stored here.
     match /profiles/{uid} {
@@ -278,6 +323,7 @@ service cloud.firestore {
         && request.resource.data.displayName is string
         && request.resource.data.displayName.size() > 0
         && request.resource.data.displayName.size() <= 60
+        && usernameOk(uid)
         && request.resource.data.bio.size() <= 300
         && request.resource.data.avatar.size() <= 120000
         && request.resource.data.coverPhoto.size() <= 120000;

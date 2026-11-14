@@ -4,8 +4,10 @@ import { entriesRef, newestFirst, type Entry } from "../entries";
 import { useRepostedEntries } from "../reposts";
 import { allDescriptions, copyText, dailyReport, longDay, todayStr } from "../report";
 import { useSession } from "../session";
-import { useSortedEntries, useSortMode } from "../sorting";
-import SortBar from "../SortBar";
+import { dateDir, useSortedEntries, useSortMode } from "../sorting";
+import { useLikedEntries } from "../likes";
+import ProfileTabs, { type ProfileTab } from "../ProfileTabs";
+import SortMenu from "../SortMenu";
 import ProfileHeader from "../ProfileHeader";
 import Avatar from "../Avatar";
 import EntryList from "../EntryList";
@@ -32,11 +34,13 @@ function Logbook({ onViewAs }: { onViewAs: () => void }) {
   );
 
   const list = useMemo(() => [...(entries ?? [])].sort(newestFirst), [entries]);
-  // Things you reposted sit in your logbook too, but do not count towards your stats or reports.
-  const myUid = useMemo(() => [s.uid], [s.uid]);
-  const reposts = useRepostedEntries(myUid);
-  const pool = useMemo(() => [...list, ...reposts].sort(newestFirst), [list, reposts]);
+  // Notes are what you wrote; Reposts and Likes are other people's entries. Only Notes count towards your stats and reports.
+  const [tab, setTab] = useState<ProfileTab>("notes");
   const [mode, setMode] = useSortMode("logbook");
+  const myUid = useMemo(() => [s.uid], [s.uid]);
+  const reposts = useRepostedEntries(myUid, 50, dateDir(mode));
+  const likes = useLikedEntries(s.uid, tab === "likes");
+  const pool = tab === "notes" ? list : tab === "reposts" ? reposts : likes.entries;
   const shown = useSortedEntries(pool, mode);
   const stats = useMemo(() => {
     const days = new Set(list.map((e) => e.date));
@@ -70,35 +74,53 @@ function Logbook({ onViewAs }: { onViewAs: () => void }) {
         </div>
 
         <div className="report">
-          <label className="report-date">Report for
-            <input type="date" value={reportDate} onChange={(e) => setReportDate(e.target.value || todayStr())} />
-          </label>
-          <div className="report-btns">
+          <div className="report-row">
+            <label className="report-date">Report for
+              <input type="date" value={reportDate} onChange={(e) => setReportDate(e.target.value || todayStr())} />
+            </label>
             <button type="button" className="btn primary" onClick={copyReport}>Copy for Daily Report</button>
             <button type="button" className="btn" onClick={copyDescriptions}>Copy descriptions</button>
           </div>
         </div>
       </ProfileHeader>
 
+      <ProfileTabs tab={tab} onChange={setTab} showLikes />
+
       <div className="composer">
         <Avatar profile={s.me} />
-        <button type="button" className="composer-input" onClick={() => s.openEntry(null)}>
-          What did you work on today?
-        </button>
+        {tab === "notes" ? (
+          <button type="button" className="composer-input" onClick={() => s.openEntry(null)}>
+            What did you work on today?
+          </button>
+        ) : <span className="composer-input static">{tab === "reposts" ? "Entries you reposted" : "Entries you gave a Vibing"}</span>}
+        {shown.length > 1 && <SortMenu mode={mode} onChange={setMode} />}
       </div>
 
       {loadError && <p className="error note" role="alert">{loadError}</p>}
 
       <div className="feed" aria-live="polite">
         {entries === null && <FeedSkeleton />}
-        {entries !== null && shown.length === 0 && !loadError && (
+        {tab === "notes" && entries !== null && shown.length === 0 && !loadError && (
           <div className="empty">
             <h2>Your logbook is empty</h2>
             <p>Add what you did today with a photo, the skills you picked up and a short description. Entries show up here, newest first.</p>
             <button type="button" className="btn primary" onClick={() => s.openEntry(null)}>Write the first entry</button>
           </div>
         )}
-        {shown.length > 1 && <SortBar mode={mode} onChange={setMode} />}
+        {tab === "reposts" && shown.length === 0 && (
+          <div className="empty">
+            <h2>No reposts yet</h2>
+            <p>Tap Repost on a public entry to add it here and show it to your friends.</p>
+            <a className="btn primary" href="#/feed">Browse the feed</a>
+          </div>
+        )}
+        {tab === "likes" && likes.loading && shown.length === 0 && <FeedSkeleton />}
+        {tab === "likes" && !likes.loading && shown.length === 0 && (
+          <div className="empty">
+            <h2>Nothing liked yet</h2>
+            <p>Entries you give a Vibing show up here, only for you. Likes from before this list existed are not included.</p>
+          </div>
+        )}
         <EntryList entries={shown} onEdit={s.openEntry} dayHeadings={mode.kind === "newest" || mode.kind === "oldest"} />
       </div>
     </>

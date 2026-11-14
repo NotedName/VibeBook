@@ -14,10 +14,18 @@ export const PHOTO_QUALITY: { id: PhotoQuality; label: string; side: number; qua
   { id: "high", label: "High", side: 1600, quality: 0.8, hint: "Most detail. A very busy photo may be shrunk to fit." },
 ];
 
-type Prefs = { photo: PhotoQuality; visibility: Visibility; reduceMotion: boolean };
+type Prefs = {
+  photo: PhotoQuality; visibility: Visibility; reduceMotion: boolean;
+  /** show group invitations in the bell */
+  groupInvites: boolean;
+  /** alert in the bell when someone posts in a group you are in */
+  groupPosts: boolean;
+  /** groups with post alerts turned off */
+  mutedGroups: string[];
+};
 
 const KEY = "vibebook-prefs";
-const DEFAULTS: Prefs = { photo: "standard", visibility: "private", reduceMotion: false };
+const DEFAULTS: Prefs = { photo: "standard", visibility: "private", reduceMotion: false, groupInvites: true, groupPosts: true, mutedGroups: [] };
 
 function load(): Prefs {
   try {
@@ -26,6 +34,9 @@ function load(): Prefs {
       photo: PHOTO_QUALITY.some((q) => q.id === raw.photo) ? raw.photo! : DEFAULTS.photo,
       visibility: raw.visibility === "friends" || raw.visibility === "public" ? raw.visibility : DEFAULTS.visibility,
       reduceMotion: raw.reduceMotion === true,
+      groupInvites: raw.groupInvites !== false,
+      groupPosts: raw.groupPosts !== false,
+      mutedGroups: Array.isArray(raw.mutedGroups) ? raw.mutedGroups.filter((g) => typeof g === "string") : [],
     };
   } catch { return DEFAULTS; }
 }
@@ -56,5 +67,9 @@ export function usePreferences() {
     setPhoto: (photo: PhotoQuality) => update({ photo }),
     setVisibility: (visibility: Visibility) => update({ visibility }),
     setReduceMotion: (reduceMotion: boolean) => update({ reduceMotion }),
+    setGroupInvites: (groupInvites: boolean) => update({ groupInvites }),
+    setGroupPosts: (groupPosts: boolean) => update({ groupPosts }),
+    setGroupMuted: (gid: string, muted: boolean) =>
+      update({ mutedGroups: muted ? [...new Set([...state.mutedGroups, gid])] : state.mutedGroups.filter((g) => g !== gid) }),
   };
 }

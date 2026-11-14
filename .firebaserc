@@ -1,0 +1,15 @@
+{
+  "projects": {
+    "default": "vibebook-312b6"
+  },
+  "targets": {
+    "vibebook-312b6": {
+      "hosting": {
+        "main": [
+          "vibebook"
+        ]
+      }
+    }
+  },
+  "etags": {}
+}

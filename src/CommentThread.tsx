@@ -4,7 +4,9 @@ import { COMMENT_MAX, MAX_DEPTH, type Comment } from "./commentStore";
 import { fetchProfile } from "./profiles";
 import type { Profile } from "./types";
 import Avatar from "./Avatar";
-import { CommentIcon, SendIcon, ThumbUpIcon, TrashIcon } from "./icons";
+import { CommentIcon, SendIcon, SmileIcon, ThumbUpIcon, TrashIcon } from "./icons";
+import MediaPicker, { MediaPreview } from "./MediaPicker";
+import { NO_MEDIA, type Media } from "./stickers";
 
 const stamp = (t: Timestamp | null) =>
   t ? t.toDate().toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "Sending…";
@@ -16,7 +18,7 @@ export type CommentActions = {
   ownerUid: string;
   like: (comment: Comment, liked: boolean) => void;
   /** resolves true when the reply was posted */
-  reply: (parent: Comment, text: string) => Promise<boolean>;
+  reply: (parent: Comment, text: string, media: Media) => Promise<boolean>;
   remove: (comment: Comment, hasReplies: boolean) => void;
 };
 
@@ -42,16 +44,19 @@ function useAuthor(uid: string) {
   return p;
 }
 
-function ReplyForm({ onSubmit, onCancel }: { onSubmit: (text: string) => Promise<boolean>; onCancel: () => void }) {
+function ReplyForm({ onSubmit, onCancel }: { onSubmit: (text: string, media: Media) => Promise<boolean>; onCancel: () => void }) {
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
+  const [media, setMedia] = useState<Media>(NO_MEDIA);
+  const [picking, setPicking] = useState(false);
+  const hasMedia = !!(media.sticker || media.gif);
 
   async function submit(e: FormEvent) {
     e.preventDefault();
     const clean = text.trim();
-    if (!clean) return;
+    if (!clean && !hasMedia) return;
     setBusy(true);
-    if (await onSubmit(clean)) onCancel();
+    if (await onSubmit(clean, media)) onCancel();
     else setBusy(false);
   }
 
@@ -59,8 +64,12 @@ function ReplyForm({ onSubmit, onCancel }: { onSubmit: (text: string) => Promise
     <form className="comment-form reply-form" onSubmit={submit}>
       <input value={text} onChange={(e) => setText(e.target.value)} maxLength={COMMENT_MAX} autoFocus
         placeholder="Write a reply…" aria-label="Write a reply" />
-      <button type="submit" className="icon-btn send" disabled={busy || !text.trim()} aria-label="Post reply"><SendIcon /></button>
+      <button type="button" className={`icon-btn${picking ? " on" : ""}`} aria-label="Add a sticker or GIF"
+        aria-expanded={picking} onClick={() => setPicking(!picking)}><SmileIcon /></button>
+      <button type="submit" className="icon-btn send" disabled={busy || (!text.trim() && !hasMedia)} aria-label="Post reply"><SendIcon /></button>
       <button type="button" className="link-act" onClick={onCancel}>Cancel</button>
+      {hasMedia && <MediaPreview media={media} onRemove={() => setMedia(NO_MEDIA)} />}
+      {picking && <MediaPicker onPick={(m) => { setMedia(m); setPicking(false); }} />}
     </form>
   );
 }
@@ -104,7 +113,9 @@ function CommentNode({ node, depth, actions, replyTo, setReplyTo }: NodeProps) {
           </>
         )}
       </div>
-      {!c.deleted && <p className="comment-text">{c.text}</p>}
+      {!c.deleted && c.text && <p className="comment-text">{c.text}</p>}
+      {!c.deleted && c.sticker && <p className="comment-sticker" role="img" aria-label={`Sticker ${c.sticker}`}>{c.sticker}</p>}
+      {!c.deleted && c.gif && <img className="comment-gif" src={c.gif} alt="GIF" loading="lazy" referrerPolicy="no-referrer" />}
 
       <div className="comment-meta">
         {!c.deleted && (actions ? (
@@ -132,7 +143,7 @@ function CommentNode({ node, depth, actions, replyTo, setReplyTo }: NodeProps) {
       </div>
 
       {actions && replyTo === c.id && (
-        <ReplyForm onSubmit={(text) => actions.reply(c, text)} onCancel={() => setReplyTo(null)} />
+        <ReplyForm onSubmit={(text, media) => actions.reply(c, text, media)} onCancel={() => setReplyTo(null)} />
       )}
 
       {kids.length > 0 && open && (

@@ -1,6 +1,8 @@
 import { useMemo } from "react";
 import { useSession } from "../session";
 import { useSharedEntries, type Source } from "../feed";
+import { newestFirst } from "../entries";
+import { useRepostedEntries } from "../reposts";
 import EntryList from "../EntryList";
 
 export default function FeedPage() {
@@ -9,7 +11,14 @@ export default function FeedPage() {
     const ids = new Set([...s.friends, ...s.following]);
     return [...ids].map((uid) => ({ uid, friend: s.friends.has(uid) }));
   }, [s.friends, s.following]);
-  const { entries, loading, error } = useSharedEntries(sources);
+  const { entries: original, loading, error } = useSharedEntries(sources);
+  const people = useMemo(() => sources.map((x) => x.uid), [sources]);
+  const reposts = useRepostedEntries(people, 8);
+  // A friend's repost of your own entry is not news to you.
+  const entries = useMemo(
+    () => [...original, ...reposts.filter((r) => r.ownerUid !== s.uid)].sort(newestFirst).slice(0, 80),
+    [original, reposts, s.uid],
+  );
 
   return (
     <div className="feed">

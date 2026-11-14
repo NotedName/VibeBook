@@ -1,10 +1,50 @@
 import { useEffect, useState } from "react";
-import { discoverGroups, searchGroups } from "../groups";
+import { acceptInvite, declineInvite, discoverGroups, fetchGroup, searchGroups } from "../groups";
 import { useSession } from "../session";
-import type { Group } from "../types";
+import type { Group, GroupInvite } from "../types";
 import GroupRow from "../GroupRow";
 import GroupSheet from "../GroupSheet";
 import { PlusIcon, SearchIcon } from "../icons";
+import { GroupAvatar } from "../GroupRow";
+import { useProfile } from "../session";
+
+function InviteRow({ invite }: { invite: GroupInvite }) {
+  const s = useSession();
+  const inviter = useProfile(invite.from);
+  const [group, setGroup] = useState<Group | null | undefined>(undefined);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    let live = true;
+    fetchGroup(invite.groupId).then((g) => live && setGroup(g), () => live && setGroup(null));
+    return () => { live = false; };
+  }, [invite.groupId]);
+
+  async function run(fn: () => Promise<unknown>, ok: string) {
+    setBusy(true);
+    try { await fn(); s.notify(ok); }
+    catch { s.notify("That did not go through. Try again."); setBusy(false); }
+  }
+
+  if (group === null) return null; // the group no longer exists
+  const name = group?.name ?? "…";
+  return (
+    <li className="person">
+      <a href={`#/g/${encodeURIComponent(invite.groupId)}`} className="person-link">
+        <GroupAvatar name={name} />
+        <span className="person-text">
+          <b>{name}</b>
+          <span>Invited by {inviter === undefined ? "…" : inviter?.displayName || "a VibeBook member"}</span>
+        </span>
+      </a>
+      <div className="relation">
+        <button type="button" className="btn primary" disabled={busy || !group}
+          onClick={() => run(() => acceptInvite(s.uid, invite.groupId), `Joined ${name}`)}>Join</button>
+        <button type="button" className="btn" disabled={busy}
+          onClick={() => run(() => declineInvite(s.uid, invite.groupId), "Invite declined")}>Decline</button>
+      </div>
+    </li>
+  );
+}
 
 export default function GroupsPage() {
   const s = useSession();
@@ -52,6 +92,13 @@ export default function GroupsPage() {
           placeholder="Search groups by name" aria-label="Search groups by name" />
       </div>
       {(s.groups.error || error) && <p className="error note" role="alert">{s.groups.error || error}</p>}
+
+      {s.invites.length > 0 && (
+        <section className="people-section">
+          <h2>Invitations <span>{s.invites.length}</span></h2>
+          <ul className="people">{s.invites.map((i) => <InviteRow key={i.id} invite={i} />)}</ul>
+        </section>
+      )}
 
       {results !== null ? (
         <section className="people-section">

@@ -5,6 +5,8 @@ import { useSession } from "../session";
 import EntryList from "../EntryList";
 import PersonRow from "../PersonRow";
 import { GroupAvatar } from "../GroupRow";
+import InviteSheet from "../InviteSheet";
+import { PlusIcon } from "../icons";
 
 function GroupFeed({ gid, name }: { gid: string; name: string }) {
   const s = useSession();
@@ -57,6 +59,7 @@ export default function GroupPage({ gid }: { gid: string }) {
   const group = useGroup(gid);
   const [busy, setBusy] = useState(false);
   const [armed, setArmed] = useState(false);
+  const [inviting, setInviting] = useState(false);
   const member = s.groups.ids.has(gid);
 
   useEffect(() => {
@@ -91,6 +94,9 @@ export default function GroupPage({ gid }: { gid: string }) {
           <h1 className="name">{group.name}</h1>
           {group.description && <p>{group.description}</p>}
         </div>
+        {member && (
+          <button type="button" className="btn" onClick={() => setInviting(true)}><PlusIcon /> Invite</button>
+        )}
         {member ? (
           <button type="button" className={`btn${armed ? " armed" : ""}`} disabled={busy}
             onClick={() => (armed ? run(() => leaveGroup(s.uid, gid), "You left the group") : setArmed(true))}>
@@ -110,6 +116,7 @@ export default function GroupPage({ gid }: { gid: string }) {
         </div>
       )}
       <Members gid={gid} member={member} />
+      {inviting && <InviteSheet gid={gid} groupName={group.name} onClose={() => setInviting(false)} />}
     </>
   );
 }

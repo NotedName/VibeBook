@@ -1,4 +1,4 @@
-import type { Entry } from "./entries";
+import { stampOf, type Entry } from "./entries";
 import { longDay } from "./report";
 import EntryCard from "./EntryCard";
 
@@ -10,11 +10,12 @@ export default function EntryList({ entries, onEdit }: Props) {
   return (
     <>
       {entries.map((e) => {
-        const header = e.date !== last;
-        last = e.date;
+        const day = stampOf(e).slice(0, 10);
+        const header = day !== last;
+        last = day;
         return (
-          <div key={`${e.ownerUid}-${e.id}`}>
-            {header && <div className="day-label">{longDay(e.date)}</div>}
+          <div key={`${e.repostedBy ?? ""}-${e.ownerUid}-${e.id}`}>
+            {header && <div className="day-label">{longDay(day)}</div>}
             <EntryCard entry={e} onEdit={onEdit} />
           </div>
         );

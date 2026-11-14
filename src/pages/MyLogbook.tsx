@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { onSnapshot, orderBy, query } from "firebase/firestore";
-import { entriesRef, type Entry } from "../entries";
+import { entriesRef, newestFirst, type Entry } from "../entries";
+import { useRepostedEntries } from "../reposts";
 import { allDescriptions, copyText, dailyReport, longDay, todayStr } from "../report";
 import { useSession } from "../session";
 import ProfileHeader from "../ProfileHeader";
@@ -26,10 +27,11 @@ export default function MyLogbook() {
     [s.uid],
   );
 
-  const list = useMemo(
-    () => [...(entries ?? [])].sort((a, b) => (a.date + a.time < b.date + b.time ? 1 : -1)),
-    [entries],
-  );
+  const list = useMemo(() => [...(entries ?? [])].sort(newestFirst), [entries]);
+  // Things you reposted sit in your logbook too, but do not count towards your stats or reports.
+  const myUid = useMemo(() => [s.uid], [s.uid]);
+  const reposts = useRepostedEntries(myUid);
+  const shown = useMemo(() => [...list, ...reposts].sort(newestFirst), [list, reposts]);
   const stats = useMemo(() => {
     const days = new Set(list.map((e) => e.date));
     const skills = new Set(list.flatMap((e) => e.skills.map((x) => x.toLowerCase())));
@@ -87,14 +89,14 @@ export default function MyLogbook() {
 
       <div className="feed" aria-live="polite">
         {entries === null && <p className="note">Loading your logbook…</p>}
-        {entries !== null && list.length === 0 && !loadError && (
+        {entries !== null && shown.length === 0 && !loadError && (
           <div className="empty">
             <h2>Your logbook is empty</h2>
             <p>Add what you did today with a photo, the skills you picked up and a short description. Entries show up here, newest first.</p>
             <button type="button" className="btn primary" onClick={() => s.openEntry(null)}>Write the first entry</button>
           </div>
         )}
-        <EntryList entries={list} onEdit={s.openEntry} />
+        <EntryList entries={shown} onEdit={s.openEntry} />
       </div>
     </>
   );

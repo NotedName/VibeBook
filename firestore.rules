@@ -43,6 +43,29 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/users/$(uid)/entries/$(entryId)).data.get('visibility', 'private') == 'public';
     }
 
+    // A repost puts someone else's public entry in your own logbook (and optionally in groups you
+    // are in). It is a pointer, named "<ownerUid>_<entryId>"; the entry stays where it is. Anyone
+    // signed in can read the pointers (the entry itself is still checked by its own rules), only
+    // you can write yours, and only public entries of other people can be reposted.
+    match /users/{uid}/reposts/{repostId} {
+      allow read: if signedIn();
+      allow create: if isOwner(uid)
+        && request.resource.data.keys().hasOnly(['ownerUid', 'entryId', 'date', 'time', 'groupIds', 'createdAt'])
+        && request.resource.data.ownerUid is string
+        && request.resource.data.entryId is string
+        && request.resource.data.ownerUid != uid
+        && repostId == request.resource.data.ownerUid + '_' + request.resource.data.entryId
+        && request.resource.data.groupIds is list
+        && request.resource.data.groupIds.size() <= 5
+        && request.resource.data.createdAt == request.time
+        && entryIsPublic(request.resource.data.ownerUid, request.resource.data.entryId);
+      allow update: if isOwner(uid)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['groupIds'])
+        && request.resource.data.groupIds is list
+        && request.resource.data.groupIds.size() <= 5;
+      allow delete: if isOwner(uid);
+    }
+
     match /users/{uid}/following/{targetId} {
       allow read, write: if isOwner(uid);
     }
@@ -67,7 +90,7 @@ service cloud.firestore {
       // Anyone who can read the entry can comment and reply (parentId is "" or an existing comment)
       // and like. A comment can be deleted by its author or by the owner of the entry. Text cannot
       // be edited; the only updates are a like or unlike of your own, or blanking a comment that
-      // has replies to "[deleted]".
+      // has replies to "[deleted]". A comment can carry a sticker or GIF instead of, or as well as, text.
       match /comments/{commentId} {
         // After an update, the likes list differs from before by at most the signed-in person's own uid.
         function onlyMyLikeChanged() {
@@ -82,7 +105,7 @@ service cloud.firestore {
         allow read: if isOwner(uid) || (signedIn() && entryReadable(uid, entryId));
         allow read: if entryIsPublic(uid, entryId);
         allow create: if signedIn()
-          && request.resource.data.keys().hasOnly(['authorUid', 'text', 'createdAt', 'parentId', 'likes'])
+          && request.resource.data.keys().hasOnly(['authorUid', 'text', 'sticker', 'gif', 'createdAt', 'parentId', 'likes'])
           && request.resource.data.authorUid == request.auth.uid
           && request.resource.data.parentId is string
           && request.resource.data.parentId.size() <= 40
@@ -90,16 +113,28 @@ service cloud.firestore {
               || exists(/databases/$(database)/documents/users/$(uid)/entries/$(entryId)/comments/$(request.resource.data.parentId)))
           && request.resource.data.likes == []
           && request.resource.data.text is string
-          && request.resource.data.text.size() > 0
           && request.resource.data.text.size() <= 500
+          && request.resource.data.sticker is string
+          && request.resource.data.sticker.size() <= 16
+          && request.resource.data.gif is string
+          && request.resource.data.gif.size() <= 300
+          // GIFs may only be loaded from Giphy or Tenor over https (keep in step with src/stickers.ts).
+          && (request.resource.data.gif == ''
+              || request.resource.data.gif.matches('^https://(media[0-9]*\\.giphy\\.com|i\\.giphy\\.com|media[0-9]*\\.tenor\\.com|c\\.tenor\\.com)/.*'))
+          // a comment needs some text, a sticker or a GIF
+          && (request.resource.data.text.size() > 0
+              || request.resource.data.sticker.size() > 0
+              || request.resource.data.gif.size() > 0)
           && request.resource.data.createdAt == request.time
           && (request.auth.uid == uid || entryReadable(uid, entryId));
         allow update: if signedIn() && (
           (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes'])
             && (request.auth.uid == uid || entryReadable(uid, entryId))
             && onlyMyLikeChanged())
-          || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['text', 'deleted'])
+          || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['text', 'sticker', 'gif', 'deleted'])
             && request.resource.data.text == ''
+            && request.resource.data.get('sticker', '') == ''
+            && request.resource.data.get('gif', '') == ''
             && request.resource.data.deleted == true
             && (request.auth.uid == uid || resource.data.authorUid == request.auth.uid))
         );
@@ -150,14 +185,27 @@ service cloud.firestore {
         && request.resource.data.description is string
         && request.resource.data.description.size() <= 300;
 
-      // Lists an entry in the group's feed, named "<ownerUid>_<entryId>". Only members can add
-      // their own entries; the owner of the entry can always take it out again.
+      // Lists an entry in the group's feed. Only members can add to it, in one of two ways:
+      //  - their own entry, named "<ownerUid>_<entryId>";
+      //  - a repost of someone else's public entry, named "<me>_rp_<ownerUid>_<entryId>", with
+      //    repostedBy set to themselves.
+      // Whoever added a post can always take it out again.
       match /posts/{postId} {
         allow read: if signedIn() && inMyGroup(gid);
         allow create, update: if signedIn() && inMyGroup(gid)
-          && request.resource.data.ownerUid == request.auth.uid
-          && postId == request.auth.uid + '_' + request.resource.data.entryId;
-        allow delete: if signedIn() && resource.data.ownerUid == request.auth.uid;
+          && (
+            (request.resource.data.get('repostedBy', '') == ''
+              && request.resource.data.ownerUid == request.auth.uid
+              && postId == request.auth.uid + '_' + request.resource.data.entryId)
+            || (request.resource.data.get('repostedBy', '') == request.auth.uid
+              && request.resource.data.keys().hasOnly(['ownerUid', 'entryId', 'date', 'time', 'repostedBy'])
+              && request.resource.data.ownerUid is string
+              && request.resource.data.ownerUid != request.auth.uid
+              && postId == request.auth.uid + '_rp_' + request.resource.data.ownerUid + '_' + request.resource.data.entryId
+              && entryIsPublic(request.resource.data.ownerUid, request.resource.data.entryId))
+          );
+        allow delete: if signedIn()
+          && (resource.data.ownerUid == request.auth.uid || resource.data.get('repostedBy', '') == request.auth.uid);
       }
     }
 
@@ -171,6 +219,22 @@ service cloud.firestore {
         && memberId == request.resource.data.groupId + '_' + request.auth.uid
         && existsAfter(/databases/$(database)/documents/groups/$(request.resource.data.groupId));
       allow delete: if signedIn() && resource.data.uid == request.auth.uid;
+    }
+
+    // An invitation to a group, named "<groupId>_<toUid>". Only members of the group can send one,
+    // in their own name. Both the sender and the invited person can see it, and either can delete
+    // it (the invited person does when joining or declining). Accepting is just joining the group.
+    match /groupInvites/{inviteId} {
+      allow create, update: if signedIn()
+        && request.resource.data.keys().hasOnly(['groupId', 'from', 'to', 'createdAt'])
+        && request.resource.data.from == request.auth.uid
+        && request.resource.data.to is string
+        && request.resource.data.to != request.auth.uid
+        && inviteId == request.resource.data.groupId + '_' + request.resource.data.to
+        && request.resource.data.createdAt == request.time
+        && inMyGroup(request.resource.data.groupId);
+      allow read: if signedIn() && (resource.data.from == request.auth.uid || resource.data.to == request.auth.uid);
+      allow delete: if signedIn() && (resource.data.from == request.auth.uid || resource.data.to == request.auth.uid);
     }
 
     // A request is one document, named "<fromUid>_<toUid>".

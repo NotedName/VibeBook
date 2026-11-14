@@ -144,7 +144,8 @@ export default function EntrySheet({ uid, entry, defaultGroupId, onClose, onSave
             </div>
           )}
 
-          <p className="stamp"><ClockIcon />{longDay(date)} · {clockTime(time)}<small>{entry ? "Logged" : "Set automatically"}</small></p>
+          {/* New entries are stamped silently on save; only an existing entry shows when it was logged. */}
+          {entry && <p className="stamp"><ClockIcon />{longDay(date)} · {clockTime(time)}<small>Logged</small></p>}
           <label>Activity
             <input ref={titleRef} value={title} onChange={(e) => setTitle(e.target.value)} required
               maxLength={140} placeholder="e.g. Set up a new PC in the engineering office" />
@@ -200,6 +201,7 @@ export default function EntrySheet({ uid, entry, defaultGroupId, onClose, onSave
                 </ul>
                 <p className="hint">
                   Members of the groups you tick can see and comment on this entry, whatever you chose above.
+                  It is also saved in your own logbook.
                   Up to {MAX_GROUPS_PER_ENTRY} groups.
                 </p>
               </>

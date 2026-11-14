@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { collection, doc, limit, onSnapshot, orderBy, query } from "firebase/firestore";
 import { db } from "./firebase";
-import type { Entry } from "./entries";
+import { newestFirst, type Entry } from "./entries";
 
 /**
  * Entries shared to one group. The group's post index says which entries belong to it; each
@@ -34,17 +34,24 @@ export function useGroupEntries(gid: string, max = 40) {
         }
         snap.docs.forEach((d) => {
           if (follows.has(d.id)) return;
-          const { ownerUid, entryId } = d.data() as { ownerUid: string; entryId: string };
+          const { ownerUid, entryId, repostedBy, date, time } =
+            d.data() as { ownerUid: string; entryId: string; repostedBy?: string; date?: string; time?: string };
           setPending((prev) => new Set(prev).add(d.id));
           follows.set(d.id, onSnapshot(doc(db, "users", ownerUid, "entries", entryId), (s) => {
             setByPost((prev) => {
               const next = { ...prev };
-              if (s.exists()) next[d.id] = { id: s.id, ownerUid, ...s.data() } as Entry;
-              else delete next[d.id];
+              if (s.exists()) {
+                next[d.id] = { id: s.id, ownerUid, ...s.data(),
+                  ...(repostedBy ? { repostedBy, repostDate: date, repostTime: time } : {}) } as Entry;
+              } else delete next[d.id];
               return next;
             });
             settle(d.id);
-          }, fail));
+          }, () => {
+            // A repost whose original is gone or no longer public just drops out of the feed.
+            setByPost((prev) => { const next = { ...prev }; delete next[d.id]; return next; });
+            settle(d.id);
+          }));
         });
         setIndexLoaded(true);
       },
@@ -54,7 +61,7 @@ export function useGroupEntries(gid: string, max = 40) {
   }, [gid, max]);
 
   const entries = useMemo(
-    () => Object.values(byPost).sort((a, b) => ((a.date + a.time) < (b.date + b.time) ? 1 : -1)),
+    () => Object.values(byPost).sort(newestFirst),
     [byPost],
   );
   return { entries, loading: !error && (!indexLoaded || pending.size > 0), error };

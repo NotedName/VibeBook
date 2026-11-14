@@ -32,6 +32,12 @@ export type Relation = "self" | "friends" | "incoming" | "outgoing" | "none";
 /** Stored at groups/{id}. Every group is open: anyone signed in can find it and join. */
 export type Group = { id: string; name: string; description: string; ownerUid: string };
 
+/** Stored at groupInvites/{groupId}_{toUid}: one person asking another to join a group. */
+export type GroupInvite = { id: string; groupId: string; from: string; to: string };
+
+/** Most people that can be invited in one go. */
+export const MAX_INVITES_AT_ONCE = 30;
+
 /** firestore.rules only looks at the first five groupIds of an entry. */
 export const MAX_GROUPS_PER_ENTRY = 5;
 

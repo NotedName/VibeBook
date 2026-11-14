@@ -4,7 +4,9 @@ import { clockTime, copyText, entryText, longDay } from "./report";
 import { useProfile, useSession } from "./session";
 import { VISIBILITY } from "./types";
 import Avatar from "./Avatar";
-import { CloseIcon, CommentIcon, CopyIcon, EditIcon, GlobeIcon, GroupsIcon, LockIcon, MoreIcon, ShareIcon, TrashIcon, UsersIcon } from "./icons";
+import { CloseIcon, CommentIcon, CopyIcon, EditIcon, GlobeIcon, GroupsIcon, LockIcon, MoreIcon, RepostIcon, ShareIcon, TrashIcon, UsersIcon } from "./icons";
+import GroupShareSheet from "./GroupShareSheet";
+import { removeRepost, repostId } from "./reposts";
 import { useGroup } from "./groups";
 import Comments from "./Comments";
 import ReactionBar from "./ReactionBar";
@@ -31,6 +33,8 @@ export default function EntryCard({ entry, onEdit }: Props) {
   const [armed, setArmed] = useState(false);
   const [commenting, setCommenting] = useState(false);
   const [menu, setMenu] = useState(false);
+  const [sharing, setSharing] = useState<"own" | "repost" | null>(null);
+  const reposter = useProfile(entry.repostedBy);
   const menuRef = useRef<HTMLDivElement>(null);
   const groupIds = (entry.groupIds ?? []).filter((id) => s.groups.ids.has(id));
   const vis = VISIBILITY.find((v) => v.id === (entry.visibility ?? "private"))!;
@@ -79,6 +83,9 @@ export default function EntryCard({ entry, onEdit }: Props) {
   }
 
   const isPublic = (entry.visibility ?? "private") === "public";
+  const myRepost = s.reposts.get(repostId(ownerUid, entry.id));
+  const iReposted = entry.repostedBy === s.uid;
+  const reposterName = entry.repostedBy === s.uid ? "You" : reposter?.displayName || "Someone";
 
   async function share() {
     if (!isPublic) {
@@ -103,6 +110,11 @@ export default function EntryCard({ entry, onEdit }: Props) {
 
   return (
     <article className="post">
+      {entry.repostedBy && (
+        <p className="repost-note"><RepostIcon />
+          {entry.repostedBy === s.uid ? <b>{reposterName}</b> : <a href={`#/u/${encodeURIComponent(entry.repostedBy)}`}><b>{reposterName}</b></a>} reposted
+        </p>
+      )}
       <header className="post-head">
         {mine ? <Avatar profile={owner} /> : (
           <a href={`#/u/${encodeURIComponent(ownerUid)}`} aria-label={`${name}'s profile`}><Avatar profile={owner} /></a>
@@ -119,6 +131,15 @@ export default function EntryCard({ entry, onEdit }: Props) {
           {menu && (
             <div className="menu" role="menu">
               <button type="button" role="menuitem" onClick={copy}><CopyIcon />Copy</button>
+              {mine && (
+                <button type="button" role="menuitem" onClick={() => { setMenu(false); setSharing("own"); }}><GroupsIcon />Share to group</button>
+              )}
+              {myRepost && (
+                <button type="button" role="menuitem" onClick={() => {
+                  setMenu(false);
+                  removeRepost(s.uid, myRepost).then(() => s.notify("Repost removed"), () => s.notify("Could not remove repost"));
+                }}><RepostIcon />Undo repost</button>
+              )}
               {mine && onEdit && (
                 <>
                   <button type="button" role="menuitem" onClick={() => { setMenu(false); onEdit(entry); }}><EditIcon />Edit</button>
@@ -163,11 +184,16 @@ export default function EntryCard({ entry, onEdit }: Props) {
         <ReactionBar ownerUid={ownerUid} entryId={entry.id} myUid={s.uid} onError={s.notify} />
         <button type="button" className={`act${commenting ? " on" : ""}`} aria-expanded={commenting}
           onClick={() => setCommenting(!commenting)}><CommentIcon /><span>Comment</span></button>
+        {isPublic && !mine && (
+          <button type="button" className={`act${myRepost ? " on" : ""}`} aria-pressed={!!myRepost}
+            onClick={() => setSharing("repost")}><RepostIcon /><span>{myRepost ? "Reposted" : "Repost"}</span></button>
+        )}
         {(isPublic || mine) && (
           <button type="button" className="act" onClick={share}><ShareIcon /><span>Share</span></button>
         )}
       </div>
 
+      {sharing && <GroupShareSheet kind={sharing} entry={entry} onClose={() => setSharing(null)} />}
       {commenting && <Comments ownerUid={ownerUid} entryId={entry.id} />}
 
       {zoom && (

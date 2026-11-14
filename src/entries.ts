@@ -32,6 +32,10 @@ export type Entry = Omit<EntryInput, "visibility" | "videoUrl"> & {
   groupIds?: string[];
   /** Whose logbook the entry lives in. Set when loading; not stored. */
   ownerUid?: string;
+  /** Set when this card is someone's repost of the entry: who reposted it, and when. Not stored on the entry. */
+  repostedBy?: string;
+  repostDate?: string;
+  repostTime?: string;
   photoCount: number;
   createdAt: Timestamp | null;
   updatedAt?: Timestamp | null;
@@ -109,6 +113,21 @@ export async function deleteEntry(uid: string, entry: Entry): Promise<void> {
   reactions.forEach((r) => batch.delete(r.ref));
   (entry.groupIds ?? []).forEach((gid) => batch.delete(groupPostRef(gid, uid, entry.id)));
   batch.delete(entryRef);
+  await batch.commit();
+}
+
+/** Sort and day-heading key: a repost sits where it was reposted, not where the original was written. */
+export const stampOf = (e: Pick<Entry, "date" | "time" | "repostDate" | "repostTime">) =>
+  `${e.repostDate ?? e.date} ${e.repostTime ?? e.time}`;
+export const newestFirst = (a: Entry, b: Entry) => (stampOf(a) < stampOf(b) ? 1 : -1);
+
+/** Changes which groups an existing entry is shared to, without touching anything else. */
+export async function setEntryGroups(uid: string, entry: Entry, groupIds: string[]): Promise<void> {
+  const batch = writeBatch(db);
+  batch.update(doc(entriesRef(uid), entry.id), { groupIds });
+  groupIds.forEach((gid) => batch.set(groupPostRef(gid, uid, entry.id), { ownerUid: uid, entryId: entry.id, date: entry.date, time: entry.time }));
+  (entry.groupIds ?? []).filter((gid) => !groupIds.includes(gid))
+    .forEach((gid) => batch.delete(groupPostRef(gid, uid, entry.id)));
   await batch.commit();
 }
 

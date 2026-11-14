@@ -3,7 +3,9 @@ import { addComment, COMMENT_MAX, removeComment, setCommentLike, useComments } f
 import { useSession } from "./session";
 import Avatar from "./Avatar";
 import CommentThread, { type CommentActions } from "./CommentThread";
-import { SendIcon } from "./icons";
+import { SendIcon, SmileIcon } from "./icons";
+import MediaPicker, { MediaPreview } from "./MediaPicker";
+import { NO_MEDIA, type Media } from "./stickers";
 
 /** Comment thread under an entry. Anyone who can see the entry can read, like and reply to comments. */
 export default function Comments({ ownerUid, entryId }: { ownerUid: string; entryId: string }) {
@@ -11,24 +13,29 @@ export default function Comments({ ownerUid, entryId }: { ownerUid: string; entr
   const { comments, error } = useComments(ownerUid, entryId);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
+  const [media, setMedia] = useState<Media>(NO_MEDIA);
+  const [picking, setPicking] = useState(false);
+  const hasMedia = !!(media.sticker || media.gif);
 
   const actions = useMemo<CommentActions>(() => ({
     myUid: uid,
     ownerUid,
     like: (c, liked) => { setCommentLike(ownerUid, entryId, c.id, uid, liked).catch(() => notify("Could not save your like")); },
-    reply: (parent, reply) =>
-      addComment(ownerUid, entryId, uid, reply, parent.id).then(() => true, () => { notify("Could not post your reply"); return false; }),
+    reply: (parent, reply, media) =>
+      addComment(ownerUid, entryId, uid, reply, parent.id, media).then(() => true, () => { notify("Could not post your reply"); return false; }),
     remove: (c, hasReplies) => { removeComment(ownerUid, entryId, c.id, hasReplies).catch(() => notify("Could not delete comment")); },
   }), [uid, ownerUid, entryId, notify]);
 
   async function submit(e: FormEvent) {
     e.preventDefault();
     const clean = text.trim();
-    if (!clean) return;
+    if (!clean && !hasMedia) return;
     setBusy(true);
     try {
-      await addComment(ownerUid, entryId, uid, clean);
+      await addComment(ownerUid, entryId, uid, clean, "", media);
       setText("");
+      setMedia(NO_MEDIA);
+      setPicking(false);
     } catch {
       notify("Could not post your comment");
     } finally {
@@ -46,9 +53,13 @@ export default function Comments({ ownerUid, entryId }: { ownerUid: string; entr
         <Avatar profile={me} />
         <input value={text} onChange={(e) => setText(e.target.value)} maxLength={COMMENT_MAX}
           placeholder="Write a comment…" aria-label="Write a comment" />
-        <button type="submit" className="icon-btn send" disabled={busy || !text.trim()} aria-label="Post comment">
+        <button type="button" className={`icon-btn${picking ? " on" : ""}`} aria-label="Add a sticker or GIF"
+          aria-expanded={picking} onClick={() => setPicking(!picking)}><SmileIcon /></button>
+        <button type="submit" className="icon-btn send" disabled={busy || (!text.trim() && !hasMedia)} aria-label="Post comment">
           <SendIcon />
         </button>
+        {hasMedia && <MediaPreview media={media} onRemove={() => setMedia(NO_MEDIA)} />}
+        {picking && <MediaPicker onPick={(m) => { setMedia(m); setPicking(false); }} />}
       </form>
     </section>
   );

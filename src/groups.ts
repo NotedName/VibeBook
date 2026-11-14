@@ -5,7 +5,7 @@ import {
 } from "firebase/firestore";
 import { db } from "./firebase";
 import { nameKeys } from "./profiles";
-import type { Group } from "./types";
+import type { Group, GroupInvite } from "./types";
 
 export const GROUP_NAME_MAX = 60;
 export const GROUP_DESC_MAX = 300;
@@ -22,6 +22,10 @@ const memberRef = (gid: string, uid: string) => doc(db, "groupMembers", `${gid}_
 /** Lists an entry in a group's feed. Named "<ownerUid>_<entryId>". */
 export const groupPostRef = (gid: string, ownerUid: string, entryId: string) =>
   doc(db, "groups", gid, "posts", `${ownerUid}_${entryId}`);
+
+/** Lists someone's repost of another person's entry in a group's feed. */
+export const repostPostRef = (gid: string, me: string, ownerUid: string, entryId: string) =>
+  doc(db, "groups", gid, "posts", `${me}_rp_${ownerUid}_${entryId}`);
 
 const cache = new Map<string, Promise<Group | null>>();
 
@@ -71,7 +75,59 @@ export async function leaveGroup(uid: string, gid: string): Promise<void> {
     });
     await batch.commit();
   }
+  // Reposts shared to the group come out too.
+  const reposts = await getDocs(query(collection(db, "users", uid, "reposts"), where("groupIds", "array-contains", gid)));
+  for (let i = 0; i < reposts.docs.length; i += 200) {
+    const batch = writeBatch(db);
+    reposts.docs.slice(i, i + 200).forEach((d) => {
+      const r = d.data() as { ownerUid: string; entryId: string };
+      batch.update(d.ref, { groupIds: arrayRemove(gid) });
+      batch.delete(repostPostRef(gid, uid, r.ownerUid, r.entryId));
+    });
+    await batch.commit();
+  }
   await deleteDoc(memberRef(gid, uid));
+}
+
+const inviteRef = (gid: string, to: string) => doc(db, "groupInvites", `${gid}_${to}`);
+
+/** Invites every person in one batch. Only members of the group can invite. */
+export async function inviteToGroup(from: string, gid: string, toUids: string[]): Promise<void> {
+  const batch = writeBatch(db);
+  toUids.forEach((to) => batch.set(inviteRef(gid, to), { groupId: gid, from, to, createdAt: serverTimestamp() }));
+  await batch.commit();
+}
+
+/** Accepting joins the group and clears the invite in one step. */
+export async function acceptInvite(uid: string, gid: string): Promise<void> {
+  const batch = writeBatch(db);
+  batch.set(memberRef(gid, uid), { groupId: gid, uid, joinedAt: serverTimestamp() });
+  batch.delete(inviteRef(gid, uid));
+  await batch.commit();
+}
+
+export const declineInvite = (uid: string, gid: string) => deleteDoc(inviteRef(gid, uid));
+
+/** Who you have already invited to this group, so they are not offered again. */
+export async function loadMyInvitees(uid: string, gid: string): Promise<string[]> {
+  const snap = await getDocs(query(collection(db, "groupInvites"), where("from", "==", uid), where("groupId", "==", gid)));
+  return snap.docs.map((d) => d.data().to as string);
+}
+
+/** Live invitations sent to the signed-in person. */
+export function useGroupInvites(uid: string): GroupInvite[] {
+  const [invites, setInvites] = useState<GroupInvite[]>([]);
+  useEffect(
+    () => onSnapshot(
+      query(collection(db, "groupInvites"), where("to", "==", uid)),
+      (snap) => setInvites(snap.docs.map((d) => ({
+        id: d.id, groupId: d.data().groupId as string, from: d.data().from as string, to: uid,
+      }))),
+      () => setInvites([]),
+    ),
+    [uid],
+  );
+  return invites;
 }
 
 export async function loadMembers(gid: string): Promise<string[]> {

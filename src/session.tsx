@@ -3,8 +3,9 @@ import type { User } from "firebase/auth";
 import type { Entry } from "./entries";
 import type { MyGroups } from "./groups";
 import { fetchProfile } from "./profiles";
+import type { Repost } from "./reposts";
 import type { SocialState } from "./social";
-import type { Profile } from "./types";
+import type { GroupInvite, Profile } from "./types";
 
 export type Session = SocialState & {
   user: User;
@@ -12,6 +13,10 @@ export type Session = SocialState & {
   /** undefined while loading, null when the person has not made a profile yet */
   me: Profile | null | undefined;
   groups: MyGroups;
+  /** invitations to groups you have not joined yet */
+  invites: GroupInvite[];
+  /** entries you have reposted, by "<ownerUid>_<entryId>" */
+  reposts: Map<string, Repost>;
   notify: (message: string) => void;
   manualCopy: (text: string) => void;
   editProfile: () => void;

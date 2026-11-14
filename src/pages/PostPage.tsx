@@ -22,7 +22,6 @@ export default function PostPage({ uid, id }: { uid: string; id: string }) {
 
   return (
     <div className="feed">
-      <a className="link back" href="#/feed">← Back</a>
       {entry === undefined && <p className="note">Loading…</p>}
       {entry === null && (
         <div className="empty">

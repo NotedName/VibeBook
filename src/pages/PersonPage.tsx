@@ -1,6 +1,8 @@
 import { useMemo } from "react";
 import { useProfile, useSession } from "../session";
 import { useSharedEntries } from "../feed";
+import { newestFirst } from "../entries";
+import { useRepostedEntries } from "../reposts";
 import ProfileHeader from "../ProfileHeader";
 import RelationButtons from "../RelationButtons";
 import EntryList from "../EntryList";
@@ -10,7 +12,10 @@ export default function PersonPage({ uid }: { uid: string }) {
   const p = useProfile(uid);
   const friend = s.friends.has(uid);
   const sources = useMemo(() => [{ uid, friend }], [uid, friend]);
-  const { entries, loading, error } = useSharedEntries(sources, 100);
+  const { entries: original, loading, error } = useSharedEntries(sources, 100);
+  const who = useMemo(() => [uid], [uid]);
+  const reposts = useRepostedEntries(who);
+  const entries = useMemo(() => [...original, ...reposts].sort(newestFirst), [original, reposts]);
   const rel = s.relationOf(uid);
 
   if (p === undefined) return <p className="note">Loading profile…</p>;

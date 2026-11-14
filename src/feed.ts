@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { collection, limit, onSnapshot, orderBy, query, where } from "firebase/firestore";
 import { db } from "./firebase";
-import type { Entry } from "./entries";
+import { newestFirst, type Entry } from "./entries";
 
 export type Source = { uid: string; friend: boolean };
 
@@ -43,7 +43,7 @@ export function useSharedEntries(sources: Source[], max = 60) {
   }, [keys]);
 
   const entries = useMemo(
-    () => Object.values(byQuery).flat().sort((a, b) => ((a.date + a.time) < (b.date + b.time) ? 1 : -1)).slice(0, max),
+    () => Object.values(byQuery).flat().sort(newestFirst).slice(0, max),
     [byQuery, max],
   );
   return { entries, loading: keys.length > 0 && loaded.size < keys.length, error };

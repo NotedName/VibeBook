@@ -442,6 +442,20 @@ a.btn { text-decoration: none; }
   color: var(--accent-text); background: var(--accent-soft); border-radius: 999px; padding: 2px 9px;
 }
 .group-links svg { width: 12px; height: 12px; }
+/* invite people to a group */
+.sheet .sheet-search { margin: 0; box-shadow: none; background: var(--surface-2); border: 1px solid var(--line); }
+.invite-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.sheet label.invite-row {
+  display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px; cursor: pointer;
+  background: var(--surface-2); border: 1px solid var(--line); color: var(--text); font-size: 14px; letter-spacing: 0;
+}
+.sheet label.invite-row.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-text); }
+.sheet label.invite-row.off { opacity: .6; cursor: default; }
+.sheet .invite-row input[type="checkbox"] { width: 18px; height: 18px; flex: none; accent-color: var(--accent); }
+.invite-name { display: grid; min-width: 0; flex: 1; }
+.invite-name b { font-weight: 600; overflow-wrap: anywhere; }
+.invite-name small, .invite-status { color: var(--muted); font-weight: 400; overflow-wrap: anywhere; }
+.invite-status { flex: none; font-size: 12px; }
 .group-pick { border: 0; padding: 0; margin: 0; min-width: 0; display: grid; gap: 8px; }
 .group-pick legend { font-weight: 600; font-size: 13px; color: var(--muted); letter-spacing: .02em; padding: 0 0 6px; }
 .group-pick ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
@@ -474,7 +488,7 @@ a.btn { text-decoration: none; }
 /* Replies hang off a thread line under the parent's avatar, one level per step. */
 .replies { margin: 6px 0 0 11px; padding-left: 12px; border-left: 2px solid var(--line); }
 .reply-form { margin: 6px 0 0 32px; }
-.comment-form { display: flex; align-items: center; gap: 8px; }
+.comment-form { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .comment-form .av { width: 34px; height: 34px; font-size: 13px; }
 .comment-form input {
   flex: 1; min-width: 0; background: var(--surface-2); border: 1px solid var(--line); border-radius: 999px;
@@ -484,6 +498,30 @@ a.btn { text-decoration: none; }
 .comment-form .send { background: var(--accent); color: var(--accent-ink); width: 38px; height: 38px; }
 .comment-form .send:hover { filter: brightness(1.12); background: var(--accent); }
 .comment-form .send:disabled { opacity: .45; cursor: default; }
+.comment-form .icon-btn.on { background: var(--accent-soft); color: var(--accent-text); }
+
+/* stickers and GIFs on comments */
+.comment-sticker { margin: 4px 0 0 32px; font-size: 56px; line-height: 1.1; }
+.comment-gif { display: block; margin: 6px 0 0 32px; max-width: min(260px, calc(100% - 32px)); max-height: 240px; border-radius: 10px; background: var(--surface-2); }
+.media-preview { flex: 1 1 100%; display: flex; align-items: flex-start; gap: 6px; }
+.media-preview .comment-sticker, .media-preview .comment-gif { margin: 0; }
+.media-preview .comment-sticker { font-size: 44px; }
+.media-preview .comment-gif { max-height: 140px; }
+.media-picker { flex: 1 1 100%; background: var(--surface-2); border: 1px solid var(--line); border-radius: 12px; padding: 8px; display: grid; gap: 8px; max-height: 300px; overflow-y: auto; }
+.media-tabs { display: flex; gap: 6px; }
+.media-tabs button { background: none; border: 0; border-radius: 999px; padding: 5px 12px; font-size: 13px; font-weight: 600; color: var(--muted); }
+.media-tabs button.on { background: var(--accent-soft); color: var(--accent-text); }
+.sticker-packs { display: grid; gap: 8px; }
+.sticker-packs h3 { margin: 0 0 4px 2px; font-size: 12px; color: var(--muted); font-weight: 600; }
+.sticker-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 2px; }
+.sticker-grid button { background: none; border: 0; border-radius: 8px; font-size: 28px; line-height: 1; padding: 6px 0; }
+.sticker-grid button:hover, .sticker-grid button:focus-visible { background: var(--accent-soft); }
+.gif-tab { display: grid; gap: 8px; }
+.gif-tab input { width: 100%; min-width: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 8px 14px; color: var(--text); font-size: 16px; }
+.gif-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
+.gif-grid button { background: none; border: 0; padding: 0; border-radius: 8px; overflow: hidden; }
+.gif-grid img { display: block; width: 100%; height: 90px; object-fit: cover; }
+.gif-link { display: flex; gap: 8px; align-items: center; }
 
 /* ---------- reactions, video, share links ---------- */
 .react-btn .count { font-weight: 700; font-variant-numeric: tabular-nums; }
@@ -550,3 +588,16 @@ a.btn { text-decoration: none; }
 .sheet input[type="range"] { padding: 0; border: 0; background: none; accent-color: var(--accent); }
 .thumb .thumb-edit { top: auto; right: auto; left: 4px; bottom: 4px; display: grid; place-items: center; }
 .thumb .thumb-edit svg { width: 14px; height: 14px; }
+
+/* ---------- repost note, back bar ---------- */
+.repost-note { display: flex; align-items: center; gap: 6px; margin: 0; padding: 10px 14px 0; font-size: 13px; color: var(--muted); }
+.repost-note svg { width: 15px; height: 15px; flex: none; }
+.repost-note a { color: inherit; text-decoration: none; }
+.repost-note b { color: var(--text); font-weight: 600; }
+.backbar { padding: 8px 8px 0; }
+.back-btn {
+  display: inline-flex; align-items: center; gap: 6px; border: 0; background: none; border-radius: 999px;
+  padding: 8px 14px 8px 10px; color: var(--accent-text); font-weight: 600; font-size: 14px;
+}
+.back-btn:hover { background: var(--accent-soft); }
+.back-btn svg { width: 20px; height: 20px; }

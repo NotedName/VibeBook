@@ -5,11 +5,12 @@ import { auth, db } from "./firebase";
 import type { Entry } from "./entries";
 import { toProfile } from "./profiles";
 import { useSocial } from "./social";
-import { useMyGroups } from "./groups";
+import { useGroupInvites, useMyGroups } from "./groups";
+import { useMyReposts } from "./reposts";
 import { SessionProvider, type Session } from "./session";
 import { useTheme } from "./theme";
 import type { Profile } from "./types";
-import { BookIcon, CloseIcon, FeedIcon, GroupsIcon, MoonIcon, SunIcon, UsersIcon } from "./icons";
+import { ArrowLeftIcon, BookIcon, CloseIcon, FeedIcon, GroupsIcon, MoonIcon, SunIcon, UsersIcon } from "./icons";
 import EntrySheet from "./EntrySheet";
 import ProfileSheet from "./ProfileSheet";
 import MyLogbook from "./pages/MyLogbook";
@@ -41,9 +42,14 @@ export default function Shell({ user }: { user: User }) {
   const uid = user.uid;
   const social = useSocial(uid);
   const groups = useMyGroups(uid);
+  const reposts = useMyReposts(uid);
+  const allInvites = useGroupInvites(uid);
+  const invites = useMemo(() => allInvites.filter((i) => !groups.ids.has(i.groupId)), [allInvites, groups.ids]);
   const [me, setMe] = useState<Profile | null | undefined>(undefined);
   const [profileError, setProfileError] = useState("");
   const [route, setRoute] = useState<Route>(() => parse(location.hash));
+  // Pages visited inside the app, so Back never leaves it: only offered when there is somewhere in the app to go.
+  const trail = useRef<string[]>([location.hash]);
   const [entrySheet, setEntrySheet] = useState<{ entry: Entry | null; groupId?: string } | null>(null);
   const [editingProfile, setEditingProfile] = useState(false);
   const [notice, setNotice] = useState("");
@@ -61,7 +67,13 @@ export default function Shell({ user }: { user: User }) {
   );
 
   useEffect(() => {
-    const onHash = () => { setRoute(parse(location.hash)); window.scrollTo(0, 0); };
+    const onHash = () => {
+      const t = trail.current;
+      if (t.length > 1 && t[t.length - 2] === location.hash) t.pop(); // went back
+      else if (t[t.length - 1] !== location.hash) t.push(location.hash);
+      setRoute(parse(location.hash));
+      window.scrollTo(0, 0);
+    };
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
@@ -76,17 +88,20 @@ export default function Shell({ user }: { user: User }) {
   const entrySaved = useCallback((message: string) => { setEntrySheet(null); notify(message); }, [notify]);
 
   const session = useMemo<Session>(() => ({
-    ...social, user, uid, me, groups, notify,
+    ...social, user, uid, me, groups, invites, reposts, notify,
     manualCopy: setManualCopy,
     editProfile: () => setEditingProfile(true),
     openEntry: (entry, groupId) => setEntrySheet({ entry, groupId }),
-  }), [social, groups, user, uid, me, notify]);
+  }), [social, groups, invites, reposts, user, uid, me, notify]);
 
   if (profileError) return <p className="center error">{profileError}</p>;
   if (me === undefined) return <p className="center">Loading…</p>;
 
   const active = route.name === "person" && route.uid === uid ? { name: "me" } as Route : route;
   const incomingCount = social.incoming.length;
+  const subPage = active.name === "person" || active.name === "group" || active.name === "post";
+  const backTo = active.name === "group" ? "#/groups" : active.name === "person" ? "#/people" : "#/feed";
+  const goBack = () => { if (trail.current.length > 1) history.back(); else location.hash = backTo; };
   const tab = (href: string, on: boolean, icon: React.ReactNode, label: string, badge = 0) => (
     <a href={href} className={`tab${on ? " on" : ""}`} aria-current={on ? "page" : undefined}>
       {icon}<span>{label}</span>{badge > 0 && <i className="badge" aria-label={`${badge} new`}>{badge}</i>}
@@ -109,12 +124,19 @@ export default function Shell({ user }: { user: User }) {
         <nav className="tabs" aria-label="Sections">
           {tab("#/", active.name === "me", <BookIcon />, "Logbook")}
           {tab("#/feed", active.name === "feed", <FeedIcon />, "Feed")}
-          {tab("#/groups", active.name === "groups" || active.name === "group", <GroupsIcon />, "Groups")}
+          {tab("#/groups", active.name === "groups" || active.name === "group", <GroupsIcon />, "Groups", invites.length)}
           {tab("#/people", active.name === "people" || active.name === "person", <UsersIcon />, "People", incomingCount)}
         </nav>
       </header>
 
       <main className="logbook">
+        {subPage && (
+          <div className="backbar">
+            <button type="button" className="back-btn" onClick={goBack} aria-label="Go back">
+              <ArrowLeftIcon /><span>Back</span>
+            </button>
+          </div>
+        )}
         {me && active.name === "me" && <MyLogbook />}
         {active.name === "feed" && <FeedPage />}
         {active.name === "groups" && <GroupsPage />}

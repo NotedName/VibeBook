@@ -1,17 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
-import { isUnread, type Conversation } from "../messages";
-import { ago } from "../notifications";
+import { isUnread } from "../messages";
 import { fetchProfile } from "../profiles";
 import { useProfile, useSession } from "../session";
 import { INVITE_LIST_LIMIT, type Profile } from "../types";
 import { useMessagingFrame } from "../msgFrame";
 import Avatar from "../Avatar";
+import ChatRow, { nameOf, threadHash } from "../ChatRow";
 import Highlight from "../Highlight";
 import { SearchIcon } from "../icons";
 import { RowsSkeleton } from "../Skeleton";
-
-const threadHash = (uid: string) => `#/m/${encodeURIComponent(uid)}`;
-const nameOf = (p: { displayName: string } | null | undefined) => (p === undefined ? "…" : p?.displayName || "VibeBook member");
 
 /** Profiles of these people as they load (each is fetched once and cached), so the list can be searched by name. */
 function useProfileMap(ids: string[]) {
@@ -29,26 +26,6 @@ function useProfileMap(ids: string[]) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
   return map;
-}
-
-function ChatRow({ chat, uid, q }: { chat: Conversation; uid: string; q: string }) {
-  const p = useProfile(chat.other);
-  const unread = isUnread(chat, uid);
-  return (
-    <li>
-      <a className={`chat-row${unread ? " unread" : ""}`} href={threadHash(chat.other)}>
-        <Avatar profile={p} size="md" />
-        <span className="chat-row-text">
-          <b><Highlight text={nameOf(p)} q={q} /></b>
-          <span>{chat.lastFrom === uid ? "You: " : ""}<Highlight text={chat.lastText} q={q} /></span>
-        </span>
-        <span className="chat-row-meta">
-          <time>{ago(chat.updatedAt)}</time>
-          {unread && <i className="chat-dot" role="img" aria-label="Unread" />}
-        </span>
-      </a>
-    </li>
-  );
 }
 
 function StartRow({ uid, q }: { uid: string; q: string }) {
@@ -80,11 +57,11 @@ export default function MessagesPage() {
   const needle = q.toLowerCase();
   const tokens = needle.split(/\s+/).filter(Boolean);
 
-  const talking = useMemo(() => new Set(list.map((c) => c.other)), [list]);
+  const talking = useMemo(() => new Set([...list, ...s.chats.archived].map((c) => c.other)), [list, s.chats.archived]);
   const starters = [...s.friends].filter((id) => !talking.has(id));
   const ids = useMemo(() => [...new Set([...list.map((c) => c.other), ...s.friends])], [list, s.friends]);
   const profiles = useProfileMap(needle ? ids : []);
-  const unreadCount = list.filter((c) => isUnread(c, s.uid)).length;
+  const unreadCount = list.filter((c) => isUnread(c, s.uid) && !c.blocked).length;
 
   const nameHit = (id: string) => {
     const p = profiles.get(id);
@@ -93,14 +70,16 @@ export default function MessagesPage() {
     return tokens.every((t) => hay.includes(t));
   };
   const chats = list.filter((c) =>
-    (!onlyUnread || isUnread(c, s.uid)) && (!needle || nameHit(c.other) || c.lastText.toLowerCase().includes(needle)));
+    (!onlyUnread || (isUnread(c, s.uid) && !c.blocked)) && (!needle || nameHit(c.other) || c.lastText.toLowerCase().includes(needle)));
   const friends = onlyUnread ? [] : needle ? starters.filter(nameHit) : starters.slice(0, INVITE_LIST_LIMIT);
   const nothingFound = !!needle && chats.length === 0 && friends.length === 0 && ids.every((id) => profiles.has(id));
 
   return (
     <div className="inbox">
       <div className="inbox-head">
-        <h1 className="page-title">Messages</h1>
+        <div className="title-row">
+          <h1 className="page-title">Messages</h1>
+        </div>
         <div className="search">
           <SearchIcon />
           <input type="search" value={text} onChange={(e) => setText(e.target.value)}

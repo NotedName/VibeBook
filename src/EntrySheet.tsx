@@ -25,9 +25,10 @@ type Props = {
 
 export default function EntrySheet({ uid, entry, defaultGroupId, onClose, onSaved }: Props) {
   const s = useSession();
-  // A new entry is stamped with the moment the sheet opened. Hours are logged with Clock in / Clock out, not here, so an
-  // entry being edited keeps the date and hours it already has.
-  const [stamp] = useState(() => ({ date: entry?.date ?? todayStr(), time: entry?.time ?? nowStr() }));
+  // A new entry starts at the moment the sheet opened and the person can change it. Hours are logged with Clock in /
+  // Clock out, not here, so an entry being edited keeps the date and time it already has.
+  const [date, setDate] = useState(entry?.date ?? todayStr());
+  const [time, setTime] = useState(entry?.time ?? nowStr());
   const [title, setTitle] = useState(entry?.title ?? "");
   const [skills, setSkills] = useState(entry?.skills.join(", ") ?? "");
   const [description, setDescription] = useState(entry?.description ?? "");
@@ -94,7 +95,7 @@ export default function EntrySheet({ uid, entry, defaultGroupId, onClose, onSave
     }
     setBusy(true);
     const input = {
-      date: stamp.date, time: stamp.time, clockIn: entry?.clockIn ?? "", clockOut: entry?.clockOut ?? "", title: title.trim(), description: description.trim(), visibility, groupIds,
+      date, time, clockIn: entry?.clockIn ?? "", clockOut: entry?.clockOut ?? "", ...(entry?.breakMinutes ? { breakMinutes: entry.breakMinutes } : {}), title: title.trim(), description: description.trim(), visibility, groupIds,
       videoUrl: videoUrl.trim(),
       skills: skills.split(",").map((s) => s.trim()).filter(Boolean),
     };
@@ -110,7 +111,7 @@ export default function EntrySheet({ uid, entry, defaultGroupId, onClose, onSave
 
   return (
     <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <form className="sheet" role="dialog" aria-modal="true"
+      <form className="sheet entry-sheet" role="dialog" aria-modal="true"
         aria-label={entry ? "Edit entry" : "New entry"} onSubmit={submit}>
         <div className="sheet-head">
           <h2>{entry ? "Edit entry" : "New entry"}</h2>
@@ -118,6 +119,8 @@ export default function EntrySheet({ uid, entry, defaultGroupId, onClose, onSave
         </div>
 
         <div className="sheet-body">
+          <div className="es-grid">
+          <div className="es-media">
           <div className="photo-pick">
             <label className="btn">
               <CameraIcon /> Take photo
@@ -153,6 +156,18 @@ export default function EntrySheet({ uid, entry, defaultGroupId, onClose, onSave
             </div>
           )}
 
+          </div>
+          <div className="es-fields">
+          {!entry && (
+            <div className="row">
+              <label>Date
+                <input type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
+              </label>
+              <label>Time
+                <input type="time" value={time} onChange={(e) => setTime(e.target.value)} required />
+              </label>
+            </div>
+          )}
           <label>Activity
             <input ref={titleRef} value={title} onChange={(e) => setTitle(e.target.value)} required
               maxLength={TITLE_MAX} placeholder="e.g. Set up a new PC in the engineering office" />
@@ -169,8 +184,11 @@ export default function EntrySheet({ uid, entry, defaultGroupId, onClose, onSave
           {error === VIDEO_ERROR && <FormError>{error}</FormError>}
           <label>Description <small className={description.length > DESC_MAX * 0.9 ? "count-warn" : "count"}>{description.length}/{DESC_MAX}</small>
             <textarea ref={descRef} rows={5} value={description} onChange={(e) => setDescription(e.target.value)} required maxLength={DESC_MAX}
+              spellCheck lang="en" autoCapitalize="sentences" data-gramm="true"
               placeholder="What happened, what was the problem, how did you solve it?" />
           </label>
+          </div>
+          </div>
 
           {!entry && defaultGroupId && s.groups.ids.has(defaultGroupId) && (
             <p className="hint">This entry will also be shared with {s.groups.list.find((g) => g.id === defaultGroupId)?.name ?? "the group"}.</p>

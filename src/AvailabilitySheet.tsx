@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { cleanExceptions, defaultTimes, isAvailable, isTime, MAX_EXCEPTIONS, shiftMinutes, toggleDate, type Availability } from "./availability";
-import { saveAvailability } from "./hours";
-import { todayStr } from "./report";
+import { cleanExceptions, defaultTimes, isAvailable, isTime, shiftMinutes, toggleDate, toMinutes, toTime, type Availability } from "./availability";
+import { MAX_REQUIRED_HOURS, saveAvailability, setRequiredHours } from "./hours";
+import { clockTime, todayStr } from "./report";
 import { addDays, dayOfWeek, formatHM } from "./weeks";
 import { ChevronLeftIcon, ChevronRightIcon, CloseIcon } from "./icons";
 import { useScrollLock } from "./scrollLock";
@@ -15,24 +15,28 @@ const WEEK: { day: number; short: string; long: string }[] = [
 ];
 
 const WEEK_ERROR = "Pick at least one day you can work.";
-const TIME_ERRORS = ["Set when your day starts and ends.", "Break must be a whole number of minutes.", "The end time must come after the start time, with the break taken out."];
+const GOAL_ERROR = `Enter the hours as a number from 1 to ${MAX_REQUIRED_HOURS}, or leave it empty to remove the goal.`;
+const BREAK_ERROR_LEN = "Set how long the break is, or clear its start time.";
+const BREAK_ERROR_SPAN = "The whole break must fall between your start and end times.";
+const TIME_ERRORS = ["Set when your day starts and ends.", "Break must be a whole number of minutes.", "The end time must come after the start time, with the break taken out.", BREAK_ERROR_LEN, BREAK_ERROR_SPAN];
 
 const pad = (n: number) => String(n).padStart(2, "0");
 const monthStart = (y: number, m: number) => `${y}-${pad(m + 1)}-01`;
 
-type Props = { uid: string; value: Availability; /** the schedule is shown to other people */ share: boolean; onClose: () => void };
+type Props = { uid: string; /** hours required, null when no goal is set */ hours: number | null; value: Availability; /** the schedule is shown to other people */ share: boolean; onClose: () => void };
 
 /**
- * Choose which days you can work. The usual week (say Monday to Friday) sets the pattern, and the calendar lets you
+ * Edit the hours you are required to work and which days you can work. The usual week (say Monday to Friday) sets the pattern, and the calendar lets you
  * change single dates: mark a holiday or an absence unavailable, or a Saturday you will work available.
  */
-export default function AvailabilitySheet({ uid, value, share, onClose }: Props) {
+export default function AvailabilitySheet({ uid, hours, value, share, onClose }: Props) {
   const [a, setA] = useState<Availability>(value);
+  const [goalText, setGoalText] = useState(hours === null ? "" : String(hours));
   const [times, setTimes] = useState(() => {
     const t = value.startTime && value.endTime && value.breakMinutes !== undefined
       ? { startTime: value.startTime, endTime: value.endTime, breakMinutes: value.breakMinutes }
       : defaultTimes(value.hoursPerDay);
-    return { start: t.startTime, end: t.endTime, brk: String(t.breakMinutes) };
+    return { start: t.startTime, end: t.endTime, brk: String(t.breakMinutes), at: value.breakAt ?? "" };
   });
   const today = todayStr();
   const [view, setView] = useState(() => ({ y: Number(today.slice(0, 4)), m: Number(today.slice(5, 7)) - 1 }));
@@ -58,28 +62,42 @@ export default function AvailabilitySheet({ uid, value, share, onClose }: Props)
   const dayMinutes = shiftMinutes(times.start, times.end, Number(times.brk) || 0);
 
   async function save() {
+    const goal = Number(goalText.replace(",", "."));
+    if (goalText.trim() !== "" && (!Number.isFinite(goal) || goal < 0 || goal > MAX_REQUIRED_HOURS)) { setError(GOAL_ERROR); return; }
     const brk = Number(times.brk);
     if (!isTime(times.start) || !isTime(times.end)) { setError("Set when your day starts and ends."); return; }
     if (!Number.isInteger(brk) || brk < 0) { setError("Break must be a whole number of minutes."); return; }
     if (dayMinutes <= 0) { setError("The end time must come after the start time, with the break taken out."); return; }
-    const clean = cleanExceptions({ ...a, hoursPerDay: dayMinutes / 60, startTime: times.start, endTime: times.end, breakMinutes: brk });
+    if (times.at) {
+      if (brk <= 0) { setError(BREAK_ERROR_LEN); return; }
+      if (!isTime(times.at) || toMinutes(times.at) < toMinutes(times.start) || toMinutes(times.at) + brk > toMinutes(times.end)) { setError(BREAK_ERROR_SPAN); return; }
+    }
+    const { breakAt: _old, ...rest } = a;
+    const clean = cleanExceptions({ ...rest, hoursPerDay: dayMinutes / 60, startTime: times.start, endTime: times.end, breakMinutes: brk, ...(times.at ? { breakAt: times.at } : {}) });
     if (clean.workDays.length === 0 && clean.daysOn.length === 0) { setError(WEEK_ERROR); return; }
     setBusy(true);
     setError("");
-    try { await saveAvailability(uid, clean, share); onClose(); }
+    try { await saveAvailability(uid, clean, share); await setRequiredHours(uid, goalText.trim() === "" ? 0 : goal); onClose(); }
     catch (err) { setError((err as Error).message || "Could not save. Try again."); setBusy(false); }
   }
 
   return (
     <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="sheet" role="dialog" aria-modal="true" aria-label="Available days">
+      <div className="sheet" role="dialog" aria-modal="true" aria-label="Edit hours">
         <div className="sheet-head">
-          <h2>Available days</h2>
+          <h2>Edit hours</h2>
           <button type="button" className="icon-btn close" aria-label="Close" onClick={onClose}><CloseIcon /></button>
         </div>
 
         <div className="sheet-body">
           <p className="hint">Used to work out when you will reach your required hours. Hours already logged never change.</p>
+
+          <fieldset className="setting">
+            <legend>Hours required</legend>
+            <input type="number" inputMode="decimal" min="0" max={MAX_REQUIRED_HOURS} step="0.5" aria-label="Hours required"
+              value={goalText} onChange={(e) => setGoalText(e.target.value)} placeholder="e.g. 486" />
+            {error === GOAL_ERROR && <FormError>{error}</FormError>}
+          </fieldset>
 
           <fieldset className="setting">
             <legend>Usual week</legend>
@@ -105,8 +123,15 @@ export default function AvailabilitySheet({ uid, value, share, onClose }: Props)
               <label>Break (min)
                 <input type="number" inputMode="numeric" min="0" step="5" value={times.brk} onChange={(e) => setTimes((t) => ({ ...t, brk: e.target.value }))} />
               </label>
+              <label>Break starts <small>(optional)</small>
+                <input type="time" value={times.at} onChange={(e) => setTimes((t) => ({ ...t, at: e.target.value }))} />
+              </label>
             </div>
             <p className="hint">{dayMinutes > 0 ? <>Counts as <b>{formatHM(dayMinutes)}</b> a day</> : "The end must come after the start."}</p>
+            {times.at && Number(times.brk) > 0 && isTime(times.at) && (
+              <p className="hint">The break from <b>{clockTime(times.at)}</b> to <b>{clockTime(toTime(toMinutes(times.at) + Number(times.brk)))}</b> is taken out of your shift by itself while you are clocked in. Tap Break time before it starts to use those minutes early.{" "}
+                <button type="button" className="link-btn" onClick={() => setTimes((t) => ({ ...t, at: "" }))}>Clear start time</button></p>
+            )}
             {TIME_ERRORS.includes(error) && <FormError>{error}</FormError>}
           </fieldset>
 
@@ -133,11 +158,11 @@ export default function AvailabilitySheet({ uid, value, share, onClose }: Props)
               <li><i className="cal-key avail changed" /> Changed by you</li>
             </ul>
             <p className="hint">Tap a date to switch it, e.g. a holiday or a Saturday you will work.
-              {exceptions > 0 && <> {exceptions} {exceptions === 1 ? "date" : "dates"} changed ({MAX_EXCEPTIONS} at most). <button type="button" className="link-btn" onClick={() => setA((cur) => ({ ...cur, daysOff: [], daysOn: [] }))}>Clear all changes</button></>}
+              {exceptions > 0 && <> {exceptions} {exceptions === 1 ? "date" : "dates"} changed. <button type="button" className="link-btn" onClick={() => setA((cur) => ({ ...cur, daysOff: [], daysOn: [] }))}>Clear all changes</button></>}
             </p>
           </fieldset>
 
-          {error && error !== WEEK_ERROR && !TIME_ERRORS.includes(error) && <FormError>{error}</FormError>}
+          {error && error !== WEEK_ERROR && error !== GOAL_ERROR && !TIME_ERRORS.includes(error) && <FormError>{error}</FormError>}
         </div>
 
         <div className="sheet-actions">

@@ -42,8 +42,12 @@ export type EntryInput = {
   /** Hours worked, HH:mm. Both or neither. Time out earlier than time in means the shift ran past midnight. */
   clockIn?: string;
   clockOut?: string;
-  /** Length of the shift in minutes, stored so reports and totals do not recompute it. Set with clockIn and clockOut. */
+  /** Length of the shift in minutes, break time left out, stored so reports and totals do not recompute it. Set with clockIn and clockOut. */
   minutes?: number;
+  /** Minutes of break taken during the shift (taken out of `minutes`). */
+  breakMinutes?: number;
+  /** Written by Clock out: the shift counts as hours only. It is listed under Logged hours, not in the logbook. */
+  hoursOnly?: boolean;
   /** The clock-in time was changed before clocking out. `originalStart` (HH:mm) and `originalStartDate` are when the clock really started. */
   startEdited?: boolean;
   originalStart?: string;
@@ -99,7 +103,7 @@ const groupPost = (uid: string, entryId: string, input: EntryInput) => ({
 /** The hours fields to store. A new document is written with set(), which cannot use deleteField(), so they are left out there. */
 function hoursFields(input: EntryInput, isNew: boolean): Record<string, unknown> {
   if (input.clockIn && input.clockOut) {
-    return { clockIn: input.clockIn, clockOut: input.clockOut, minutes: spanMinutes(input.clockIn, input.clockOut) };
+    return { clockIn: input.clockIn, clockOut: input.clockOut, minutes: Math.max(0, spanMinutes(input.clockIn, input.clockOut) - (input.breakMinutes ?? 0)) };
   }
   return isNew ? {} : { clockIn: deleteField(), clockOut: deleteField(), minutes: deleteField() };
 }

@@ -43,7 +43,9 @@ function Logbook({ onViewAs }: { onViewAs: () => void }) {
     [s.uid],
   );
 
-  const list = useMemo(() => (entries ?? []).filter((e) => e.archived !== true).sort(newestFirst), [entries]);
+  // Everything that counts as hours (HoursCard, reports) vs. what you posted: a shift saved by Clock out is hours only, not a logbook entry.
+  const hoursList = useMemo(() => (entries ?? []).filter((e) => e.archived !== true).sort(newestFirst), [entries]);
+  const list = useMemo(() => hoursList.filter((e) => e.hoursOnly !== true), [hoursList]);
   // Notes are what you wrote; Reposts and Likes are other people's entries. Only Notes count towards your stats and reports.
   const [tab, setTab] = useState<ProfileTab>("notes");
   const [mode, setMode] = useSortMode("logbook");
@@ -66,17 +68,17 @@ function Logbook({ onViewAs }: { onViewAs: () => void }) {
     else s.manualCopy(text);
   }
   function copyReport() {
-    const text = dailyReport(list, reportDate);
+    const text = dailyReport(hoursList, reportDate);
     if (!text) return s.notify(`No entries on ${longDay(reportDate)}`);
     copy(text, "Daily report copied");
   }
   function copyWeekly() {
-    const text = weeklyReport(list, reportWeek, earliestDay(list));
+    const text = weeklyReport(hoursList, reportWeek, earliestDay(hoursList));
     if (!text) return s.notify(`No entries in the week of ${longDay(reportWeek)}`);
     copy(text, "Weekly report copied");
   }
   function copyDescriptions() {
-    const text = allDescriptions(list);
+    const text = allDescriptions(hoursList);
     if (!text) return s.notify("No descriptions to copy yet");
     copy(text, "Descriptions copied");
   }
@@ -93,7 +95,7 @@ function Logbook({ onViewAs }: { onViewAs: () => void }) {
           ))}
         </div>
 
-        <HoursCard entries={list} loading={entries === null} />
+        <HoursCard entries={hoursList} loading={entries === null} />
 
         <div className="report">
           <div className="report-tabs" role="group" aria-label="Report type">
@@ -123,7 +125,7 @@ function Logbook({ onViewAs }: { onViewAs: () => void }) {
       </ProfileHeader>
 
       {exportOpen && (
-        <ReportSheet entries={list} onClose={() => setExportOpen(false)}
+        <ReportSheet entries={hoursList} onClose={() => setExportOpen(false)}
           initialRange={range.from && range.to && range.from <= range.to ? range : undefined} />
       )}
       {friendsOpen && <FriendsSheet uid={s.uid} onClose={() => setFriendsOpen(false)} />}

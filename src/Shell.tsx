@@ -28,6 +28,7 @@ import GroupsPage from "./pages/GroupsPage";
 import GroupPage from "./pages/GroupPage";
 import PeoplePage from "./pages/PeoplePage";
 import ArchivedPage from "./pages/ArchivedPage";
+import ArchivedChatsPage from "./pages/ArchivedChatsPage";
 import { PersonRoute } from "./pages/PersonPage";
 import PostPage from "./pages/PostPage";
 import { parsePostHash } from "./share";
@@ -41,7 +42,7 @@ import { hideSplash } from "./splash";
 import { useScrollLock } from "./scrollLock";
 
 type Route =
-  | { name: "me" } | { name: "archived" } | { name: "feed" } | { name: "people" } | { name: "groups" }
+  | { name: "me" } | { name: "archived" } | { name: "archivedChats" } | { name: "feed" } | { name: "people" } | { name: "groups" }
   | { name: "messages" } | { name: "thread"; uid: string }
   | { name: "person"; handle: string } | { name: "group"; id: string } | { name: "post"; uid: string; id: string };
 
@@ -53,6 +54,7 @@ function parse(hash: string): Route {
   if (hash.startsWith("#/g/")) return { name: "group", id: decodeURIComponent(hash.slice(4)) };
   if (hash === "#/me" || hash === "#/logbook") return { name: "me" };
   if (hash === "#/archived") return { name: "archived" };
+  if (hash === "#/archived-chats") return { name: "archivedChats" };
   if (hash === "#/groups") return { name: "groups" };
   if (hash === "#/people") return { name: "people" };
   if (hash === "#/messages") return { name: "messages" };
@@ -190,8 +192,8 @@ export default function Shell({ user }: { user: User }) {
   const isMe = route.name === "person" && (route.handle === uid || route.handle.toLowerCase() === me?.username);
   const active = isMe ? { name: "me" } as Route : route;
   const incomingCount = social.incoming.length;
-  const subPage = active.name === "person" || active.name === "group" || active.name === "post" || active.name === "archived";
-  const backTo = active.name === "group" ? "#/groups" : active.name === "person" ? "#/people" : active.name === "archived" ? "#/me" : active.name === "thread" ? "#/messages" : "#/feed";
+  const subPage = active.name === "person" || active.name === "group" || active.name === "post" || active.name === "archived" || active.name === "archivedChats";
+  const backTo = active.name === "group" ? "#/groups" : active.name === "person" ? "#/people" : active.name === "archived" ? "#/me" : active.name === "archivedChats" || active.name === "thread" ? "#/messages" : "#/feed";
   // New entry only belongs on the pages you write to or browse entries on: Feed, Groups (and a group) and your Logbook.
   const showNew = !!me && (active.name === "feed" || active.name === "groups" || active.name === "group" || active.name === "me");
   const newEntry = () => setEntrySheet({ entry: null, groupId: active.name === "group" ? active.id : undefined });
@@ -208,7 +210,7 @@ export default function Shell({ user }: { user: User }) {
         <div className="topbar-in">
           <a className="brand" href="#/feed"><BrandName /></a>
           <div className="top-actions">
-            <MessagesButton on={active.name === "messages" || active.name === "thread"} />
+            <MessagesButton on={active.name === "messages" || active.name === "thread" || active.name === "archivedChats"} />
             <NotificationBell />
             <button type="button" className="icon-btn" onClick={() => setSettingsOpen(true)}
               aria-label="Settings" aria-haspopup="dialog">
@@ -245,6 +247,7 @@ export default function Shell({ user }: { user: User }) {
         {me && active.name === "me" && <MyLogbook />}
         {active.name === "feed" && <FeedPage />}
         {me && active.name === "archived" && <ArchivedPage />}
+        {active.name === "archivedChats" && <ArchivedChatsPage />}
         {active.name === "groups" && <GroupsPage />}
         {active.name === "group" && <GroupPage key={active.id} gid={active.id} />}
         {active.name === "people" && <PeoplePage />}

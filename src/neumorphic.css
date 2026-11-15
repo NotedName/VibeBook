@@ -1,0 +1,72 @@
+/* ---------- soft-UI (neumorphic) layer ----------
+   Raised: cards, buttons, chips and calendar days look pushed out of the surface. Pressed in: fields, panels and the thing that is "on".
+   Pressing a raised control sinks it. Built from the --neu-hi / --neu-lo edges that the switches and time fields already use, so it follows
+   light, dark and AMOLED. Loaded last.
+   Made for phones: only small controls animate, and only box-shadow and transform (cheap to paint); cards are static, so scrolling a feed
+   costs nothing extra; shadows are smaller on phones; hover effects only exist where there is a hover; reduced-motion switches movement off. */
+:root {
+  --neu-raise: 5px 5px 12px var(--neu-lo), -4px -4px 10px var(--neu-hi);
+  --neu-raise-sm: 3px 3px 7px var(--neu-lo), -2px -2px 6px var(--neu-hi);
+  --neu-lift: 7px 7px 16px var(--neu-lo), -5px -5px 12px var(--neu-hi);
+  --neu-press: inset 3px 3px 7px var(--neu-lo), inset -2px -2px 6px var(--neu-hi);
+  --neu-press-sm: inset 2px 2px 4px var(--neu-lo), inset -1px -1px 3px var(--neu-hi);
+}
+@media (max-width: 599.98px) {
+  :root {
+    --neu-raise: 3px 3px 8px var(--neu-lo), -3px -3px 7px var(--neu-hi);
+    --neu-raise-sm: 2px 2px 5px var(--neu-lo), -2px -2px 4px var(--neu-hi);
+    --neu-lift: 4px 4px 10px var(--neu-lo), -3px -3px 8px var(--neu-hi);
+    --neu-press: inset 2px 2px 5px var(--neu-lo), inset -2px -2px 4px var(--neu-hi);
+  }
+}
+
+/* raised surfaces (still) */
+.post, .side-card, .composer, .profile { box-shadow: var(--neu-raise); }
+/* pressed-in panels and fields */
+.hours, .day-detail, .daily-schedule { box-shadow: var(--neu-press); border-color: transparent; }
+.sheet input:not([type="file"]):not([type="checkbox"]):not([type="radio"]), .sheet textarea, .search, .chat-composer textarea, .composer-input {
+  box-shadow: var(--neu-press-sm);
+}
+.sheet input:not([type="file"]):not([type="checkbox"]):not([type="radio"]):focus, .sheet textarea:focus {
+  box-shadow: var(--neu-press-sm), 0 0 0 3px var(--accent-soft);
+}
+.chat-composer textarea:focus, .search:focus-within { box-shadow: var(--neu-press-sm), 0 0 0 2px var(--accent); }
+.topbar .top-actions { box-shadow: var(--neu-press-sm); }
+@media (min-width: 1024px) { .topbar .tabs { box-shadow: var(--neu-press-sm); } }
+
+/* raised controls */
+.btn:not(.primary), .day-chip, .cal-day.off, .act, .chip { box-shadow: var(--neu-raise-sm); border-color: transparent; }
+/* "on" is pressed in */
+.day-chip.on, .cal-day.avail, .topbar .tabs .tab.on, .topbar .tabs .tab.on:hover { box-shadow: var(--neu-press-sm); }
+.cal-day.picked { box-shadow: var(--neu-press-sm), 0 0 0 2px var(--text); }
+.cal-day.today { box-shadow: var(--neu-press-sm); }
+.btn.primary { box-shadow: 4px 4px 10px var(--neu-lo), -2px -2px 6px var(--neu-hi), inset 0 1px 0 rgba(255, 255, 255, .18); }
+
+@media (hover: hover) {
+  .btn:not(.primary):not(:disabled):hover, .act:hover, .chip:hover { box-shadow: var(--neu-lift); }
+  .post:hover, .side-card:hover { box-shadow: var(--neu-lift); }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  /* sinking is quick, coming back up is a soft spring */
+  .btn, .icon-btn, .day-chip, .cal-day, .act, .chip {
+    transition: box-shadow .28s var(--ease), transform .28s var(--spring), background-color .2s var(--ease), color .2s var(--ease), border-color .2s var(--ease);
+  }
+  .btn:active:not(:disabled), .icon-btn:active:not(:disabled), .day-chip:active, .cal-day:active, .act:active, .chip:active {
+    transition-duration: .08s; transform: scale(.97); box-shadow: var(--neu-press-sm);
+  }
+  .btn.primary:active:not(:disabled) { box-shadow: inset 2px 2px 6px rgba(0, 0, 0, .35), inset -1px -1px 3px rgba(255, 255, 255, .12); }
+  /* a day, chip or tab that becomes "on" sinks in with a small settle */
+  .day-chip.on, .cal-day.avail { animation: neu-settle .32s var(--spring); }
+  .sheet input, .sheet textarea, .search, .chat-composer textarea { transition: box-shadow .25s var(--ease), border-color .2s var(--ease), background-color .2s var(--ease); }
+  .post, .side-card { transition: box-shadow .3s var(--ease); }
+}
+@keyframes neu-settle { 0% { transform: scale(1.06); } 100% { transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .btn:active, .icon-btn:active, .day-chip:active, .cal-day:active, .act:active, .chip:active { box-shadow: var(--neu-press-sm); }
+}
+/* touch screens: press feedback only, never a stuck hover lift */
+@media (hover: none) {
+  .btn:not(.primary):not(:disabled):hover, .act:hover, .chip:hover, .post:hover, .side-card:hover { box-shadow: var(--neu-raise-sm); }
+  .post:hover, .side-card:hover { box-shadow: var(--neu-raise); }
+}

@@ -490,7 +490,10 @@ html:has(.auth.split) { scrollbar-gutter: stable; }
   }
 
   /* Edit profile: photos on the left, fields on the right, as on a wide screen, so there is less to scroll */
-  .sheet.profile-sheet { max-width: min(880px, 100%); }
+  .sheet.profile-sheet, .sheet.entry-sheet { max-width: min(880px, 100%); }
+  .es-grid { grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: 16px; align-items: start; }
+  .entry-sheet .sheet-actions { justify-content: flex-end; }
+  .entry-sheet .sheet-actions .btn, .entry-sheet .sheet-actions .btn.primary { flex: 0 0 auto; padding: 8px 24px; }
 }
 /* room for names beside the icons */
 @media (orientation: landscape) and (min-width: 900px) and (max-height: 500px) and (max-width: 1023.98px) {
@@ -606,7 +609,7 @@ html:has(.auth.split) { scrollbar-gutter: stable; }
 .clock-actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 104px), 1fr)); gap: 8px; }
 .clock-actions .btn { width: 100%; padding-inline: 10px; }
 .hours-form .btn { flex: 1 1 88px; }
-.hours-top > .btn { flex: none; max-width: 60%; }
+.hours-actions { display: flex; align-items: center; gap: 6px; flex: none; }
 @media (max-width: 359.98px) {
   .sheet-actions { flex-wrap: wrap; }
   .sheet-actions .btn { flex: 1 1 120px; }
@@ -630,7 +633,7 @@ body:has(.overlay, .lightbox) .tab-new { visibility: hidden; }
 .clock-row > .btn { justify-self: stretch; width: 100%; }
 .clock-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .clock-actions .btn { width: 100%; }
-.clock-actions .btn.primary { grid-column: 1 / -1; }
+.clock-actions .btn.primary, .clock-actions .btn.break { grid-column: 1 / -1; }
 /* Save / Cancel in the small hours forms share the row evenly (and drop under the field when it is tight) */
 .hours-form .btn { flex: 1 1 96px; }
 /* Mark all as read / Clear all in notifications share the row */

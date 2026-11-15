@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { isAvailable, shiftMinutes, type Availability } from "./availability";
+import { describeDays, isAvailable, shiftMinutes, toMinutes, toTime, type Availability } from "./availability";
 import { addDays, dayOfWeek, formatHM } from "./weeks";
 import { clockTime, longDay, todayStr } from "./report";
 import { ChevronLeftIcon, ChevronRightIcon, CloseIcon } from "./icons";
@@ -40,6 +40,15 @@ export default function SharedScheduleSheet({ name, schedule: a, onClose }: { na
           <button type="button" className="icon-btn close" aria-label="Close" onClick={onClose}><CloseIcon /></button>
         </div>
         <div className="sheet-body">
+          <section className="daily-schedule" aria-label="Daily schedule">
+            <h3>Daily schedule</h3>
+            <p>
+              {a.workDays.length ? <b>{describeDays(a.workDays)}</b> : <b>No set days</b>}
+              {hasTimes ? <> · {clockTime(a.startTime!)} to {clockTime(a.endTime!)}</> : null}
+            </p>
+            <p>{formatHM(mins)} a day{hasTimes ? (a.breakMinutes ? ` · ${a.breakMinutes} min break` : " · no break") : ""}</p>
+            {a.breakAt && a.breakMinutes ? <p>Break {clockTime(a.breakAt)} to {clockTime(toTime(toMinutes(a.breakAt) + a.breakMinutes))}</p> : null}
+          </section>
           <div className="cal-head">
             <button type="button" className="icon-btn" aria-label="Previous month" onClick={() => shift(-1)}><ChevronLeftIcon /></button>
             <b>{new Date(view.y, view.m, 1).toLocaleDateString("en-US", { month: "long", year: "numeric" })}</b>

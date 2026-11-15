@@ -2,7 +2,8 @@ import {
   useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ClipboardEvent, type KeyboardEvent,
 } from "react";
 import {
-  failureReason, isUnread, markConversationSeen, MESSAGE_MAX, PAGE, SEARCH_WINDOW, sendMessage, useMessages, type Message, type Outgoing,
+  calledBy, failureReason, isUnread, markRead, MESSAGE_MAX, PAGE, SEARCH_WINDOW, sendMessage, unblockPerson, useChatSettings, useMessages,
+  type Message, type Outgoing,
 } from "../messages";
 import { personHash } from "../profiles";
 import { useProfile, useSession } from "../session";
@@ -13,12 +14,13 @@ import type { Media } from "../stickers";
 import type { Profile } from "../types";
 import Avatar from "../Avatar";
 import Highlight from "../Highlight";
+import ChatActionsSheet from "../ChatActionsSheet";
 import ChatInfoSheet from "../ChatInfoSheet";
 import ImageViewer from "../ImageViewer";
 import { enterSendsMessage } from "../preferences";
 import MediaPicker from "../MediaPicker";
 import {
-  ArrowLeftIcon, ChevronDownIcon, ChevronUpIcon, CloseIcon, ImageIcon, SearchIcon, SendIcon, SmileIcon,
+  ArrowLeftIcon, ChevronDownIcon, ChevronUpIcon, CloseIcon, ImageIcon, MenuIcon, SearchIcon, SendIcon, SmileIcon,
 } from "../icons";
 import { LinesSkeleton } from "../Skeleton";
 
@@ -136,7 +138,8 @@ type Failed = { key: number; out: Outgoing; reason: string };
 const outboxes = new Map<string, Failed[]>(); // per conversation, so leaving the chat and coming back keeps them
 let failedSeq = 0;
 
-function Composer({ onSend }: { onSend: (out: Outgoing) => void }) {
+/** `emoji` is what the button next to the box sends (a thumbs up unless you and your friend picked another one in the chat info). */
+function Composer({ onSend, emoji }: { onSend: (out: Outgoing) => void; emoji: string }) {
   const s = useSession();
   const [text, setText] = useState("");
   const [preparing, setPreparing] = useState(0);
@@ -217,8 +220,8 @@ function Composer({ onSend }: { onSend: (out: Outgoing) => void }) {
           onChange={(e) => setText(e.target.value)} onKeyDown={onKey} onPaste={onPaste} />
         {ready
           ? <button key="send" type="submit" className="icon-btn send" aria-label="Send" disabled={preparing > 0}><SendIcon /></button>
-          : <button key="like" type="button" className="icon-btn like" aria-label="Send a thumbs up" title="Send a thumbs up"
-            onClick={() => onSend({ text: "👍" })}>👍</button>}
+          : <button key="like" type="button" className="icon-btn like" aria-label={`Send ${emoji}`} title={`Send ${emoji}`}
+            onClick={() => onSend({ text: emoji })}>{emoji}</button>}
         <input ref={files} type="file" accept="image/*" multiple hidden
           onChange={(e) => { void addFiles(Array.from(e.target.files ?? [])); e.target.value = ""; }} />
       </form>
@@ -236,9 +239,12 @@ export default function ThreadPage({ uid: other }: { uid: string }) {
   const frame = useRef<HTMLDivElement>(null);
   useMessagingFrame(frame);
 
+  const settings = useChatSettings(s.uid, other);
+  const prefs = s.chats.prefsOf(other);
+  const blocked = s.chats.blocked.has(other);
   const [count, setCount] = useState(PAGE);
-  const { messages, hasMore, loading, error } = useMessages(s.uid, other, count);
-  const chat = s.chats.list.find((c) => c.other === other);
+  const { messages, hasMore, loading, error } = useMessages(s.uid, other, count, prefs.clearedAt);
+  const chat = s.chats.all.find((c) => c.other === other);
   const friend = s.friends.has(other);
   const unread = chat ? isUnread(chat, s.uid) : false;
 
@@ -249,6 +255,7 @@ export default function ThreadPage({ uid: other }: { uid: string }) {
   const [viewer, setViewer] = useState("");
   const [finding, setFinding] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
+  const [actionsOpen, setActionsOpen] = useState(false);
   const [q, setQ] = useState("");
   const [curId, setCurId] = useState("");
   const [failed, setFailed] = useState<Failed[]>(() => outboxes.get(other) ?? []);
@@ -266,10 +273,10 @@ export default function ThreadPage({ uid: other }: { uid: string }) {
   const retry = (f: Failed) => { changeFailed((cur) => cur.filter((x) => x.key !== f.key)); dispatch(f.out); };
   const discard = (f: Failed) => changeFailed((cur) => cur.filter((x) => x.key !== f.key));
 
-  // Opening a conversation, or getting a message while it is open, marks it read.
+  // Opening a conversation, or getting a message while it is open, marks it read (the other person is only told if read receipts are on).
   useEffect(() => {
-    if (unread) markConversationSeen(s.uid, other).catch(() => {});
-  }, [unread, s.uid, other]);
+    if (unread) markRead(s.uid, other, prefs.receipts).catch(() => {});
+  }, [unread, prefs.receipts, s.uid, other]);
 
   const toBottom = useCallback(() => {
     const el = body.current;
@@ -346,7 +353,8 @@ export default function ThreadPage({ uid: other }: { uid: string }) {
     );
   }
 
-  const name = p === undefined ? "…" : p.displayName || "VibeBook member";
+  const realName = p === undefined ? "…" : p.displayName || "VibeBook member";
+  const name = calledBy(settings, other, realName);
 
   return (
     <div className="chat" ref={frame}>
@@ -376,6 +384,7 @@ export default function ThreadPage({ uid: other }: { uid: string }) {
             </span>
           </button>
           <button type="button" className="icon-btn" aria-label="Search in conversation" title="Search in conversation" onClick={openSearch}><SearchIcon /></button>
+          <button type="button" className="icon-btn" aria-label="Chat menu" title="Chat menu" aria-haspopup="dialog" onClick={() => setActionsOpen(true)}><MenuIcon /></button>
         </header>
       )}
       {finding && hasMore && (
@@ -402,7 +411,7 @@ export default function ThreadPage({ uid: other }: { uid: string }) {
                 {messages.length === 0 && <p className="hint">No messages yet. Say hello.</p>}
               </div>
             )}
-            <Bubbles messages={messages} loading={loading} me={s.uid} other={p} otherSeenAt={chat?.otherSeenAt ?? 0}
+            <Bubbles messages={messages} loading={loading} me={s.uid} other={p} otherSeenAt={prefs.receipts ? chat?.otherSeenAt ?? 0 : 0}
               q={finding ? q : ""} activeId={finding ? activeId : ""} onPhoto={setViewer} />
             {failed.map((f) => (
               <div key={f.key} className="msg mine solo failed" role="group" aria-label="Message not sent">
@@ -428,13 +437,20 @@ export default function ThreadPage({ uid: other }: { uid: string }) {
         )}
       </div>
 
-      {friend
-        ? <Composer onSend={dispatch} />
+      {blocked ? (
+        <p className="hint chat-locked">
+          You blocked {name}. You cannot message each other.{" "}
+          <button type="button" className="link-act" onClick={() => unblockPerson(s.uid, other).then(() => s.notify(`Unblocked ${name}`), () => s.notify("Could not unblock"))}>Unblock</button>
+        </p>
+      ) : friend
+        ? <Composer onSend={dispatch} emoji={settings.emoji} />
         : <p className="hint chat-locked">You can only message people who are your friends.</p>}
       {infoOpen && (
-        <ChatInfoSheet uid={other} profile={p} friend={friend} onClose={() => setInfoOpen(false)}
-          onSearch={() => { setInfoOpen(false); openSearch(); }} />
+        <ChatInfoSheet uid={other} profile={p} friend={friend} settings={settings} messages={messages} hasMore={hasMore}
+          onLoadOlder={() => setCount((n) => n + SEARCH_WINDOW)} onPhoto={setViewer}
+          onClose={() => setInfoOpen(false)} onSearch={() => { setInfoOpen(false); openSearch(); }} />
       )}
+      {actionsOpen && <ChatActionsSheet other={other} profile={p} name={name} onClose={() => setActionsOpen(false)} />}
       {viewer && <ImageViewer src={viewer} label="Photo" onClose={() => setViewer("")} />}
     </div>
   );

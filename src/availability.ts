@@ -11,18 +11,22 @@ export type Availability = {
   hoursPerDay: number;
   /** how that day is made up, "HH:MM", so the schedule sheet can show it again */
   startTime?: string; endTime?: string; breakMinutes?: number;
+  /** when the break starts, "HH:MM". With breakMinutes it is the planned break: taken out of the shift automatically (see hours.ts) */
+  breakAt?: string;
 };
 
+/** The planned break of a day: when it starts and how long it lasts. */
+export type BreakPlan = { at: string; minutes: number };
+export const planOf = (a: Availability): BreakPlan | null => (a.breakAt && a.breakMinutes && a.breakMinutes > 0 ? { at: a.breakAt, minutes: a.breakMinutes } : null);
+
 export const DEFAULT_AVAILABILITY: Availability = { workDays: [1, 2, 3, 4, 5], daysOff: [], daysOn: [], hoursPerDay: 8 };
-/** Most dates that can be listed as exceptions (firestore.rules allows the same). */
-export const MAX_EXCEPTIONS = 400;
 
 const isDate = (x: unknown): x is string => typeof x === "string" && /^\d{4}-\d{2}-\d{2}$/.test(x);
 
 const pad = (n: number) => String(n).padStart(2, "0");
 export const isTime = (x: unknown): x is string => typeof x === "string" && /^([01]\d|2[0-3]):[0-5]\d$/.test(x);
-const toMinutes = (t: string) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
-const toTime = (n: number) => `${pad(Math.floor(n / 60))}:${pad(n % 60)}`;
+export const toMinutes = (t: string) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
+export const toTime = (n: number) => `${pad(Math.floor(n / 60))}:${pad(n % 60)}`;
 
 /** Minutes in a full day: from start to end, less the break. 0 when the times are missing, not in order, or the break takes the whole day. */
 export function shiftMinutes(start: string, end: string, breakMinutes: number): number {
@@ -49,6 +53,7 @@ export function normalizeAvailability(raw: Record<string, unknown> | undefined):
     daysOn: Array.isArray(raw.daysOn) ? raw.daysOn.filter(isDate) : [],
     hoursPerDay: hpd,
     ...(timed ? { startTime: raw.startTime as string, endTime: raw.endTime as string, breakMinutes: raw.breakMinutes as number } : {}),
+    ...(timed && isTime(raw.breakAt) ? { breakAt: raw.breakAt } : {}),
   };
 }
 
@@ -107,4 +112,17 @@ export function projectFinish(remainingMinutes: number, today: string, todayMinu
     if (left <= 0) return { availableDays: days, finishDate: date };
   }
   return null;
+}
+
+const NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+/** "Mon to Fri", "Mon to Wed, Sat": runs of days in the order the logbook uses (Sunday first). */
+export function describeDays(days: number[]): string {
+  const order = [0, 1, 2, 3, 4, 5, 6].filter((d) => days.includes(d));
+  const runs: number[][] = [];
+  for (const d of order) {
+    const last = runs[runs.length - 1];
+    if (last && (last[last.length - 1] + 1) % 7 === d && d !== 0) last.push(d); else runs.push([d]);
+  }
+  return runs.map((r) => (r.length > 2 ? `${NAMES[r[0]]} to ${NAMES[r[r.length - 1]]}` : r.map((d) => NAMES[d]).join(", "))).join(", ");
 }

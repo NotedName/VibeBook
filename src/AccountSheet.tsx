@@ -8,7 +8,7 @@ import { useScrollLock } from "./scrollLock";
 
 /** Opened from the profile picture in the top bar: who you are signed in as, a way to your profile, and Sign out. */
 export default function AccountSheet({ email, onClose }: { email: string; onClose: () => void }) {
-  const { me } = useSession();
+  const { me, chats } = useSession();
 
   useScrollLock();
   useEffect(() => {
@@ -34,6 +34,7 @@ export default function AccountSheet({ email, onClose }: { email: string; onClos
           </div>
           <a className="btn" href="#/me" onClick={onClose}><BookIcon />View my logbook</a>
           <a className="btn" href="#/archived" onClick={onClose}><ArchiveIcon />Archived entries</a>
+          <a className="btn" href="#/archived-chats" onClick={onClose}><ArchiveIcon />Archived chats{chats.archived.length > 0 ? ` (${chats.archived.length})` : ""}</a>
           <button type="button" className="btn primary" onClick={() => signOut(auth)}>Sign out</button>
         </div>
       </div>

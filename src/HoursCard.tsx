@@ -1,12 +1,12 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { addEntry, type Entry } from "./entries";
 import { clockTime, longDay, nowStr, todayStr } from "./report";
-import { discardClock, clockIn, editClockStart, MAX_REQUIRED_HOURS, publishHours, runningMinutes, setRequiredHours, useHoursGoal, useRunningClock } from "./hours";
-import { availableDaysIn, projectFinish } from "./availability";
+import { breakComesAt, breakEndsAt, breakMinutesOf, clockIn, discardClock, editClockStart, endBreak, isOnBreak, publishHours, runningMinutes, startBreak, useHoursGoal, useRunningClock } from "./hours";
+import { availableDaysIn, planOf, projectFinish } from "./availability";
 import AvailabilitySheet from "./AvailabilitySheet";
 import { formatHM, spanMinutes, sumMinutes, weekEnd, weekStart } from "./weeks";
 import { useSession } from "./session";
-import { ClockIcon, EditIcon, ListIcon } from "./icons";
+import { ClockIcon, CoffeeIcon, EditIcon, ListIcon, PlayIcon } from "./icons";
 import { HoursSkeleton } from "./Skeleton";
 import ConfirmDialog from "./ConfirmDialog";
 import FormError from "./FormError";
@@ -27,8 +27,6 @@ export default function HoursCard({ entries, loading = false }: { entries: Entry
   const [daysOpen, setDaysOpen] = useState(false);
   const clock = useRunningClock(s.uid);
   const [now, setNow] = useState(() => Date.now());
-  const [editingGoal, setEditingGoal] = useState(false);
-  const [goalText, setGoalText] = useState("");
   const [editingStart, setEditingStart] = useState(false);
   const [startDate, setStartDate] = useState("");
   const [startTime, setStartTime] = useState("");
@@ -50,6 +48,7 @@ export default function HoursCard({ entries, loading = false }: { entries: Entry
   const thisWeekStart = weekStart(todayStr());
   const thisWeek = sumMinutes(entries.filter((e) => e.date >= thisWeekStart && e.date <= weekEnd(thisWeekStart)));
   const a = goal.availability;
+  const plan = planOf(a);
   // What a full week would hold, and how long until the required hours are reached, counting only the days you can work.
   const weekCapacity = availableDaysIn(thisWeekStart, weekEnd(thisWeekStart), a) * a.hoursPerDay * 60;
   const todayMinutes = sumMinutes(entries.filter((e) => e.date === todayStr()));
@@ -69,25 +68,10 @@ export default function HoursCard({ entries, loading = false }: { entries: Entry
     try { await job(); } catch (err) { setError((err as Error).message || "Something went wrong. Try again."); }
   }
 
-  function saveGoal(e: FormEvent) {
-    e.preventDefault();
-    const n = Number(goalText.replace(",", "."));
-    if (goalText.trim() !== "" && (!Number.isFinite(n) || n < 0 || n > MAX_REQUIRED_HOURS)) {
-      setError(`Enter the hours as a number from 1 to ${MAX_REQUIRED_HOURS}, or leave it empty to remove the goal.`);
-      return;
-    }
-    run(async () => { await setRequiredHours(s.uid, goalText.trim() === "" ? 0 : n); setEditingGoal(false); });
-  }
-
-  function startEditingGoal() {
-    setGoalText(goal.hours === null ? "" : String(goal.hours));
-    setEditingGoal(true);
-    setError("");
-  }
-
   /**
-   * Clocking out saves the shift straight away; no write-up is needed. The hours are kept as a private entry that you can
-   * open later (Edit) to add what you did, the skills and photos.
+   * Clocking out saves the shift straight away; no write-up is needed and nothing is posted. The shift is an hours-only
+   * entry: it counts in your hours and is listed under Logged hours (Edit there to add what you did), not in the logbook.
+   * A break that is still running ends now. Break time is not counted.
    */
   function clockOut() {
     if (!clock || clocking) return;
@@ -95,13 +79,15 @@ export default function HoursCard({ entries, loading = false }: { entries: Entry
     if (out === clock.time) { setError("You clocked in this minute. Wait a moment, or use Discard."); return; }
     setClocking(true);
     run(async () => {
+      const breakMinutes = breakMinutesOf(clock, Date.now(), plan);
       await addEntry(s.uid, {
         date: clock.date, time: clock.time, clockIn: clock.time, clockOut: out,
+        ...(breakMinutes > 0 ? { breakMinutes } : {}),
         ...(clock.edited ? { startEdited: true, originalStart: clock.origTime, originalStartDate: clock.origDate } : {}),
-        title: "Hours logged", description: "", skills: [], visibility: "private", groupIds: [], videoUrl: "",
+        title: "Hours logged", description: "", skills: [], visibility: "private", groupIds: [], videoUrl: "", hoursOnly: true,
       }, []);
       await discardClock(s.uid);
-      s.notify(`Clocked out · ${formatHM(spanMinutes(clock.time, out))} logged`);
+      s.notify(`Clocked out · ${formatHM(Math.max(0, spanMinutes(clock.time, out) - breakMinutes))} logged`);
     }).finally(() => setClocking(false));
   }
 
@@ -129,22 +115,13 @@ export default function HoursCard({ entries, loading = false }: { entries: Entry
           <b>{formatHM(spent)}</b>
           <span>{required !== null ? `of ${formatHM(required)} required` : "hours logged"}</span>
         </div>
-        <button type="button" className="btn small" title={required === null ? "Set required hours" : "Edit required hours"} onClick={startEditingGoal}>
-          <EditIcon /><span className="lbl">{required === null ? "Set required hours" : "Edit"}</span>
-        </button>
+        <div className="hours-actions">
+          <button type="button" className="btn small" title="Edit required hours and available days" onClick={() => setDaysOpen(true)}>
+            <EditIcon /><span className="lbl">Edit</span>
+          </button>
+          <button type="button" className="icon-btn" aria-label="Logged hours" title="Logged hours" onClick={() => setLogOpen(true)}><ListIcon /></button>
+        </div>
       </div>
-
-      {editingGoal && (
-        <form className="hours-form" onSubmit={saveGoal}>
-          <label>Hours required
-            <input type="number" inputMode="decimal" min="0" max={MAX_REQUIRED_HOURS} step="0.5" autoFocus
-              value={goalText} onChange={(e) => setGoalText(e.target.value)} placeholder="e.g. 486" />
-          </label>
-          <button type="submit" className="btn primary">Save</button>
-          <button type="button" className="btn" onClick={() => setEditingGoal(false)}>Cancel</button>
-          {editingGoal && error && <FormError>{error}</FormError>}
-        </form>
-      )}
 
       {required !== null && (
         <>
@@ -162,11 +139,7 @@ export default function HoursCard({ entries, loading = false }: { entries: Entry
       )}
       {projection === null && required !== null && left > 0 && <p className="hint hours-line">No available days set, so there is no finish date.</p>}
       <p className="hint hours-line">This week: <b>{formatHM(thisWeek)}</b>{weekCapacity > 0 && <> of {formatHM(weekCapacity)} available</>}</p>
-      <button type="button" className="btn small hours-log-btn" onClick={() => setLogOpen(true)}><ListIcon /> Logged hours</button>
-      <div className="hours-days">
-        <button type="button" className="btn small" onClick={() => setDaysOpen(true)}>Available days</button>
-        <span className="hint">{WEEKDAYS.filter((d) => a.workDays.includes(d.day)).map((d) => d.short).join(" ") || "None"}{a.daysOff.length + a.daysOn.length > 0 ? ` · ${a.daysOff.length + a.daysOn.length} changed` : ""}</span>
-      </div>
+      <p className="hint hours-line">Available days: {WEEKDAYS.filter((d) => a.workDays.includes(d.day)).map((d) => d.short).join(" ") || "None"}{a.daysOff.length + a.daysOn.length > 0 ? ` · ${a.daysOff.length + a.daysOn.length} changed` : ""}</p>
 
       <div className="clock-row">
         {clock === undefined ? null : clock === null ? (
@@ -179,7 +152,15 @@ export default function HoursCard({ entries, loading = false }: { entries: Entry
               <ClockIcon />
               <span>
                 Clocked in at {clockTime(clock.time)}{clock.date !== todayStr() ? `, ${longDay(clock.date)}` : ""}
-                <small>{formatHM(runningMinutes(clock, now))} so far</small>
+                <small>{formatHM(runningMinutes(clock, now, plan))} so far{(() => {
+                  if (isOnBreak(clock, now, plan)) {
+                    const ends = breakEndsAt(clock, now, plan);
+                    return ends === null ? " · on break, time paused" : ` · on break until ${clockTime(new Date(ends).toTimeString().slice(0, 5))}, time paused`;
+                  }
+                  const comes = breakComesAt(clock, now, plan);
+                  if (comes !== null) return ` · break at ${clockTime(new Date(comes).toTimeString().slice(0, 5))}`;
+                  return breakMinutesOf(clock, now, plan) > 0 ? ` · ${formatHM(breakMinutesOf(clock, now, plan))} break` : "";
+                })()}</small>
                 {clock.edited && <small className="start-edited">Start edited · was {clockTime(clock.origTime!)}{clock.origDate !== clock.date ? `, ${longDay(clock.origDate!)}` : ""}</small>}
               </span>
             </p>
@@ -198,13 +179,16 @@ export default function HoursCard({ entries, loading = false }: { entries: Entry
             ) : (
               <div className="clock-actions">
                 <button type="button" className="btn primary" disabled={clocking} onClick={clockOut}>Clock out</button>
+                <button type="button" className="btn break" onClick={() => run(() => (isOnBreak(clock, Date.now(), plan) ? endBreak(s.uid, clock, plan) : startBreak(s.uid, clock, plan)))}>
+                  {isOnBreak(clock, now, plan) ? <><PlayIcon /> Resume</> : <><CoffeeIcon /> Break time</>}
+                </button>
                 <button type="button" className="btn" onClick={() => setConfirming("start")}>Edit start</button>
                 <button type="button" className="btn danger" onClick={() => setConfirming("discard")}>Discard</button>
               </div>
             )}
           </div>
         )}
-        {!editingGoal && !editingStart && error && <FormError>{error}</FormError>}
+        {!editingStart && error && <FormError>{error}</FormError>}
       </div>
       {confirming === "start" && clock && (
         <ConfirmDialog title="Change your start time?" confirmLabel="Yes, edit start"
@@ -224,8 +208,8 @@ export default function HoursCard({ entries, loading = false }: { entries: Entry
           </ConfirmDialog>
         );
       })()}
-      {logOpen && <HoursLogSheet entries={entries} clock={clock ?? null} onClose={() => setLogOpen(false)} />}
-      {daysOpen && <AvailabilitySheet uid={s.uid} value={a} share={!!s.me && s.me.scheduleAudience !== "private"} onClose={() => setDaysOpen(false)} />}
+      {logOpen && <HoursLogSheet entries={entries} clock={clock ?? null} plan={plan} onClose={() => setLogOpen(false)} />}
+      {daysOpen && <AvailabilitySheet uid={s.uid} hours={goal.hours} value={a} share={!!s.me && s.me.scheduleAudience !== "private"} onClose={() => setDaysOpen(false)} />}
     </section>
   );
 }

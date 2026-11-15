@@ -1,6 +1,7 @@
 import { useEffect, useMemo } from "react";
 import type { Entry } from "./entries";
 import { runningMinutes, type RunningClock } from "./hours";
+import type { BreakPlan } from "./availability";
 import { clockTime, longDay, todayStr } from "./report";
 import { entryMinutes, formatHM, sumMinutes, weekEnd, weekNumber, weekRange, weekStart, earliestDay } from "./weeks";
 import { useSession } from "./session";
@@ -8,7 +9,7 @@ import { ClockIcon, CloseIcon, EditIcon } from "./icons";
 import { useScrollLock } from "./scrollLock";
 
 /** Your own hours, newest first, week by week: when each shift started and ended, how long it was, and whether the start was edited. */
-export default function HoursLogSheet({ entries, clock, onClose }: { entries: Entry[]; clock: RunningClock | null; onClose: () => void }) {
+export default function HoursLogSheet({ entries, clock, plan, onClose }: { entries: Entry[]; clock: RunningClock | null; plan?: BreakPlan | null; onClose: () => void }) {
   useScrollLock();
   const s = useSession();
   useEffect(() => {
@@ -50,7 +51,7 @@ export default function HoursLogSheet({ entries, clock, onClose }: { entries: En
                     <span className="log-times"><ClockIcon /> {clockTime(clock.time)} – still running</span>
                     {clock.edited && <span className="log-badge">Start edited · was {clockTime(clock.origTime!)}{clock.origDate !== clock.date ? `, ${longDay(clock.origDate!)}` : ""}</span>}
                   </div>
-                  <span className="log-len">{formatHM(runningMinutes(clock))}</span>
+                  <span className="log-len">{formatHM(runningMinutes(clock, Date.now(), plan))}</span>
                 </li>
               </ul>
             </section>

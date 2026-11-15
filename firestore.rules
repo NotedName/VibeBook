@@ -204,8 +204,8 @@ service cloud.firestore {
     // Hours: private documents that follow you to every device. Only you can read or write them, except 'shared'.
     //  - goal:   { requiredHours, workDays, daysOff, daysOn, hoursPerDay, startTime, endTime, breakMinutes }: the hours your school or company requires
     //            (1 to 10000, may have decimals; absent when no goal is set) and which days you can work. workDays are
-    //            weekday numbers 0 to 6; daysOff and daysOn are dates that differ from the usual week (400 at most each);
-    //  - clock:  { date, time, edited, origDate, origTime }: the moment you clocked in (and, if you changed it, when you really did), present only while the clock is running;
+    //            weekday numbers 0 to 6; daysOff and daysOn are dates that differ from the usual week (no limit);
+    //  - clock:  { date, time, edited, origDate, origTime, breakMs, breakStart, breakPlanned, planUsed }: the moment you clocked in (and, if you changed it, when you really did), present only while the clock is running. breakMs is the break time taken so far; breakStart (epoch ms) is present only while a break is running;
     //  - report: the lines printed at the top of exported Word and PDF reports (names, school), each up to 120 characters;
     //  - shared: { minutes, requiredMinutes }: the total you have logged and the total required, which the people in your
     //            hoursAudience can read (Settings > Privacy). The app keeps it in step and deletes it when you choose only me;
@@ -219,13 +219,14 @@ service cloud.firestore {
       allow delete: if isOwner(uid);
       allow create, update: if isOwner(uid) && (
         (docId == 'goal'
-          && request.resource.data.keys().hasOnly(['requiredHours', 'workDays', 'daysOff', 'daysOn', 'hoursPerDay', 'startTime', 'endTime', 'breakMinutes'])
+          && request.resource.data.keys().hasOnly(['requiredHours', 'workDays', 'daysOff', 'daysOn', 'hoursPerDay', 'startTime', 'endTime', 'breakMinutes', 'breakAt'])
+          && request.resource.data.get('breakAt', '00:00') is string && request.resource.data.get('breakAt', '00:00').matches('^([01][0-9]|2[0-3]):[0-5][0-9]$')
           && request.resource.data.get('requiredHours', 1) is number
           && request.resource.data.get('requiredHours', 1) > 0
           && request.resource.data.get('requiredHours', 1) <= 10000
           && request.resource.data.get('workDays', []) is list && request.resource.data.get('workDays', []).size() <= 7
-          && request.resource.data.get('daysOff', []) is list && request.resource.data.get('daysOff', []).size() <= 400
-          && request.resource.data.get('daysOn', []) is list && request.resource.data.get('daysOn', []).size() <= 400
+          && request.resource.data.get('daysOff', []) is list
+          && request.resource.data.get('daysOn', []) is list
           && request.resource.data.get('hoursPerDay', 8) is number
           && request.resource.data.get('hoursPerDay', 8) > 0
           && request.resource.data.get('hoursPerDay', 8) <= 24
@@ -236,7 +237,11 @@ service cloud.firestore {
           && request.resource.data.get('breakMinutes', 0) is number
           && request.resource.data.get('breakMinutes', 0) >= 0 && request.resource.data.get('breakMinutes', 0) <= 1440)
         || (docId == 'clock'
-          && request.resource.data.keys().hasOnly(['date', 'time', 'edited', 'origDate', 'origTime'])
+          && request.resource.data.keys().hasOnly(['date', 'time', 'edited', 'origDate', 'origTime', 'breakMs', 'breakStart', 'breakPlanned', 'planUsed'])
+          && request.resource.data.get('breakPlanned', false) is bool
+          && request.resource.data.get('planUsed', false) is bool
+          && request.resource.data.get('breakMs', 0) is number && request.resource.data.get('breakMs', 0) >= 0
+          && request.resource.data.get('breakStart', 0) is number
           && request.resource.data.get('edited', false) is bool
           && request.resource.data.get('origDate', '0000-00-00') is string && request.resource.data.get('origDate', '0000-00-00').size() == 10
           && request.resource.data.get('origTime', '00:00') is string && request.resource.data.get('origTime', '00:00').size() == 5
@@ -259,9 +264,10 @@ service cloud.firestore {
           && request.resource.data.get('requiredMinutes', 1) > 0
           && request.resource.data.get('requiredMinutes', 1) <= 600000)
         || (docId == 'schedule'
-          && request.resource.data.keys().hasOnly(['workDays', 'hoursPerDay', 'daysOff', 'daysOn', 'startTime', 'endTime', 'breakMinutes'])
-          && request.resource.data.get('daysOff', []) is list && request.resource.data.get('daysOff', []).size() <= 400
-          && request.resource.data.get('daysOn', []) is list && request.resource.data.get('daysOn', []).size() <= 400
+          && request.resource.data.keys().hasOnly(['workDays', 'hoursPerDay', 'daysOff', 'daysOn', 'startTime', 'endTime', 'breakMinutes', 'breakAt'])
+          && request.resource.data.get('breakAt', '00:00') is string && request.resource.data.get('breakAt', '00:00').size() == 5
+          && request.resource.data.get('daysOff', []) is list
+          && request.resource.data.get('daysOn', []) is list
           && request.resource.data.get('startTime', '00:00') is string && request.resource.data.get('startTime', '00:00').size() == 5
           && request.resource.data.get('endTime', '00:00') is string && request.resource.data.get('endTime', '00:00').size() == 5
           && request.resource.data.get('breakMinutes', 0) is number
@@ -689,12 +695,19 @@ service cloud.firestore {
     // edited or deleted. "seen" holds when each person last read the conversation, and you can only change your own.
     function inPair(pid) { return signedIn() && request.auth.uid in pid.split('_'); }
     function friendsInPair(pid) { return exists(/databases/$(database)/documents/friendships/$(pid)); }
+    // The other person in a conversation, and whether either of you blocked the other (a block stops new messages both ways).
+    function otherInPair(pid) { return pid.split('_')[0] == request.auth.uid ? pid.split('_')[1] : pid.split('_')[0]; }
+    function blockedInPair(pid) {
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid)/blocked/$(otherInPair(pid)))
+        || exists(/databases/$(database)/documents/users/$(otherInPair(pid))/blocked/$(request.auth.uid));
+    }
 
     match /conversations/{pid} {
       // Judged on the document's own members (not its name) so the inbox query (members array-contains you) is allowed.
       allow read: if signedIn() && request.auth.uid in resource.data.members;
       allow create: if inPair(pid)
         && friendsInPair(pid)
+        && !blockedInPair(pid)
         && request.resource.data.keys().hasOnly(['members', 'lastText', 'lastFrom', 'updatedAt', 'seen'])
         && request.resource.data.members.size() == 2
         && request.resource.data.members[0] < request.resource.data.members[1]
@@ -708,6 +721,7 @@ service cloud.firestore {
         && request.resource.data.seen.diff(resource.data.seen).affectedKeys().hasOnly([request.auth.uid])
         && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['lastText', 'lastFrom', 'updatedAt'])
             || (friendsInPair(pid)
+                && !blockedInPair(pid)
                 && request.resource.data.lastFrom == request.auth.uid
                 && request.resource.data.lastText is string && request.resource.data.lastText.size() <= 120
                 && request.resource.data.updatedAt == request.time));
@@ -716,6 +730,7 @@ service cloud.firestore {
         allow read: if inPair(pid);
         allow create: if inPair(pid)
           && friendsInPair(pid)
+          && !blockedInPair(pid)
           && request.resource.data.keys().hasOnly(['from', 'text', 'createdAt', 'image', 'gif'])
           && request.resource.data.from == request.auth.uid
           && request.resource.data.text is string
@@ -735,6 +750,50 @@ service cloud.firestore {
                   && request.resource.data.gif.matches('^https://(media[0-9]*\\.giphy\\.com|i\\.giphy\\.com|media[0-9]*\\.tenor\\.com|c\\.tenor\\.com)/.*')))
           && request.resource.data.createdAt == request.time;
       }
+
+      // The quick emoji and nicknames both people see ("settings/shared"). Either friend can change them. The nicknames are
+      // keyed by the two people's ids, at most 40 characters each (keep in step with NICK_MAX in src/messages.ts).
+      match /settings/{settingsId} {
+        allow read: if inPair(pid);
+        allow create, update: if inPair(pid)
+          && friendsInPair(pid)
+          && settingsId == 'shared'
+          && request.resource.data.keys().hasOnly(['emoji', 'nick'])
+          && (!('emoji' in request.resource.data)
+              || (request.resource.data.emoji is string
+                  && request.resource.data.emoji.size() >= 1 && request.resource.data.emoji.size() <= 16))
+          && (!('nick' in request.resource.data)
+              || (request.resource.data.nick is map
+                  && request.resource.data.nick.keys().hasOnly(pid.split('_'))
+                  && request.resource.data.nick.get(pid.split('_')[0], '') is string
+                  && request.resource.data.nick.get(pid.split('_')[0], '').size() <= 40
+                  && request.resource.data.nick.get(pid.split('_')[1], '') is string
+                  && request.resource.data.nick.get(pid.split('_')[1], '').size() <= 40));
+      }
+    }
+
+    // Your own say over a chat, at users/{you}/chatPrefs/{otherUid}: when you archived it, muted it until, deleted it ("clearedAt"),
+    // marked it read without telling them (readAt), and whether read receipts are on. Only you can read or change it.
+    match /users/{uid}/chatPrefs/{otherId} {
+      allow read, delete: if isOwner(uid);
+      allow create, update: if isOwner(uid)
+        && otherId != uid
+        && request.resource.data.keys().hasOnly(['archivedAt', 'mutedUntil', 'clearedAt', 'readAt', 'receipts'])
+        && (!('archivedAt' in request.resource.data) || request.resource.data.archivedAt is timestamp)
+        && (!('mutedUntil' in request.resource.data) || request.resource.data.mutedUntil is timestamp)
+        && (!('clearedAt' in request.resource.data) || request.resource.data.clearedAt is timestamp)
+        && (!('readAt' in request.resource.data) || request.resource.data.readAt is timestamp)
+        && (!('receipts' in request.resource.data) || request.resource.data.receipts is bool);
+    }
+
+    // People you blocked: users/{you}/blocked/{theirUid}. Only you can see or change the list. While either of you has
+    // blocked the other, neither can add a message to their conversation (see blockedInPair above).
+    match /users/{uid}/blocked/{otherId} {
+      allow read, delete: if isOwner(uid);
+      allow create: if isOwner(uid)
+        && otherId != uid
+        && request.resource.data.keys().hasOnly(['createdAt'])
+        && request.resource.data.createdAt == request.time;
     }
   }
 }

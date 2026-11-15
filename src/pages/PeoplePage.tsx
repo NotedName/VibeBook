@@ -40,7 +40,9 @@ export default function PeoplePage() {
 
   return (
     <div className="people-page">
-      <h1 className="page-title">People</h1>
+      <div className="title-row">
+        <h1 className="page-title">People</h1>
+      </div>
       <div className="search">
         <SearchIcon />
         <input type="search" value={text} onChange={(e) => setText(e.target.value)}

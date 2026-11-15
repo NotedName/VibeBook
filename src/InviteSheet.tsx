@@ -10,6 +10,7 @@ import { INVITE_LIST_LIMIT, MAX_INVITES_AT_ONCE } from "./types";
 import Avatar from "./Avatar";
 import { CloseIcon, SearchIcon } from "./icons";
 import { useScrollLock } from "./scrollLock";
+import FormError from "./FormError";
 
 function Candidate({ uid, checked, disabled, status, onToggle }: {
   uid: string; checked: boolean; disabled: boolean; status: string; onToggle: () => void;
@@ -131,13 +132,13 @@ export default function InviteSheet({ gid, groupName, onClose }: { gid: string; 
                   status={statusOf(id)} onToggle={() => toggle(id)} />
               ))}
             </ul>
-            {found === null && s.friends.size === 0 && <p className="hint">You have no friends on VibeBook yet. Search for people by name above.</p>}
+            {found === null && s.friends.size === 0 && <p className="hint">No friends yet. Search for people by name above.</p>}
             {found === null && trimmed && <p className="hint">Showing your {INVITE_LIST_LIMIT} closest friends. Search to find anyone else.</p>}
             {found !== null && !searching && found.length === 0 && <p className="hint">No one found. Try the start of a first or last name.</p>}
             {found !== null && trimmed && <p className="hint">Showing the top {INVITE_LIST_LIMIT}. Type more of the name to narrow it down.</p>}
             {atLimit && <p className="hint">You can invite up to {MAX_INVITES_AT_ONCE} people at a time.</p>}
           </div>
-          {error && <p className="error" role="alert">{error}</p>}
+          {error && <FormError>{error}</FormError>}
         </div>
         <div className="sheet-actions">
           <button type="button" className="btn" onClick={onClose}>Cancel</button>

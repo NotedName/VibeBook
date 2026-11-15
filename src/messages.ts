@@ -21,7 +21,8 @@ export const SEARCH_WINDOW = 300;
 /** Longest picture (as a data URL) a message may carry. firestore.rules checks the same number. */
 export const IMAGE_MAX_CHARS = 300_000;
 
-export type Message = { id: string; from: string; text: string; at: number; image: string; gif: string };
+/** `pending`: written on this device but not yet confirmed by the server (it is still sending, or waiting for a connection). */
+export type Message = { id: string; from: string; text: string; at: number; image: string; gif: string; pending: boolean };
 export type Conversation = { id: string; other: string; lastText: string; lastFrom: string; updatedAt: number; seenAt: number; otherSeenAt: number };
 export type Chats = { ready: boolean; error: string; list: Conversation[]; unread: number };
 
@@ -66,12 +67,14 @@ export function useMessages(me: string, other: string, count: number) {
   );
   useEffect(() => onSnapshot(
     query(collection(db, "conversations", pairId(me, other), "messages"), orderBy("createdAt", "desc"), limit(count)),
+    { includeMetadataChanges: true }, // so a message flips from sending to sent the moment the server confirms it
     (snap) => setState({
       messages: snap.docs.map((d) => {
         const data = d.data(estimate);
         return {
           id: d.id, from: data.from as string, text: data.text as string, at: millis(data.createdAt),
           image: (data.image as string | undefined) ?? "", gif: (data.gif as string | undefined) ?? "",
+          pending: d.metadata.hasPendingWrites,
         };
       }).reverse(),
       hasMore: snap.size >= count,
@@ -107,6 +110,15 @@ export async function sendMessage(me: string, other: string, out: Outgoing) {
   if (gif) message.gif = gif;
   batch.set(doc(collection(convo, "messages")), message);
   await batch.commit();
+}
+
+/** Why a message could not be sent, in words for the person. */
+export function failureReason(err: unknown): string {
+  const code = (err as { code?: string }).code;
+  if (code === "permission-denied") return "You can only message friends.";
+  if (code === "unavailable") return "There is no connection.";
+  if (err instanceof Error && !code) return err.message;
+  return "Something went wrong.";
 }
 
 /** Records that you have read everything in this conversation up to now. The conversation must already exist. */

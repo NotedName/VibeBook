@@ -6,12 +6,18 @@ import { availableDaysIn, projectFinish } from "./availability";
 import AvailabilitySheet from "./AvailabilitySheet";
 import { formatHM, spanMinutes, sumMinutes, weekEnd, weekStart } from "./weeks";
 import { useSession } from "./session";
-import { ClockIcon, EditIcon } from "./icons";
+import { ClockIcon, EditIcon, ListIcon } from "./icons";
 import { HoursSkeleton } from "./Skeleton";
+import ConfirmDialog from "./ConfirmDialog";
+import FormError from "./FormError";
+import HoursLogSheet from "./HoursLogSheet";
+
+/** A shift this long (or longer) needs the word typed before it can be thrown away. */
+const LONG_SHIFT_MINUTES = 120;
 
 const WEEKDAYS = [
-  { day: 1, short: "Mon" }, { day: 2, short: "Tue" }, { day: 3, short: "Wed" }, { day: 4, short: "Thu" },
-  { day: 5, short: "Fri" }, { day: 6, short: "Sat" }, { day: 0, short: "Sun" },
+  { day: 0, short: "Sun" }, { day: 1, short: "Mon" }, { day: 2, short: "Tue" }, { day: 3, short: "Wed" },
+  { day: 4, short: "Thu" }, { day: 5, short: "Fri" }, { day: 6, short: "Sat" },
 ];
 
 /** Hours spent against the hours required, plus Clock in / Clock out. `entries` are your own, unarchived entries. */
@@ -27,7 +33,8 @@ export default function HoursCard({ entries, loading = false }: { entries: Entry
   const [startDate, setStartDate] = useState("");
   const [startTime, setStartTime] = useState("");
   const [error, setError] = useState("");
-  const [armedDiscard, setArmedDiscard] = useState(false);
+  const [logOpen, setLogOpen] = useState(false);
+  const [confirming, setConfirming] = useState<null | "discard" | "start">(null);
   const [clocking, setClocking] = useState(false);
 
   // The running time ticks once a minute, and again when the tab comes back.
@@ -47,8 +54,8 @@ export default function HoursCard({ entries, loading = false }: { entries: Entry
   const weekCapacity = availableDaysIn(thisWeekStart, weekEnd(thisWeekStart), a) * a.hoursPerDay * 60;
   const todayMinutes = sumMinutes(entries.filter((e) => e.date === todayStr()));
   const required = goal.hours === null ? null : Math.round(goal.hours * 60);
-  // While "Show my hours" is on (Settings > Privacy), the summary other people read follows your totals.
-  const sharing = s.me?.hoursVisible === true;
+  // Unless your hours are only for you (Settings > Privacy), the summary other people read follows your totals.
+  const sharing = !!s.me && s.me.hoursAudience !== "private";
   useEffect(() => {
     if (!sharing || !goal.ready) return;
     publishHours(s.uid, spent, required).catch(() => {});
@@ -90,6 +97,7 @@ export default function HoursCard({ entries, loading = false }: { entries: Entry
     run(async () => {
       await addEntry(s.uid, {
         date: clock.date, time: clock.time, clockIn: clock.time, clockOut: out,
+        ...(clock.edited ? { startEdited: true, originalStart: clock.origTime, originalStartDate: clock.origDate } : {}),
         title: "Hours logged", description: "", skills: [], visibility: "private", groupIds: [], videoUrl: "",
       }, []);
       await discardClock(s.uid);
@@ -109,7 +117,7 @@ export default function HoursCard({ entries, loading = false }: { entries: Entry
     e.preventDefault();
     if (!startDate || !startTime) return;
     if (new Date(`${startDate}T${startTime}`).getTime() > Date.now()) { setError("The start time cannot be in the future."); return; }
-    run(async () => { await editClockStart(s.uid, startDate, startTime); setEditingStart(false); });
+    run(async () => { await editClockStart(s.uid, startDate, startTime, clock!); setEditingStart(false); });
   }
 
   if (loading || !goal.ready) return <HoursSkeleton />;
@@ -121,8 +129,8 @@ export default function HoursCard({ entries, loading = false }: { entries: Entry
           <b>{formatHM(spent)}</b>
           <span>{required !== null ? `of ${formatHM(required)} required` : "hours logged"}</span>
         </div>
-        <button type="button" className="btn small" onClick={startEditingGoal}>
-          <EditIcon /> {required === null ? "Set required hours" : "Edit"}
+        <button type="button" className="btn small" title={required === null ? "Set required hours" : "Edit required hours"} onClick={startEditingGoal}>
+          <EditIcon /><span className="lbl">{required === null ? "Set required hours" : "Edit"}</span>
         </button>
       </div>
 
@@ -134,6 +142,7 @@ export default function HoursCard({ entries, loading = false }: { entries: Entry
           </label>
           <button type="submit" className="btn primary">Save</button>
           <button type="button" className="btn" onClick={() => setEditingGoal(false)}>Cancel</button>
+          {editingGoal && error && <FormError>{error}</FormError>}
         </form>
       )}
 
@@ -151,8 +160,9 @@ export default function HoursCard({ entries, loading = false }: { entries: Entry
           About <b>{projection.availableDays}</b> more available {projection.availableDays === 1 ? "day" : "days"} at {formatHM(a.hoursPerDay * 60)} a day · finishing around <b>{longDay(projection.finishDate)}</b>
         </p>
       )}
-      {projection === null && required !== null && left > 0 && <p className="hint hours-line">No available days are set, so a finish date cannot be worked out.</p>}
+      {projection === null && required !== null && left > 0 && <p className="hint hours-line">No available days set, so there is no finish date.</p>}
       <p className="hint hours-line">This week: <b>{formatHM(thisWeek)}</b>{weekCapacity > 0 && <> of {formatHM(weekCapacity)} available</>}</p>
+      <button type="button" className="btn small hours-log-btn" onClick={() => setLogOpen(true)}><ListIcon /> Logged hours</button>
       <div className="hours-days">
         <button type="button" className="btn small" onClick={() => setDaysOpen(true)}>Available days</button>
         <span className="hint">{WEEKDAYS.filter((d) => a.workDays.includes(d.day)).map((d) => d.short).join(" ") || "None"}{a.daysOff.length + a.daysOn.length > 0 ? ` · ${a.daysOff.length + a.daysOn.length} changed` : ""}</span>
@@ -170,6 +180,7 @@ export default function HoursCard({ entries, loading = false }: { entries: Entry
               <span>
                 Clocked in at {clockTime(clock.time)}{clock.date !== todayStr() ? `, ${longDay(clock.date)}` : ""}
                 <small>{formatHM(runningMinutes(clock, now))} so far</small>
+                {clock.edited && <small className="start-edited">Start edited · was {clockTime(clock.origTime!)}{clock.origDate !== clock.date ? `, ${longDay(clock.origDate!)}` : ""}</small>}
               </span>
             </p>
             {editingStart ? (
@@ -182,21 +193,39 @@ export default function HoursCard({ entries, loading = false }: { entries: Entry
                 </label>
                 <button type="submit" className="btn primary">Save</button>
                 <button type="button" className="btn" onClick={() => setEditingStart(false)}>Cancel</button>
+                {error && <FormError>{error}</FormError>}
               </form>
             ) : (
               <div className="clock-actions">
                 <button type="button" className="btn primary" disabled={clocking} onClick={clockOut}>Clock out</button>
-                <button type="button" className="btn" onClick={startEditingStart}>Edit start</button>
-                <button type="button" className={`btn${armedDiscard ? " danger" : ""}`}
-                  onClick={() => { if (!armedDiscard) { setArmedDiscard(true); return; } setArmedDiscard(false); run(() => discardClock(s.uid)); }}
-                  onBlur={() => setArmedDiscard(false)}>{armedDiscard ? "Tap again to discard" : "Discard"}</button>
+                <button type="button" className="btn" onClick={() => setConfirming("start")}>Edit start</button>
+                <button type="button" className="btn danger" onClick={() => setConfirming("discard")}>Discard</button>
               </div>
             )}
           </div>
         )}
+        {!editingGoal && !editingStart && error && <FormError>{error}</FormError>}
       </div>
-      {error && <p className="error" role="alert">{error}</p>}
-      {daysOpen && <AvailabilitySheet uid={s.uid} value={a} onClose={() => setDaysOpen(false)} />}
+      {confirming === "start" && clock && (
+        <ConfirmDialog title="Change your start time?" confirmLabel="Yes, edit start"
+          onCancel={() => setConfirming(null)} onConfirm={() => { setConfirming(null); startEditingStart(); }}>
+          <p>You clocked in at <b>{clockTime(clock.time)}</b>{clock.date !== todayStr() ? `, ${longDay(clock.date)}` : ""}. Changing it changes how many hours this shift counts for.</p>
+          <p>Only do this if you forgot to clock in on time or tapped it by mistake.</p>
+        </ConfirmDialog>
+      )}
+      {confirming === "discard" && clock && (() => {
+        const mins = runningMinutes(clock, now);
+        const long = mins >= LONG_SHIFT_MINUTES || clock.date !== todayStr();
+        return (
+          <ConfirmDialog title="Discard this shift?" danger confirmLabel="Discard shift" typeToConfirm={long ? "discard" : undefined}
+            onCancel={() => setConfirming(null)} onConfirm={() => { setConfirming(null); run(() => discardClock(s.uid)); }}>
+            <p>You have been clocked in for <b>{formatHM(mins)}</b>. Discarding throws that time away: <b>nothing is logged</b> and it cannot be undone.</p>
+            <p>To keep the hours, choose Cancel and then Clock out. To fix a wrong start, use Edit start.</p>
+          </ConfirmDialog>
+        );
+      })()}
+      {logOpen && <HoursLogSheet entries={entries} clock={clock ?? null} onClose={() => setLogOpen(false)} />}
+      {daysOpen && <AvailabilitySheet uid={s.uid} value={a} share={!!s.me && s.me.scheduleAudience !== "private"} onClose={() => setDaysOpen(false)} />}
     </section>
   );
 }

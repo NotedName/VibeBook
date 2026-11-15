@@ -5,6 +5,7 @@ import { MAX_GROUPS_PER_ENTRY } from "./types";
 import { GroupAvatar } from "./GroupRow";
 import { CloseIcon, ShareIcon } from "./icons";
 import { useScrollLock } from "./scrollLock";
+import FormError from "./FormError";
 
 type Props = {
   entry: Entry;
@@ -102,7 +103,7 @@ export default function ShareSheet({ entry, linkable, onLink, onClose }: Props) 
           ) : (
             <p className="hint">Use Repost to add this entry to your logbook and to your groups.</p>
           )}
-          {error && <p className="error" role="alert">{error}</p>}
+          {error && <FormError>{error}</FormError>}
         </div>
         <div className="sheet-actions">
           <button type="button" className="btn" onClick={onClose}>{mine && changed ? "Cancel" : "Close"}</button>

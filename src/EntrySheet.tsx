@@ -1,51 +1,43 @@
+import FormError from "./FormError";
 import { ThumbsSkeleton } from "./Skeleton";
 import { defaultVisibility } from "./preferences";
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { addEntry, DESC_MAX, loadPhotos, MAX_PHOTOS, SKILL_MAX, SKILL_WORDS_MAX, SKILLS_INPUT_MAX, SKILLS_MAX, TITLE_MAX, updateEntry, type Entry, type Photo } from "./entries";
 import { nowStr, todayStr } from "./report";
-import { formatHM, spanMinutes } from "./weeks";
-import { discardClock } from "./hours";
-import { CameraIcon, ClockIcon, CloseIcon, EditIcon, GlobeIcon, ImageIcon, LockIcon, UsersIcon } from "./icons";
+import { CameraIcon, CloseIcon, EditIcon, ImageIcon } from "./icons";
 import { useSession } from "./session";
-import { VISIBILITY, type Visibility } from "./types";
 import { chosenVisibility } from "./entryPrivacy";
 import { parseVideo, VIDEO_URL_MAX } from "./video";
 import PhotoEditor from "./PhotoEditor";
 import { canAutoFocus } from "./focus";
 import { useScrollLock } from "./scrollLock";
 
-/** Values a new entry starts with, e.g. from pressing Clock out. */
-export type EntryPrefill = { date: string; clockIn: string; clockOut: string; /** Stop the running clock once this entry is saved. */ fromClock?: boolean };
+const VIDEO_ERROR = "That video link is not supported. Use an https link to YouTube or Vimeo, or a direct .mp4 or .webm file.";
 
 type Props = {
   uid: string;
   entry: Entry | null; // null = new entry
-  prefill?: EntryPrefill;
   /** Group to tick for a new entry, e.g. when writing from inside that group. */
   defaultGroupId?: string;
   onClose: () => void;
   onSaved: (message: string) => void;
 };
 
-export default function EntrySheet({ uid, entry, prefill, defaultGroupId, onClose, onSaved }: Props) {
+export default function EntrySheet({ uid, entry, defaultGroupId, onClose, onSaved }: Props) {
   const s = useSession();
-  // A new entry is stamped with the moment the sheet opened. The date and the hours worked can be changed.
-  const [loggedAt] = useState(() => entry?.time ?? nowStr());
-  const [date, setDate] = useState(entry?.date ?? prefill?.date ?? todayStr());
-  const [clockIn, setClockIn] = useState(entry?.clockIn ?? prefill?.clockIn ?? "");
-  const [clockOut, setClockOut] = useState(entry?.clockOut ?? prefill?.clockOut ?? "");
-  const worked = spanMinutes(clockIn, clockOut);
+  // A new entry is stamped with the moment the sheet opened. Hours are logged with Clock in / Clock out, not here, so an
+  // entry being edited keeps the date and hours it already has.
+  const [stamp] = useState(() => ({ date: entry?.date ?? todayStr(), time: entry?.time ?? nowStr() }));
   const [title, setTitle] = useState(entry?.title ?? "");
   const [skills, setSkills] = useState(entry?.skills.join(", ") ?? "");
   const [description, setDescription] = useState(entry?.description ?? "");
   const [videoUrl, setVideoUrl] = useState(entry?.videoUrl ?? "");
-  const [visibility, setVisibility] = useState<Visibility>(entry ? chosenVisibility(entry) : defaultVisibility());
+  // Who can see an entry is set in Settings (new entries) and with the entry's ... menu (existing ones), not in this form.
+  const visibility = entry ? chosenVisibility(entry) : defaultVisibility();
   // Groups are chosen with Share on the post, not here. A new entry started inside a group goes to that group,
   // and an entry being edited keeps the groups it is already shared to.
   const [groupIds] = useState<string[]>(() =>
     (entry ? entry.groupIds ?? [] : defaultGroupId ? [defaultGroupId] : []).filter((id) => s.groups.ids.has(id)));
-  // In a private group, only its members see the entry, whatever is picked here. The pick is kept for when it leaves the group.
-  const privateGroup = s.groups.list.find((g) => groupIds.includes(g.id) && g.privacy === "private");
   const [saved, setSaved] = useState<Photo[]>([]); // photos already stored on the entry
   const [removed, setRemoved] = useState<string[]>([]);
   const [photosReady, setPhotosReady] = useState(!entry || entry.photoCount === 0);
@@ -97,19 +89,18 @@ export default function EntrySheet({ uid, entry, prefill, defaultGroupId, onClos
     e.preventDefault();
     setError("");
     if (videoUrl.trim() && !parseVideo(videoUrl)) {
-      setError("That video link is not supported. Use an https link to YouTube or Vimeo, or a direct .mp4 or .webm file.");
+      setError(VIDEO_ERROR);
       return;
     }
     setBusy(true);
     const input = {
-      date, time: clockIn || loggedAt, clockIn, clockOut, title: title.trim(), description: description.trim(), visibility, groupIds,
+      date: stamp.date, time: stamp.time, clockIn: entry?.clockIn ?? "", clockOut: entry?.clockOut ?? "", title: title.trim(), description: description.trim(), visibility, groupIds,
       videoUrl: videoUrl.trim(),
       skills: skills.split(",").map((s) => s.trim()).filter(Boolean),
     };
     try {
       if (entry) await updateEntry(uid, entry, input, saved, removed, files);
       else await addEntry(uid, input, files);
-      if (!entry && prefill?.fromClock) await discardClock(uid).catch(() => {});
       onSaved(entry ? "Entry updated" : "Entry saved");
     } catch (err) {
       setError((err as Error).message);
@@ -139,7 +130,7 @@ export default function EntrySheet({ uid, entry, prefill, defaultGroupId, onClos
                 disabled={total >= MAX_PHOTOS} />
             </label>
           </div>
-          <p className="hint">{total}/{MAX_PHOTOS} photos{!photosReady && " · loading saved photos…"}{files.length > 0 && " · tap the pencil on a new photo to crop or adjust it"}</p>
+          <p className="hint">{total}/{MAX_PHOTOS} photos{!photosReady && " · loading saved photos…"}{files.length > 0 && " · tap the pencil to edit a new photo"}</p>
 
           {!photosReady && entry && entry.photoCount > 0 && <ThumbsSkeleton count={Math.min(entry.photoCount, MAX_PHOTOS)} />}
           {(saved.length > 0 || previews.length > 0) && (
@@ -162,26 +153,6 @@ export default function EntrySheet({ uid, entry, prefill, defaultGroupId, onClos
             </div>
           )}
 
-          <fieldset className="hours-pick">
-            <legend><ClockIcon /> When and how long</legend>
-            <div className="hours-grid">
-              <label>Date
-                <input type="date" value={date} max={todayStr()} required
-                  onChange={(e) => setDate(e.target.value || todayStr())} />
-              </label>
-              <label>Time in
-                <input type="time" value={clockIn} onChange={(e) => setClockIn(e.target.value)} />
-              </label>
-              <label>Time out
-                <input type="time" value={clockOut} onChange={(e) => setClockOut(e.target.value)} />
-              </label>
-            </div>
-            <p className="hint">
-              {worked > 0
-                ? `${formatHM(worked)} will count towards your hours${clockOut < clockIn ? " (the shift runs past midnight)" : ""}.`
-                : "Add Time in and Time out to count this entry towards your hours. Leave both empty to log it without hours."}
-            </p>
-          </fieldset>
           <label>Activity
             <input ref={titleRef} value={title} onChange={(e) => setTitle(e.target.value)} required
               maxLength={TITLE_MAX} placeholder="e.g. Set up a new PC in the engineering office" />
@@ -189,42 +160,24 @@ export default function EntrySheet({ uid, entry, prefill, defaultGroupId, onClos
           <label>Skills acquired <small className={skillsOver ? "count-warn" : "count"}>{skillList.length}/{SKILLS_MAX} skills</small>
             <input value={skills} onChange={(e) => setSkills(e.target.value)} maxLength={SKILLS_INPUT_MAX}
               placeholder="e.g. Networking, Excel, Teamwork" />
-            <small className={skillsOver ? "count-warn" : "count"}>Separate with commas. Each skill: up to {SKILL_WORDS_MAX} words and {SKILL_MAX} letters.</small>
+            <small className={skillsOver ? "count-warn" : "count"}>Separate with commas. Up to {SKILL_WORDS_MAX} words and {SKILL_MAX} letters each.</small>
           </label>
           <label>Video link <small>(optional)</small>
             <input type="url" inputMode="url" value={videoUrl} onChange={(e) => setVideoUrl(e.target.value)}
-              maxLength={VIDEO_URL_MAX} placeholder="e.g. https://youtu.be/abc123" />
+              maxLength={VIDEO_URL_MAX} placeholder="e.g. https://youtu.be/abc123" aria-invalid={error === VIDEO_ERROR || undefined} />
           </label>
+          {error === VIDEO_ERROR && <FormError>{error}</FormError>}
           <label>Description <small className={description.length > DESC_MAX * 0.9 ? "count-warn" : "count"}>{description.length}/{DESC_MAX}</small>
             <textarea ref={descRef} rows={5} value={description} onChange={(e) => setDescription(e.target.value)} required maxLength={DESC_MAX}
               placeholder="What happened, what was the problem, how did you solve it?" />
           </label>
-
-          <fieldset className="vis-pick" disabled={!!privateGroup}>
-            <legend>Who can see this</legend>
-            <div className="seg">
-              {VISIBILITY.map((v) => (
-                <label key={v.id} className={visibility === v.id ? "on" : ""}>
-                  <input type="radio" name="visibility" value={v.id} checked={visibility === v.id}
-                    onChange={() => setVisibility(v.id)} />
-                  {v.id === "private" ? <LockIcon /> : v.id === "friends" ? <UsersIcon /> : <GlobeIcon />}
-                  {v.label}
-                </label>
-              ))}
-            </div>
-            <p className="hint">
-              {privateGroup
-                ? `Shared to ${privateGroup.name}, a private group: only its members can see this entry. It stays off your profile (people see "join the group to see this post"), the feed and share links.`
-                : VISIBILITY.find((v) => v.id === visibility)!.hint}
-            </p>
-          </fieldset>
 
           {!entry && defaultGroupId && s.groups.ids.has(defaultGroupId) && (
             <p className="hint">This entry will also be shared with {s.groups.list.find((g) => g.id === defaultGroupId)?.name ?? "the group"}.</p>
           )}
           {entry && <p className="hint">To change which groups this is shared to, press Share on the post.</p>}
 
-          {error && <p className="error" role="alert">{error}</p>}
+          {error && error !== VIDEO_ERROR && <FormError>{error}</FormError>}
         </div>
 
         <div className="sheet-actions">

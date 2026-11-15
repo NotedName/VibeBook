@@ -85,7 +85,7 @@ export default function GroupsPage() {
     <div className="people-page">
       <div className="title-row">
         <h1 className="page-title">Groups</h1>
-        <button type="button" className="btn primary" onClick={() => setCreating(true)}><PlusIcon /> New group</button>
+        <button type="button" className="btn primary" title="New group" onClick={() => setCreating(true)}><PlusIcon /><span className="lbl">New group</span></button>
       </div>
       <div className="search">
         <SearchIcon />

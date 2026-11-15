@@ -10,6 +10,7 @@ import { formatHM, sumMinutes, weekRange } from "./weeks";
 import { useSession } from "./session";
 import { CloseIcon, DownloadIcon } from "./icons";
 import { useScrollLock } from "./scrollLock";
+import FormError from "./FormError";
 
 type Format = "docx" | "pdf";
 const FORMATS: { id: Format; label: string; mime: string; kind: string }[] = [
@@ -145,7 +146,7 @@ export default function ReportSheet({ entries, initialRange, onClose }: Props) {
               <input type="date" value={day} onChange={(e) => setDay(e.target.value || todayStr())} />
             </label>
           )}
-          {kind === "weekly" && <p className="hint">Week of {weekRange(range.from)} (Monday to Sunday).</p>}
+          {kind === "weekly" && <p className="hint">Week of {weekRange(range.from)} (Sunday to Saturday).</p>}
           <p className={rangeProblem ? "error" : "hint"} role={rangeProblem ? "alert" : undefined}>
             {rangeProblem
               || (inRange.length === 0
@@ -184,7 +185,7 @@ export default function ReportSheet({ entries, initialRange, onClose }: Props) {
             ))}
           </fieldset>
 
-          {error && <p className="error" role="alert">{error}</p>}
+          {error && <FormError>{error}</FormError>}
         </div>
 
         <div className="sheet-actions">

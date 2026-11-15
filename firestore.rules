@@ -11,6 +11,29 @@ service cloud.firestore {
       return exists(/databases/$(database)/documents/friendships/$(a < b ? a + '_' + b : b + '_' + a));
     }
 
+    // Audiences: who can see a profile detail (friends list, hours, schedule). Profiles saved before audiences existed
+    // hold friendsVisible / hoursVisible booleans, which map to the same reach.
+    //  - private: only the owner;  friends: the owner's friends;  everyone: anyone signed in;
+    //  - fof (friends of friends): the owner's friends, and people with a pointer at users/{me}/reach/{owner} whose
+    //    "via" is a friend of both. The pointer is checked against the live friendships on every read, so unfriending
+    //    ends the access without anything to clean up (see reachOk, and the reach rule below).
+    function profileOf(uid) { return get(/databases/$(database)/documents/profiles/$(uid)).data; }
+    function friendsAudience(p) { return p.get('friendsAudience', p.get('friendsVisible', true) == false ? 'private' : 'everyone'); }
+    function hoursAudience(p) { return p.get('hoursAudience', p.get('hoursVisible', false) == true ? 'everyone' : 'private'); }
+    function scheduleAudience(p) { return p.get('scheduleAudience', 'private'); }
+    function reachOk(owner) {
+      let path = /databases/$(database)/documents/users/$(request.auth.uid)/reach/$(owner);
+      return exists(path)
+        && isFriend(request.auth.uid, get(path).data.via)
+        && isFriend(get(path).data.via, owner);
+    }
+    function canSee(owner, audience) {
+      return isOwner(owner) || (signedIn() && (
+        audience == 'everyone'
+        || (audience == 'friends' && isFriend(request.auth.uid, owner))
+        || (audience == 'fof' && (isFriend(request.auth.uid, owner) || reachOk(owner)))));
+    }
+
     // Membership is one document per person and group, named "<groupId>_<uid>".
     function inMyGroup(gid) {
       return exists(/databases/$(database)/documents/groupMembers/$(gid + '_' + request.auth.uid));
@@ -109,17 +132,28 @@ service cloud.firestore {
 
     // Friends list others can open: one pointer per friend at users/{uid}/friendList/{friendUid}. Each person
     // keeps their own list in step with their real friendships (the app does it), and a pointer can only be
-    // written for someone you are friends with. Anyone signed in can read it unless the owner turned off
-    // "friendsVisible" on their profile (Settings > Privacy); the owner always can. A friend can remove
+    // written for someone you are friends with. People in the owner's friendsAudience can read it
+    // (Settings > Privacy); the owner always can. A friend can remove
     // themselves from your list, so unfriending cannot leave a stale entry behind.
     match /users/{uid}/friendList/{friendId} {
-      allow read: if isOwner(uid)
-        || (signedIn() && get(/databases/$(database)/documents/profiles/$(uid)).data.get('friendsVisible', true) == true);
+      allow read: if canSee(uid, friendsAudience(profileOf(uid)));
       allow create: if isOwner(uid)
         && request.resource.data.keys().hasOnly(['createdAt'])
         && request.resource.data.createdAt == request.time
         && isFriend(uid, friendId);
       allow delete: if isOwner(uid) || (signedIn() && request.auth.uid == friendId);
+    }
+
+    // Friends-of-friends pointer: users/{me}/reach/{owner} = { via }, written by me to say "{owner} is a friend of my friend
+    // {via}". It only exists to be checked by reachOk above, so it can be created or overwritten only while both
+    // friendships are real, and nobody but me can read it.
+    match /users/{uid}/reach/{ownerId} {
+      allow read, delete: if isOwner(uid);
+      allow create, update: if isOwner(uid)
+        && request.resource.data.keys().hasOnly(['via'])
+        && request.resource.data.via is string
+        && isFriend(uid, request.resource.data.via)
+        && isFriend(request.resource.data.via, ownerId);
     }
 
     // Notifications for {uid}: requests, likes, comments, reposts and the like. The person who did the
@@ -168,23 +202,24 @@ service cloud.firestore {
     }
 
     // Hours: private documents that follow you to every device. Only you can read or write them, except 'shared'.
-    //  - goal:   { requiredHours, workDays, daysOff, daysOn, hoursPerDay }: the hours your school or company requires
+    //  - goal:   { requiredHours, workDays, daysOff, daysOn, hoursPerDay, startTime, endTime, breakMinutes }: the hours your school or company requires
     //            (1 to 10000, may have decimals; absent when no goal is set) and which days you can work. workDays are
     //            weekday numbers 0 to 6; daysOff and daysOn are dates that differ from the usual week (400 at most each);
-    //  - clock:  { date, time }: the moment you clocked in, present only while the clock is running;
+    //  - clock:  { date, time, edited, origDate, origTime }: the moment you clocked in (and, if you changed it, when you really did), present only while the clock is running;
     //  - report: the lines printed at the top of exported Word and PDF reports (names, school), each up to 120 characters;
-    //  - shared: { minutes, requiredMinutes }: the total you have logged and the total required, which anyone signed in can read
-    //            only while "hoursVisible" is on on your profile (Settings > Privacy). The app keeps it in step and deletes it when
-    //            the setting is turned off.
+    //  - shared: { minutes, requiredMinutes }: the total you have logged and the total required, which the people in your
+    //            hoursAudience can read (Settings > Privacy). The app keeps it in step and deletes it when you choose only me;
+    //  - schedule: { workDays, hoursPerDay, daysOff, daysOn, startTime, endTime, breakMinutes }: your usual week and the single dates that differ from it, which the people in your scheduleAudience can read. The app keeps
+    //            it in step and deletes it when you choose only me.
     // The hours worked are on the entries themselves (clockIn, clockOut, minutes).
     match /users/{uid}/hours/{docId} {
       allow read: if isOwner(uid)
-        || (docId == 'shared' && signedIn()
-            && get(/databases/$(database)/documents/profiles/$(uid)).data.get('hoursVisible', false) == true);
+        || (docId == 'shared' && canSee(uid, hoursAudience(profileOf(uid))))
+        || (docId == 'schedule' && canSee(uid, scheduleAudience(profileOf(uid))));
       allow delete: if isOwner(uid);
       allow create, update: if isOwner(uid) && (
         (docId == 'goal'
-          && request.resource.data.keys().hasOnly(['requiredHours', 'workDays', 'daysOff', 'daysOn', 'hoursPerDay'])
+          && request.resource.data.keys().hasOnly(['requiredHours', 'workDays', 'daysOff', 'daysOn', 'hoursPerDay', 'startTime', 'endTime', 'breakMinutes'])
           && request.resource.data.get('requiredHours', 1) is number
           && request.resource.data.get('requiredHours', 1) > 0
           && request.resource.data.get('requiredHours', 1) <= 10000
@@ -193,9 +228,18 @@ service cloud.firestore {
           && request.resource.data.get('daysOn', []) is list && request.resource.data.get('daysOn', []).size() <= 400
           && request.resource.data.get('hoursPerDay', 8) is number
           && request.resource.data.get('hoursPerDay', 8) > 0
-          && request.resource.data.get('hoursPerDay', 8) <= 24)
+          && request.resource.data.get('hoursPerDay', 8) <= 24
+          && request.resource.data.get('startTime', '00:00') is string
+          && request.resource.data.get('startTime', '00:00').matches('^([01][0-9]|2[0-3]):[0-5][0-9]$')
+          && request.resource.data.get('endTime', '00:00') is string
+          && request.resource.data.get('endTime', '00:00').matches('^([01][0-9]|2[0-3]):[0-5][0-9]$')
+          && request.resource.data.get('breakMinutes', 0) is number
+          && request.resource.data.get('breakMinutes', 0) >= 0 && request.resource.data.get('breakMinutes', 0) <= 1440)
         || (docId == 'clock'
-          && request.resource.data.keys().hasOnly(['date', 'time'])
+          && request.resource.data.keys().hasOnly(['date', 'time', 'edited', 'origDate', 'origTime'])
+          && request.resource.data.get('edited', false) is bool
+          && request.resource.data.get('origDate', '0000-00-00') is string && request.resource.data.get('origDate', '0000-00-00').size() == 10
+          && request.resource.data.get('origTime', '00:00') is string && request.resource.data.get('origTime', '00:00').size() == 5
           && request.resource.data.date is string && request.resource.data.date.size() == 10
           && request.resource.data.time is string && request.resource.data.time.size() == 5)
         || (docId == 'report'
@@ -214,6 +258,16 @@ service cloud.firestore {
           && request.resource.data.get('requiredMinutes', 1) is number
           && request.resource.data.get('requiredMinutes', 1) > 0
           && request.resource.data.get('requiredMinutes', 1) <= 600000)
+        || (docId == 'schedule'
+          && request.resource.data.keys().hasOnly(['workDays', 'hoursPerDay', 'daysOff', 'daysOn', 'startTime', 'endTime', 'breakMinutes'])
+          && request.resource.data.get('daysOff', []) is list && request.resource.data.get('daysOff', []).size() <= 400
+          && request.resource.data.get('daysOn', []) is list && request.resource.data.get('daysOn', []).size() <= 400
+          && request.resource.data.get('startTime', '00:00') is string && request.resource.data.get('startTime', '00:00').size() == 5
+          && request.resource.data.get('endTime', '00:00') is string && request.resource.data.get('endTime', '00:00').size() == 5
+          && request.resource.data.get('breakMinutes', 0) is number
+          && request.resource.data.workDays is list && request.resource.data.workDays.size() <= 7
+          && request.resource.data.hoursPerDay is number
+          && request.resource.data.hoursPerDay > 0 && request.resource.data.hoursPerDay <= 24)
       );
     }
 
@@ -439,8 +493,9 @@ service cloud.firestore {
         && request.resource.data.bio.size() <= 300
         && request.resource.data.avatar.size() <= 120000
         && request.resource.data.coverPhoto.size() <= 120000
-        && request.resource.data.get('friendsVisible', true) is bool
-        && request.resource.data.get('hoursVisible', false) is bool;
+        && request.resource.data.get('friendsAudience', 'everyone') in ['private', 'friends', 'fof', 'everyone']
+        && request.resource.data.get('hoursAudience', 'private') in ['private', 'friends', 'fof', 'everyone']
+        && request.resource.data.get('scheduleAudience', 'private') in ['private', 'friends', 'fof', 'everyone'];
       allow delete: if signedIn() && request.auth.uid == uid;
     }
 

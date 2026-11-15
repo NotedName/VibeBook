@@ -1,6 +1,6 @@
 import type { Entry } from "./entries";
 
-/** Weeks run Monday to Sunday. */
+/** Weeks run Sunday to Saturday. */
 const DAY_MS = 864e5;
 
 const parts = (date: string) => date.split("-").map(Number) as [number, number, number];
@@ -19,17 +19,17 @@ export function daysBetween(from: string, to: string): string[] {
 }
 
 const ORDINALS = ["1st", "2nd", "3rd", "4th", "5th"];
-/** "2nd week of November" for the week that starts on this Monday: the week of the month is counted from the Monday's date. */
-export function weekOfMonthLabel(monday: string): string {
-  const d = toDate(monday);
+/** "2nd week of November" for the week that starts on this Sunday: the week of the month is counted from the Sunday's date. */
+export function weekOfMonthLabel(sunday: string): string {
+  const d = toDate(sunday);
   const n = Math.min(5, Math.ceil(d.getDate() / 7));
   return `${ORDINALS[n - 1]} week of ${d.toLocaleDateString("en-US", { month: "long" })}`;
 }
 
-/** The Monday of the week this date falls in (YYYY-MM-DD). */
+/** The Sunday of the week this date falls in (YYYY-MM-DD). */
 export function weekStart(date: string): string {
   const d = toDate(date);
-  d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+  d.setDate(d.getDate() - d.getDay());
   return toStr(d);
 }
 

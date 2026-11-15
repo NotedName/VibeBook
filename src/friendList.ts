@@ -5,7 +5,7 @@ import { db } from "./firebase";
 /**
  * Friends you can see on someone else's profile. Real friendships are readable only by the two friends, so each person
  * keeps a pointer list at users/{uid}/friendList/{friendUid} in step with their own friendships (syncFriendList), and
- * firestore.rules lets other people read it only while the owner's "friendsVisible" setting is on.
+ * firestore.rules lets other people read it only if the owner's "friendsAudience" setting (Settings > Privacy) includes them.
  */
 export async function syncFriendList(uid: string, friends: Set<string>): Promise<void> {
   const col = collection(db, "users", uid, "friendList");

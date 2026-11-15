@@ -69,6 +69,9 @@ export const defaultVisibility = () => state.visibility;
 export const enterSendsMessage = () =>
   state.enterSends === "auto" ? !window.matchMedia("(pointer: coarse)").matches : state.enterSends === "on";
 
+/** Back to the defaults, including muted groups and chats. */
+export const resetPreferences = () => update(DEFAULTS);
+
 export function usePreferences() {
   const p = useSyncExternalStore((l) => { listeners.add(l); return () => { listeners.delete(l); }; }, () => state);
   return {

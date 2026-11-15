@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import type { User } from "firebase/auth";
 import { doc, onSnapshot } from "firebase/firestore";
 import { db } from "./firebase";
@@ -15,7 +16,7 @@ import { useConversations } from "./messages";
 import { SessionProvider, type Session } from "./session";
 import type { Profile } from "./types";
 import { ArrowLeftIcon, BookIcon, CloseIcon, FeedIcon, GroupsIcon, PlusIcon, SettingsIcon, UsersIcon } from "./icons";
-import EntrySheet, { type EntryPrefill } from "./EntrySheet";
+import EntrySheet from "./EntrySheet";
 import SideColumn from "./SideColumn";
 import ProfileSheet from "./ProfileSheet";
 import SettingsSheet from "./SettingsSheet";
@@ -83,6 +84,10 @@ function useScrollDirection() {
   }, []);
 }
 
+/** Position of a page's tab in the tab bar (Feed, Groups, People, Logbook), -1 for anything else. */
+const tabOrder = (hash: string): number =>
+  hash.startsWith("#/feed") ? 0 : hash.startsWith("#/groups") || hash.startsWith("#/g/") ? 1 : hash.startsWith("#/people") || hash.startsWith("#/u/") ? 2 : hash.startsWith("#/me") ? 3 : -1;
+
 export default function Shell({ user }: { user: User }) {
   const uid = user.uid;
   useScrollDirection();
@@ -111,7 +116,8 @@ export default function Shell({ user }: { user: User }) {
   const [route, setRoute] = useState<Route>(() => parse(location.hash));
   // Pages visited inside the app, so Back never leaves it: only offered when there is somewhere in the app to go.
   const trail = useRef<string[]>([location.hash]);
-  const [entrySheet, setEntrySheet] = useState<{ entry: Entry | null; groupId?: string; prefill?: EntryPrefill } | null>(null);
+  const lastHash = useRef(location.hash);
+  const [entrySheet, setEntrySheet] = useState<{ entry: Entry | null; groupId?: string } | null>(null);
   const [editingProfile, setEditingProfile] = useState(false);
   const [notice, setNotice] = useState("");
   const [manualCopy, setManualCopy] = useState<string | null>(null);
@@ -139,8 +145,22 @@ export default function Shell({ user }: { user: User }) {
       const t = trail.current;
       if (t.length > 1 && t[t.length - 2] === location.hash) t.pop(); // went back
       else if (t[t.length - 1] !== location.hash) t.push(location.hash);
-      setRoute(parse(location.hash));
-      window.scrollTo(0, 0);
+      const show = () => { setRoute(parse(location.hash)); window.scrollTo(0, 0); };
+      // Morph between pages with the View Transitions API where the browser has it (and motion is welcome); otherwise just switch.
+      const start = (document as Document & { startViewTransition?: (update: () => void) => { finished: Promise<unknown> } }).startViewTransition;
+      const calm = window.matchMedia("(prefers-reduced-motion: reduce)").matches || document.documentElement.dataset.motion === "reduced";
+      const main = document.querySelector<HTMLElement>("main.logbook");
+      // Between the main tabs the page slides the way the tab bar goes (right = forward); anywhere else it just settles in.
+      const from = tabOrder(lastHash.current), to = tabOrder(location.hash);
+      lastHash.current = location.hash;
+      // Touch screens and phones: no page morph. It re-snapshots the page and the fixed bottom bar, which looked like jumping and overlapping.
+      const touch = window.matchMedia("(max-width: 599.98px), (pointer: coarse)").matches;
+      if (!start || calm || !main || touch) { show(); return; }
+      const root = document.documentElement;
+      root.dataset.nav = from >= 0 && to >= 0 && from !== to ? (to > from ? "forward" : "back") : "";
+      main.style.setProperty("view-transition-name", "page");
+      const clear = () => { main.style.removeProperty("view-transition-name"); delete root.dataset.nav; };
+      try { start.call(document, () => flushSync(show)).finished.then(clear, clear); } catch { clear(); show(); }
     };
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
@@ -162,7 +182,6 @@ export default function Shell({ user }: { user: User }) {
     manualCopy: setManualCopy,
     editProfile: () => setEditingProfile(true),
     openEntry: (entry, groupId) => setEntrySheet({ entry, groupId }),
-    openEntryWithHours: (prefill) => setEntrySheet({ entry: null, prefill }),
   }), [social, groups, invites, reposts, groupAlerts, markGroupSeen, chats, user, uid, me, notify]);
 
   if (profileError) return <p className="center error">{profileError}</p>;
@@ -173,6 +192,8 @@ export default function Shell({ user }: { user: User }) {
   const incomingCount = social.incoming.length;
   const subPage = active.name === "person" || active.name === "group" || active.name === "post" || active.name === "archived";
   const backTo = active.name === "group" ? "#/groups" : active.name === "person" ? "#/people" : active.name === "archived" ? "#/me" : active.name === "thread" ? "#/messages" : "#/feed";
+  // New entry only belongs on the pages you write to or browse entries on: Feed, Groups (and a group) and your Logbook.
+  const showNew = !!me && (active.name === "feed" || active.name === "groups" || active.name === "group" || active.name === "me");
   const newEntry = () => setEntrySheet({ entry: null, groupId: active.name === "group" ? active.id : undefined });
   const goBack = () => { if (trail.current.length > 1) history.back(); else location.hash = backTo; };
   const tab = (href: string, on: boolean, icon: React.ReactNode, label: string, badge = 0) => (
@@ -203,7 +224,7 @@ export default function Shell({ user }: { user: User }) {
           {tab("#/feed", active.name === "feed", <FeedIcon />, "Feed")}
           {tab("#/groups", active.name === "groups" || active.name === "group", <GroupsIcon />, "Groups", invites.length)}
           {me && (
-            <button type="button" className="tab tab-new" onClick={newEntry} aria-label="New entry" title="New entry">
+            <button type="button" className={`tab tab-new${showNew ? "" : " off"}`} onClick={newEntry} aria-label="New entry" title="New entry">
               <i><PlusIcon /></i><span>New</span>
             </button>
           )}
@@ -232,11 +253,11 @@ export default function Shell({ user }: { user: User }) {
         {active.name === "person" && <PersonRoute key={active.handle} handle={active.handle} />}
         {active.name === "post" && <PostPage key={`${active.uid}/${active.id}`} uid={active.uid} id={active.id} />}
       </main>
-      {me && <SideColumn onNewEntry={newEntry} groupId={active.name === "group" ? active.id : undefined} />}
+      {me && <SideColumn showNew={showNew} onNewEntry={newEntry} groupId={active.name === "group" ? active.id : undefined} />}
       </div>
 
       {entrySheet && (
-        <EntrySheet key={entrySheet.entry?.id ?? "new"} uid={uid} entry={entrySheet.entry} prefill={entrySheet.prefill}
+        <EntrySheet key={entrySheet.entry?.id ?? "new"} uid={uid} entry={entrySheet.entry}
           defaultGroupId={entrySheet.groupId} onClose={closeEntry} onSaved={entrySaved} />
       )}
       {(me === null || editingProfile || !me.username) && (

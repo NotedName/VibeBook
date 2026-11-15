@@ -4,6 +4,7 @@ import OfflineGate from "./OfflineGate";
 import "./styles.css";
 import "./layout.css";
 import "./fluid.css";
+import "./topbar.css";
 import { watchInsets } from "./insets";
 import { watchParallax } from "./parallax";
 

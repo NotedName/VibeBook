@@ -13,7 +13,7 @@ import GroupMembersSheet from "../GroupMembersSheet";
 import GroupManageSheet from "../GroupManageSheet";
 import ImageViewer from "../ImageViewer";
 import { FeedSkeleton, GroupHeadSkeleton } from "../Skeleton";
-import { LockIcon, PlusIcon, SettingsIcon, UsersIcon } from "../icons";
+import { LockIcon, LogOutIcon, PlusIcon, SettingsIcon, UsersIcon } from "../icons";
 
 const roleLabel = (r: GroupRole) => ROLES.find((x) => x.id === r)!.label;
 const RoleBadge = ({ role }: { role: GroupRole }) => role === "member" ? null : <span className={`role-badge role-${role}`}>{roleLabel(role)}</span>;
@@ -120,14 +120,14 @@ export default function GroupPage({ gid }: { gid: string }) {
         </div>
         <div className="group-head-actions">
           {(member || group.privacy !== "private") && (
-            <button type="button" className="btn members-btn" onClick={() => setListing(true)}><UsersIcon /> Members</button>
+            <button type="button" className="btn members-btn" title="Members" onClick={() => setListing(true)}><UsersIcon /><span className="lbl">Members</span></button>
           )}
-          {member && <button type="button" className="btn" onClick={() => setInviting(true)}><PlusIcon /> Invite</button>}
-          {canManage && <button type="button" className="btn" onClick={() => setManaging(true)}><SettingsIcon /> Manage</button>}
+          {member && <button type="button" className="btn" title="Invite people" onClick={() => setInviting(true)}><PlusIcon /><span className="lbl">Invite</span></button>}
+          {canManage && <button type="button" className="btn" title="Manage group" onClick={() => setManaging(true)}><SettingsIcon /><span className="lbl">Manage</span></button>}
           {member && !isOwner && (
-            <button type="button" className={`btn${armed ? " armed" : ""}`} disabled={busy}
+            <button type="button" className={`btn${armed ? " armed" : ""}`} disabled={busy} title="Leave group"
               onClick={() => (armed ? run(() => leaveGroup(s.uid, gid), "You left the group") : setArmed(true))}>
-              {armed ? "Tap to leave" : "Leave"}
+              {armed ? "Tap to leave" : <><LogOutIcon /><span className="lbl">Leave</span></>}
             </button>
           )}
           {!member && (group.privacy !== "private" || invited) && (
@@ -163,13 +163,12 @@ export default function GroupPage({ gid }: { gid: string }) {
           label={viewing === "avatar" ? `${group.name} picture` : `${group.name} cover photo`} onClose={() => setViewing(null)} />
       )}
       {listing && (
-        <GroupMembersSheet members={members} error={membersError} ownerUid={group.ownerUid} onClose={() => setListing(false)}
-          onInvite={member ? () => { setListing(false); setInviting(true); } : undefined}
-          onManage={canManage ? () => { setListing(false); setManaging(true); } : undefined} />
+        <GroupMembersSheet gid={gid} members={members} error={membersError} ownerUid={group.ownerUid} myRole={myRole} onClose={() => setListing(false)}
+          onInvite={member ? () => { setListing(false); setInviting(true); } : undefined} />
       )}
       {inviting && <InviteSheet gid={gid} groupName={group.name} onClose={() => setInviting(false)} />}
-      {managing && myRole && canManage && members && (
-        <GroupManageSheet group={group} myRole={myRole} members={members} onClose={() => setManaging(false)} />
+      {managing && myRole && canManage && (
+        <GroupManageSheet group={group} myRole={myRole} onClose={() => setManaging(false)} />
       )}
     </>
   );

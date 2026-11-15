@@ -114,8 +114,8 @@ export function buildReport(input: ReportInput): ReportModel {
   // One pictures-and-descriptions row per week that has entries.
   const weeks = new Map<string, Entry[]>();
   list.forEach((e) => weeks.set(weekStart(e.date), [...(weeks.get(weekStart(e.date)) ?? []), e]));
-  const groups: ReportGroup[] = [...weeks].map(([monday, es]) => ({
-    label: weekOfMonthLabel(monday),
+  const groups: ReportGroup[] = [...weeks].map(([sunday, es]) => ({
+    label: weekOfMonthLabel(sunday),
     images: es.flatMap((e) => input.photos?.get(e.id) ?? []),
     paragraphs: es.flatMap((e) => paragraphsOf(e.description)),
   }));

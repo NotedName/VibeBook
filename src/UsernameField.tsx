@@ -45,7 +45,7 @@ export default function UsernameField({ value, onChange, selfUid, inputRef, hint
     <label>Username
       <span className="username-field">
         <span className="at" aria-hidden="true">@</span>
-        <input ref={inputRef} value={value} onChange={(e) => onChange(e.target.value)} required
+        <input ref={inputRef} value={value} onChange={(e) => onChange(e.target.value.replace(/^@+/, ""))} required
           maxLength={USERNAME_MAX + 1} autoComplete="off" autoCapitalize="none" autoCorrect="off" spellCheck={false}
           placeholder="e.g. juan_delacruz" aria-describedby="username-status" aria-invalid={state.status === "invalid" || state.status === "taken"} />
       </span>

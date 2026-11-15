@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
+import FormError from "./FormError";
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent, type ReactNode } from "react";
 import {
   BIO_MAX, HEADLINE_MAX, NAME_MAX, UsernameTakenError, fetchMyUsername, normalizeUsername, pendingUsername, saveProfile, suggestUsername,
   usernameProblem,
@@ -9,11 +10,27 @@ import { COVERS, type CoverId, type Profile } from "./types";
 import { useSession } from "./session";
 import Avatar from "./Avatar";
 import PhotoEditor from "./PhotoEditor";
-import { CloseIcon, ImageIcon, CameraIcon, EditIcon, SmileIcon } from "./icons";
-import EmojiPicker from "./EmojiPicker";
-import { insertEmoji } from "./emoji";
+import { CloseIcon, ImageIcon, CameraIcon, EditIcon, TrashIcon } from "./icons";
 import { canAutoFocus } from "./focus";
 import { useScrollLock } from "./scrollLock";
+
+/** The same three buttons, the same size, for the profile photo and the cover photo: Change, Adjust and Remove. */
+function PhotoActions({ has, addLabel, changeLabel, icon, onPick, onAdjust, onRemove }: {
+  has: boolean; addLabel: string; changeLabel: string; icon: ReactNode;
+  onPick: (e: ChangeEvent<HTMLInputElement>) => void; onAdjust: () => void; onRemove: () => void;
+}) {
+  return (
+    <div className={`photo-actions${has ? "" : " solo"}`}>
+      <label className="btn small">{icon}<span>{has ? changeLabel : addLabel}</span>
+        <input type="file" accept="image/*" hidden onChange={onPick} />
+      </label>
+      {has && <button type="button" className="btn small" onClick={onAdjust}><EditIcon /><span>Adjust</span></button>}
+      {has && <button type="button" className="btn small danger" onClick={onRemove}><TrashIcon /><span>Remove</span></button>}
+    </div>
+  );
+}
+
+const NAME_MISSING = "Add your name so people can find you.";
 
 type Props = {
   /** null = first-time setup, which cannot be dismissed until a name and username are saved. An older profile with no username is treated the same way. */
@@ -39,13 +56,6 @@ export default function ProfileSheet({ profile, suggestedName = "", onClose }: P
   const [editing, setEditing] = useState<{ kind: "avatar" | "cover"; file: File } | null>(null);
   const [error, setError] = useState("");
   const nameRef = useRef<HTMLInputElement>(null);
-  const headlineRef = useRef<HTMLInputElement>(null);
-  const workplaceRef = useRef<HTMLInputElement>(null);
-  const bioRef = useRef<HTMLTextAreaElement>(null);
-  // Emoji are for the profile only (entries are printed in reports, where they cannot be shown).
-  // They go into whichever of these text fields was used last.
-  const lastField = useRef<"name" | "headline" | "workplace" | "bio">("bio");
-  const [emojiOpen, setEmojiOpen] = useState(false);
 
   useScrollLock();
   useEffect(() => {
@@ -66,15 +76,6 @@ export default function ProfileSheet({ profile, suggestedName = "", onClose }: P
     return () => { live = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [locked, uid]);
-
-  function addEmoji(e: string) {
-    switch (lastField.current) {
-      case "name": return insertEmoji(nameRef.current, name, e, setName, NAME_MAX);
-      case "headline": return insertEmoji(headlineRef.current, headline, e, setHeadline, HEADLINE_MAX);
-      case "workplace": return insertEmoji(workplaceRef.current, workplace, e, setWorkplace, HEADLINE_MAX);
-      default: return insertEmoji(bioRef.current, bio, e, setBio, BIO_MAX);
-    }
-  }
 
   // Choosing a photo opens the editor so it can be framed before it is used.
   function pick(kind: "avatar" | "cover") {
@@ -106,12 +107,12 @@ export default function ProfileSheet({ profile, suggestedName = "", onClose }: P
 
   async function submit(e: FormEvent) {
     e.preventDefault();
-    if (!name.trim()) { setError("Add your name so people can find you."); return; }
+    if (!name.trim()) { setError(NAME_MISSING); return; }
     const problem = usernameProblem(username);
     if (problem) { setError(problem); return; }
     setBusy(true); setError("");
     try {
-      await saveProfile(uid, { displayName: name, username: normalizeUsername(username), headline, workplace, bio, avatar, cover, coverPhoto, friendsVisible: profile?.friendsVisible ?? true, hoursVisible: profile?.hoursVisible ?? false });
+      await saveProfile(uid, { displayName: name, username: normalizeUsername(username), headline, workplace, bio, avatar, cover, coverPhoto, friendsAudience: profile?.friendsAudience ?? "everyone", hoursAudience: profile?.hoursAudience ?? "private", scheduleAudience: profile?.scheduleAudience ?? "private" });
       notify(setup ? "Welcome to VibeBook" : "Profile saved");
       onClose();
     } catch (err) {
@@ -130,19 +131,15 @@ export default function ProfileSheet({ profile, suggestedName = "", onClose }: P
 
         <div className="sheet-body">
           {setup && <p className="hint">This is what friends see when they find you. Your email address is never shown.</p>}
-          {!setup && locked && <p className="hint">VibeBook profiles now have a unique username. It is part of your profile link, and you can change it later.</p>}
+          {!setup && locked && <p className="hint">Pick a unique username. It is part of your profile link and can be changed later.</p>}
 
           <div className="ps-grid">
             <div className="ps-photos">
               <div className="avatar-edit">
                 <Avatar profile={{ displayName: name, avatar }} size="lg" />
-                <div className="avatar-edit-btns">
-                  <label className="btn"><CameraIcon /> {avatar ? "Change photo" : "Add photo"}
-                    <input type="file" accept="image/*" hidden onChange={pick("avatar")} />
-                  </label>
-                  {avatar && <button type="button" className="btn" onClick={() => adjust("avatar")}><EditIcon /> Adjust</button>}
-                  {avatar && <button type="button" className="btn" onClick={() => setAvatar("")}>Remove</button>}
-                </div>
+                <span className="field-label">Profile photo</span>
+                <PhotoActions has={!!avatar} addLabel="Add photo" changeLabel="Change" icon={<CameraIcon />}
+                  onPick={pick("avatar")} onAdjust={() => adjust("avatar")} onRemove={() => setAvatar("")} />
               </div>
 
               <div className="cover-edit">
@@ -150,13 +147,8 @@ export default function ProfileSheet({ profile, suggestedName = "", onClose }: P
                 <div className={`cover-preview c-${cover}`}>
                   {coverPhoto && <img src={coverPhoto} alt="" />}
                 </div>
-                <div className="avatar-edit-btns">
-                  <label className="btn"><ImageIcon /> {coverPhoto ? "Change cover photo" : "Add cover photo"}
-                    <input type="file" accept="image/*" hidden onChange={pick("cover")} />
-                  </label>
-                  {coverPhoto && <button type="button" className="btn" onClick={() => adjust("cover")}><EditIcon /> Adjust</button>}
-                  {coverPhoto && <button type="button" className="btn" onClick={() => setCoverPhoto("")}>Remove</button>}
-                </div>
+                <PhotoActions has={!!coverPhoto} addLabel="Add cover" changeLabel="Change" icon={<ImageIcon />}
+                  onPick={pick("cover")} onAdjust={() => adjust("cover")} onRemove={() => setCoverPhoto("")} />
               </div>
 
               {!coverPhoto && (
@@ -174,35 +166,27 @@ export default function ProfileSheet({ profile, suggestedName = "", onClose }: P
             <div className="ps-fields">
               <label>Name
                 <input ref={nameRef} value={name} onChange={(e) => setName(e.target.value)} maxLength={NAME_MAX} required
-                  onFocus={() => { lastField.current = "name"; }}
-                  placeholder="e.g. Juan Dela Cruz" autoComplete="name" />
+                  placeholder="e.g. Juan Dela Cruz" autoComplete="name" aria-invalid={error === NAME_MISSING || undefined} />
               </label>
+              {error === NAME_MISSING && <FormError>{error}</FormError>}
               <UsernameField value={username} onChange={setUsername} selfUid={uid} />
               <label>Headline
-                <input ref={headlineRef} value={headline} onChange={(e) => setHeadline(e.target.value)} maxLength={HEADLINE_MAX}
-                  onFocus={() => { lastField.current = "headline"; }}
+                <input value={headline} onChange={(e) => setHeadline(e.target.value)} maxLength={HEADLINE_MAX}
                   placeholder="e.g. OJT intern, IT department" />
               </label>
               <label>Company or school
-                <input ref={workplaceRef} value={workplace} onChange={(e) => setWorkplace(e.target.value)} maxLength={HEADLINE_MAX}
-                  onFocus={() => { lastField.current = "workplace"; }}
+                <input value={workplace} onChange={(e) => setWorkplace(e.target.value)} maxLength={HEADLINE_MAX}
                   placeholder="e.g. St. Mary's College" />
               </label>
               <label>About you
-                <textarea ref={bioRef} rows={4} value={bio} onChange={(e) => setBio(e.target.value)} maxLength={BIO_MAX}
-                  onFocus={() => { lastField.current = "bio"; }}
+                <textarea rows={4} value={bio} onChange={(e) => setBio(e.target.value)} maxLength={BIO_MAX}
                   placeholder="A line or two about what you are working on." />
                 <small className="count">{bio.length}/{BIO_MAX}</small>
               </label>
-              <div className="emoji-field">
-                <button type="button" className={`btn small${emojiOpen ? " on" : ""}`} aria-expanded={emojiOpen}
-                  onClick={() => setEmojiOpen(!emojiOpen)}><SmileIcon /> Emoji</button>
-                {emojiOpen && <div className="media-picker"><EmojiPicker onPick={addEmoji} /></div>}
-              </div>
             </div>
           </div>
 
-          {error && <p className="error" role="alert">{error}</p>}
+          {error && error !== NAME_MISSING && <FormError>{error}</FormError>}
         </div>
 
         <div className="sheet-actions">

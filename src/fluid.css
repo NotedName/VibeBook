@@ -39,7 +39,7 @@
   .tab-new i { transition: transform .3s var(--spring), filter .2s var(--ease); }
   .tab-new:hover i { transform: scale(1.1) rotate(90deg); }
   .tab-new:active i { transform: scale(.9); }
-  .btn.primary { transition-property: background-color, border-color, box-shadow, filter, transform; }
+  .btn.primary { transition-property: background-color, border-color, box-shadow, filter, transform, border-radius; }
 
   @media (hover: hover) {
     .post:hover, .side-card:hover { box-shadow: var(--shadow-lift); }
@@ -47,8 +47,231 @@
     .btn.primary:hover { box-shadow: 0 8px 20px -8px var(--accent); }
   }
 
+  /* ---------- ambient honeycomb: a little life, never a distraction ---------- */
+  /* Everything here is transform or opacity only, so it runs on the compositor and costs almost nothing.
+     The drift is one full hexagon tile (56 x 100px) over two minutes, so it loops with no visible jump. */
+  @keyframes honey-drift { to { translate: var(--honey-w, 56px) var(--honey-h, 100px); } }
+  @keyframes honey-breathe { 0%, 100% { opacity: calc(var(--honey-o) * var(--honey-k, 1)); } 50% { opacity: calc(var(--honey-o) * var(--honey-k, 1) * 1.45); } }
+  @keyframes honey-glow {
+    0%, 100% { transform: translate3d(-14vw, -8vh, 0) scale(1); }
+    50% { transform: translate3d(14vw, 10vh, 0) scale(1.18); }
+  }
+  body::before { animation: honey-drift 120s linear infinite, honey-breathe 14s ease-in-out infinite; }
+  /* a soft light that wanders slowly behind the page, so the honeycomb seems to catch it */
+  body::after {
+    content: ""; position: fixed; z-index: -1; pointer-events: none; left: 50%; top: 40%;
+    width: 70vmax; height: 70vmax; margin: -35vmax 0 0 -35vmax; border-radius: 50%;
+    background: radial-gradient(closest-side, color-mix(in srgb, var(--honey) 55%, transparent), transparent);
+    opacity: .1; will-change: transform;
+    animation: honey-glow 38s ease-in-out infinite;
+  }
+
+  /* ---------- the logo draws itself ---------- */
+  /* Each stroke has length 1 (pathLength in Logo.tsx) and its own order (--i): hide it, then draw it in. */
+  @keyframes logo-draw { 0% { stroke-dashoffset: 1; opacity: 0; } 10% { opacity: 1; } 100% { stroke-dashoffset: 0; opacity: 1; } }
+  .brand:is(:hover, :focus-visible) .brand-mark path {
+    stroke-dasharray: 1; animation: logo-draw .8s cubic-bezier(.65, 0, .35, 1) both; animation-delay: calc(var(--i, 0) * .07s);
+  }
+
+  /* ---------- shapes that morph ---------- */
+  /* Round buttons relax into soft squares, rectangular ones swell into pills, and back again when the pointer leaves. */
+  .icon-btn, .btn, .back-btn { transition-property: background-color, color, border-color, box-shadow, filter, opacity, transform, border-radius; }
+  @media (hover: hover) {
+    .icon-btn:not(.avatar-btn):hover:not(:disabled) { border-radius: 32%; }
+    .btn:hover:not(:disabled), .back-btn:hover { border-radius: calc(var(--radius-sm) + 12px); }
+  }
+
+  /* ---------- animated icons ---------- */
+  /* Icons come alive when their button is hovered, focused by keyboard or pressed. Reduced motion (device or in-app) keeps them still. */
+  @keyframes ico-pop { 40% { transform: scale(1.25); } }
+  @keyframes ico-ring { 15% { transform: rotate(16deg); } 30% { transform: rotate(-14deg); } 45% { transform: rotate(10deg); } 60% { transform: rotate(-6deg); } 75% { transform: rotate(3deg); } }
+  @keyframes ico-turn { to { transform: rotate(90deg); } }
+  @keyframes ico-spin { to { transform: rotate(360deg); } }
+  @keyframes ico-half { to { transform: rotate(180deg); } }
+  @keyframes ico-tilt { 40% { transform: rotate(-14deg) scale(1.15); } }
+  @keyframes ico-fly { 40% { transform: translate(4px, -4px); } 70% { transform: translate(-1px, 1px); } }
+  @keyframes ico-shake { 20%, 60% { transform: translateX(-2px); } 40%, 80% { transform: translateX(2px); } }
+  @keyframes ico-blink { 45%, 55% { transform: scaleY(.1); } }
+  @keyframes ico-hop { 35% { transform: translateY(-3px); } 65% { transform: translateY(1px); } }
+  @keyframes ico-up { 50% { transform: translateY(-3px); } }
+  @keyframes ico-dn { 50% { transform: translateY(3px); } }
+  @keyframes ico-lf { 50% { transform: translateX(-3px); } }
+  @keyframes ico-rt { 50% { transform: translateX(3px); } }
+  @keyframes ico-thumbup { 40% { transform: rotate(-16deg) translateY(-2px); } }
+  @keyframes ico-thumbdn { 40% { transform: rotate(16deg) translateY(2px); } }
+  @keyframes ico-flip { 50% { transform: scaleX(-1); } }
+  @keyframes ico-draw { 0% { stroke-dashoffset: 1; opacity: 0; } 15% { opacity: 1; } 100% { stroke-dashoffset: 0; opacity: 1; } }
+  .ico { transform-origin: 50% 50%; }
+  .ico-bell, .ico-bell-off { transform-origin: 50% 12%; }
+  /* the tick draws itself in */
+  @media (hover: hover) { :is(button, a, label):hover:not(:disabled) .ico-check path { stroke-dasharray: 1; animation: ico-draw .45s var(--ease); } }
+  :is(button, a, label):is(:active, :focus-visible):not(:disabled) .ico-check path { stroke-dasharray: 1; animation: ico-draw .45s var(--ease); }
+  @media (hover: hover) {
+  :is(button, a, label, summary, [role="button"]):hover:not(:disabled) .ico-copy,
+    :is(button, a, label, summary, [role="button"]):hover:not(:disabled) .ico-share,
+    :is(button, a, label, summary, [role="button"]):hover:not(:disabled) .ico-camera,
+    :is(button, a, label, summary, [role="button"]):hover:not(:disabled) .ico-image,
+    :is(button, a, label, summary, [role="button"]):hover:not(:disabled) .ico-feed,
+    :is(button, a, label, summary, [role="button"]):hover:not(:disabled) .ico-groups,
+    :is(button, a, label, summary, [role="button"]):hover:not(:disabled) .ico-note,
+    :is(button, a, label, summary, [role="button"]):hover:not(:disabled) .ico-messages,
+    :is(button, a, label, summary, [role="button"]):hover:not(:disabled) .ico-comment,
+    :is(button, a, label, summary, [role="button"]):hover:not(:disabled) .ico-archive,
+    :is(button, a, label, summary, [role="button"]):hover:not(:disabled) .ico-unarchive,
+    :is(button, a, label, summary, [role="button"]):hover:not(:disabled) .ico-monitor,
+    :is(button, a, label, summary, [role="button"]):hover:not(:disabled) .ico-users,
+    :is(button, a, label, summary, [role="button"]):hover:not(:disabled) .ico-minus,
+    :is(button, a, label, summary, [role="button"]):hover:not(:disabled) .ico-more,
+    :is(button, a, label, summary, [role="button"]):hover:not(:disabled) .ico-globe,
+    :is(button, a, label, summary, [role="button"]):hover:not(:disabled) .ico-menu,
+    :is(button, a, label, summary, [role="button"]):hover:not(:disabled) .ico-clock,
+    :is(button, a, label, summary, [role="button"]):hover:not(:disabled) .ico-settings { animation: ico-pop .5s var(--spring); }
+  }
+  :is(button, a, label, summary, [role="button"]):is(:active, :focus-visible):not(:disabled) .ico-copy,
+  :is(button, a, label, summary, [role="button"]):is(:active, :focus-visible):not(:disabled) .ico-share,
+  :is(button, a, label, summary, [role="button"]):is(:active, :focus-visible):not(:disabled) .ico-camera,
+  :is(button, a, label, summary, [role="button"]):is(:active, :focus-visible):not(:disabled) .ico-image,
+  :is(button, a, label, summary, [role="button"]):is(:active, :focus-visible):not(:disabled) .ico-feed,
+  :is(button, a, label, summary, [role="button"]):is(:active, :focus-visible):not(:disabled) .ico-groups,
+  :is(button, a, label, summary, [role="button"]):is(:active, :focus-visible):not(:disabled) .ico-note,
+  :is(button, a, label, summary, [role="button"]):is(:active, :focus-visible):not(:disabled) .ico-messages,
+  :is(button, a, label, summary, [role="button"]):is(:active, :focus-visible):not(:disabled) .ico-comment,
+  :is(button, a, label, summary, [role="button"]):is(:active, :focus-visible):not(:disabled) .ico-archive,
+  :is(button, a, label, summary, [role="button"]):is(:active, :focus-visible):not(:disabled) .ico-unarchive,
+  :is(button, a, label, summary, [role="button"]):is(:active, :focus-visible):not(:disabled) .ico-monitor,
+  :is(button, a, label, summary, [role="button"]):is(:active, :focus-visible):not(:disabled) .ico-users,
+  :is(button, a, label, summary, [role="button"]):is(:active, :focus-visible):not(:disabled) .ico-minus,
+  :is(button, a, label, summary, [role="button"]):is(:active, :focus-visible):not(:disabled) .ico-more,
+  :is(button, a, label, summary, [role="button"]):is(:active, :focus-visible):not(:disabled) .ico-globe,
+  :is(button, a, label, summary, [role="button"]):is(:active, :focus-visible):not(:disabled) .ico-menu,
+  :is(button, a, label, summary, [role="button"]):is(:active, :focus-visible):not(:disabled) .ico-clock,
+  :is(button, a, label, summary, [role="button"]):is(:active, :focus-visible):not(:disabled) .ico-settings { animation: ico-pop .5s var(--spring); }
+  @media (hover: hover) {
+  :is(button, a, label, summary, [role="button"]):hover:not(:disabled) .ico-bell,
+    :is(button, a, label, summary, [role="button"]):hover:not(:disabled) .ico-bell-off { animation: ico-ring .7s ease-in-out; }
+  }
+  :is(button, a, label, summary, [role="button"]):is(:active, :focus-visible):not(:disabled) .ico-bell,
+  :is(button, a, label, summary, [role="button"]):is(:active, :focus-visible):not(:disabled) .ico-bell-off { animation: ico-ring .7s ease-in-out; }
+  @media (hover: hover) {
+  :is(button, a, label, summary, [role="button"]):hover:not(:disabled) .ico-plus,
+    :is(button, a, label, summary, [role="button"]):hover:not(:disabled) .ico-close { animation: ico-turn .4s var(--ease) forwards; }
+  }
+  :is(button, a, label, summary, [role="button"]):is(:active, :focus-visible):not(:disabled) .ico-plus,
+  :is(button, a, label, summary, [role="button"]):is(:active, :focus-visible):not(:disabled) .ico-close { animation: ico-turn .4s var(--ease) forwards; }
+  @media (hover: hover) {
+  :is(button, a, label, summary, [role="button"]):hover:not(:disabled) .ico-sun,
+    :is(button, a, label, summary, [role="button"]):hover:not(:disabled) .ico-rotate { animation: ico-spin .8s var(--ease); }
+  }
+  :is(button, a, label, summary, [role="button"]):is(:active, :focus-visible):not(:disabled) .ico-sun,
+  :is(button, a, label, summary, [role="button"]):is(:active, :focus-visible):not(:disabled) .ico-rotate { animation: ico-spin .8s var(--ease); }
+  @media (hover: hover) {
+  :is(button, a, label, summary, [role="button"]):hover:not(:disabled) .ico-repost { animation: ico-half .55s var(--ease); }
+  }
+  :is(button, a, label, summary, [role="button"]):is(:active, :focus-visible):not(:disabled) .ico-repost { animation: ico-half .55s var(--ease); }
+  @media (hover: hover) {
+  :is(button, a, label, summary, [role="button"]):hover:not(:disabled) .ico-search,
+    :is(button, a, label, summary, [role="button"]):hover:not(:disabled) .ico-edit,
+    :is(button, a, label, summary, [role="button"]):hover:not(:disabled) .ico-moon { animation: ico-tilt .5s var(--ease); }
+  }
+  :is(button, a, label, summary, [role="button"]):is(:active, :focus-visible):not(:disabled) .ico-search,
+  :is(button, a, label, summary, [role="button"]):is(:active, :focus-visible):not(:disabled) .ico-edit,
+  :is(button, a, label, summary, [role="button"]):is(:active, :focus-visible):not(:disabled) .ico-moon { animation: ico-tilt .5s var(--ease); }
+  @media (hover: hover) {
+  :is(button, a, label, summary, [role="button"]):hover:not(:disabled) .ico-send { animation: ico-fly .55s var(--ease); }
+  }
+  :is(button, a, label, summary, [role="button"]):is(:active, :focus-visible):not(:disabled) .ico-send { animation: ico-fly .55s var(--ease); }
+  @media (hover: hover) {
+  :is(button, a, label, summary, [role="button"]):hover:not(:disabled) .ico-trash,
+    :is(button, a, label, summary, [role="button"]):hover:not(:disabled) .ico-lock { animation: ico-shake .45s ease-in-out; }
+  }
+  :is(button, a, label, summary, [role="button"]):is(:active, :focus-visible):not(:disabled) .ico-trash,
+  :is(button, a, label, summary, [role="button"]):is(:active, :focus-visible):not(:disabled) .ico-lock { animation: ico-shake .45s ease-in-out; }
+  @media (hover: hover) {
+  :is(button, a, label, summary, [role="button"]):hover:not(:disabled) .ico-eye,
+    :is(button, a, label, summary, [role="button"]):hover:not(:disabled) .ico-eye-off { animation: ico-blink .4s ease-in-out; }
+  }
+  :is(button, a, label, summary, [role="button"]):is(:active, :focus-visible):not(:disabled) .ico-eye,
+  :is(button, a, label, summary, [role="button"]):is(:active, :focus-visible):not(:disabled) .ico-eye-off { animation: ico-blink .4s ease-in-out; }
+  @media (hover: hover) {
+  :is(button, a, label, summary, [role="button"]):hover:not(:disabled) .ico-user,
+    :is(button, a, label, summary, [role="button"]):hover:not(:disabled) .ico-mail,
+    :is(button, a, label, summary, [role="button"]):hover:not(:disabled) .ico-smile,
+    :is(button, a, label, summary, [role="button"]):hover:not(:disabled) .ico-book { animation: ico-hop .5s var(--ease); }
+  }
+  :is(button, a, label, summary, [role="button"]):is(:active, :focus-visible):not(:disabled) .ico-user,
+  :is(button, a, label, summary, [role="button"]):is(:active, :focus-visible):not(:disabled) .ico-mail,
+  :is(button, a, label, summary, [role="button"]):is(:active, :focus-visible):not(:disabled) .ico-smile,
+  :is(button, a, label, summary, [role="button"]):is(:active, :focus-visible):not(:disabled) .ico-book { animation: ico-hop .5s var(--ease); }
+  @media (hover: hover) {
+  :is(button, a, label, summary, [role="button"]):hover:not(:disabled) .ico-chevron-up { animation: ico-up .4s var(--ease); }
+  }
+  :is(button, a, label, summary, [role="button"]):is(:active, :focus-visible):not(:disabled) .ico-chevron-up { animation: ico-up .4s var(--ease); }
+  @media (hover: hover) {
+  :is(button, a, label, summary, [role="button"]):hover:not(:disabled) .ico-chevron-down,
+    :is(button, a, label, summary, [role="button"]):hover:not(:disabled) .ico-download { animation: ico-dn .4s var(--ease); }
+  }
+  :is(button, a, label, summary, [role="button"]):is(:active, :focus-visible):not(:disabled) .ico-chevron-down,
+  :is(button, a, label, summary, [role="button"]):is(:active, :focus-visible):not(:disabled) .ico-download { animation: ico-dn .4s var(--ease); }
+  @media (hover: hover) {
+  :is(button, a, label, summary, [role="button"]):hover:not(:disabled) .ico-chevron-left,
+    :is(button, a, label, summary, [role="button"]):hover:not(:disabled) .ico-arrow-left { animation: ico-lf .4s var(--ease); }
+  }
+  :is(button, a, label, summary, [role="button"]):is(:active, :focus-visible):not(:disabled) .ico-chevron-left,
+  :is(button, a, label, summary, [role="button"]):is(:active, :focus-visible):not(:disabled) .ico-arrow-left { animation: ico-lf .4s var(--ease); }
+  @media (hover: hover) {
+  :is(button, a, label, summary, [role="button"]):hover:not(:disabled) .ico-chevron-right,
+  :is(button, a, label, summary, [role="button"]):hover:not(:disabled) .ico-log-out { animation: ico-rt .4s var(--ease); }
+  }
+  :is(button, a, label, summary, [role="button"]):is(:active, :focus-visible):not(:disabled) .ico-chevron-right,
+  :is(button, a, label, summary, [role="button"]):is(:active, :focus-visible):not(:disabled) .ico-log-out { animation: ico-rt .4s var(--ease); }
+  @media (hover: hover) {
+  :is(button, a, label, summary, [role="button"]):hover:not(:disabled) .ico-thumb-up { animation: ico-thumbup .55s var(--spring); }
+  }
+  :is(button, a, label, summary, [role="button"]):is(:active, :focus-visible):not(:disabled) .ico-thumb-up { animation: ico-thumbup .55s var(--spring); }
+  @media (hover: hover) {
+  :is(button, a, label, summary, [role="button"]):hover:not(:disabled) .ico-thumb-down { animation: ico-thumbdn .55s var(--spring); }
+  }
+  :is(button, a, label, summary, [role="button"]):is(:active, :focus-visible):not(:disabled) .ico-thumb-down { animation: ico-thumbdn .55s var(--spring); }
+  @media (hover: hover) {
+  :is(button, a, label, summary, [role="button"]):hover:not(:disabled) .ico-flip { animation: ico-flip .6s var(--ease); }
+  }
+  :is(button, a, label, summary, [role="button"]):is(:active, :focus-visible):not(:disabled) .ico-flip { animation: ico-flip .6s var(--ease); }
+
+  /* ---------- micro-interactions ---------- */
+  @keyframes shake-in { 0% { opacity: 0; transform: translateX(-6px); } 25% { opacity: 1; transform: translateX(5px); } 50% { transform: translateX(-4px); } 75% { transform: translateX(2px); } }
+  @keyframes count-bump { 40% { transform: scale(1.35); } }
+  /* a new badge pops in, and the Send button wakes up the moment there is something to send */
+  .badge { animation: pop-in .45s var(--spring) backwards; }
+  .comment-form .send:not(:disabled) { animation: pop-in .35s var(--spring) backwards; }
+  /* (the jump button is centred with a transform, so its entrance and hover keep that translateX(-50%)) */
+  @keyframes jump-in { from { opacity: 0; transform: translateX(-50%) translateY(10px) scale(.85); } }
+  .chat-jump { animation: jump-in .35s var(--spring) backwards; }
+  /* errors shake once so they are noticed */
+  .error, .field-error { animation: shake-in .4s ease-out; }
+  /* fields light up softly when you click into them */
+  .sheet input:not([type="file"]), .sheet textarea, .comment-form input, .auth-card input { transition: border-color .2s var(--ease), box-shadow .2s var(--ease), background-color .2s var(--ease); }
+  .sheet input:not([type="file"]):focus, .sheet textarea:focus, .comment-form input:focus { border-color: var(--accent); outline: none; box-shadow: 0 0 0 3px var(--accent-soft); }
+  /* the magnifier perks up while you type in a search box */
+  .search .ico-search { transition: transform .3s var(--spring), color .2s var(--ease); }
+  .search:focus-within .ico-search { transform: scale(1.14) rotate(-10deg); color: var(--accent-text); }
+  /* switches: the knob squashes into the track under your thumb, then springs across */
+  .switch-row:active .switch::after { transform: scaleX(1.18) scaleY(.92); box-shadow: 1px 1px 2px var(--neu-lo), -1px -1px 2px var(--neu-hi); }
+  .switch-row:active input:checked + .switch::after { transform: translateX(19px) scaleX(1.18) scaleY(.92); }
+  /* a reaction squishes when you press it and pops when it lands */
+  .react-btn svg { transition: transform .25s var(--spring); }
+  .react-btn:active:not(:disabled) svg { transform: scale(1.3) rotate(-8deg); }
+  .react-btn.flash svg { animation: ico-pop .5s var(--spring); }
+  /* menu rows, avatar and chat jump button */
+  .avatar-btn { transition-property: box-shadow, transform; }
+  @media (hover: hover) {
+    .avatar-btn:hover { box-shadow: 0 0 0 3px var(--accent-soft); }
+    .menu button:hover:not(:disabled) { transform: translateX(3px); }
+    .chat-jump:hover { transform: translateX(-50%) translateY(2px); }
+  }
+  .chat-jump { transition: transform .2s var(--ease), background-color .2s var(--ease); }
+
   /* ---------- things arrive instead of appearing ---------- */
-  @keyframes fade-up { from { opacity: 0; transform: translateY(16px) scale(.985); } }
+  @keyframes fade-up { from { opacity: 0; transform: translateY(6px); } }
   @keyframes fade-in { from { opacity: 0; } }
   @keyframes pop-in { from { opacity: 0; transform: scale(.88); } }
   @keyframes menu-pop { from { opacity: 0; transform: scale(.9) translateY(-6px); } }
@@ -61,15 +284,15 @@
      so nothing keeps a transform (or a stacking context) after the animation ends. */
   .profile, .composer, .post, .group-head, .empty, .people-section, .search, .page-title, .title-row, .day-label,
   .backbar, .side > *, .auth:not(.split) > *, .auth-hero > *, .auth-panel > * {
-    animation: fade-up .55s var(--ease) backwards;
+    animation: fade-up .22s var(--ease) backwards;
   }
   .profile, .group-head, .backbar, .page-title { animation-delay: 0s; }
-  .composer { animation-delay: .06s; }
-  :is(.post, .day-label, .people-section, .empty):nth-child(2) { animation-delay: .06s; }
-  :is(.post, .day-label, .people-section, .empty):nth-child(3) { animation-delay: .11s; }
-  :is(.post, .day-label, .people-section, .empty):nth-child(4) { animation-delay: .16s; }
-  :is(.post, .day-label, .people-section, .empty):nth-child(5) { animation-delay: .2s; }
-  :is(.post, .day-label, .people-section, .empty):nth-child(n+6) { animation-delay: .24s; }
+  .composer { animation-delay: .02s; }
+  :is(.post, .day-label, .people-section, .empty):nth-child(2) { animation-delay: .02s; }
+  :is(.post, .day-label, .people-section, .empty):nth-child(3) { animation-delay: .04s; }
+  :is(.post, .day-label, .people-section, .empty):nth-child(4) { animation-delay: .06s; }
+  :is(.post, .day-label, .people-section, .empty):nth-child(5) { animation-delay: .08s; }
+  :is(.post, .day-label, .people-section, .empty):nth-child(n+6) { animation-delay: .1s; }
   .side > :nth-child(2) { animation-delay: .08s; }
   .side > :nth-child(3) { animation-delay: .16s; }
   .auth:not(.split) > :nth-child(2), .auth-hero > :nth-child(2), .auth-panel > :nth-child(2) { animation-delay: .07s; }
@@ -107,16 +330,16 @@
 @media (prefers-reduced-motion: no-preference) {
   @keyframes bell-ring { 0%, 100% { transform: rotate(0); } 15% { transform: rotate(14deg); } 30% { transform: rotate(-12deg); } 45% { transform: rotate(8deg); } 60% { transform: rotate(-5deg); } 75% { transform: rotate(2deg); } }
   @keyframes dot-pulse { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent-text) 45%, transparent); } 100% { box-shadow: 0 0 0 8px transparent; } }
-  @keyframes slide-in-left { from { opacity: 0; transform: translateX(-12px); } }
+  @keyframes slide-in-left { from { opacity: 0; transform: translateX(-6px); } }
 
   /* notifications: rows settle in one after another, the unread dot pops, a pressed row dips */
-  .notes > li { animation: fade-up .38s var(--ease) backwards; }
-  .notes > li:nth-child(2) { animation-delay: .03s; }
-  .notes > li:nth-child(3) { animation-delay: .06s; }
-  .notes > li:nth-child(4) { animation-delay: .09s; }
-  .notes > li:nth-child(5) { animation-delay: .12s; }
-  .notes > li:nth-child(6) { animation-delay: .15s; }
-  .notes > li:nth-child(n+7) { animation-delay: .18s; }
+  .notes > li { animation: fade-up .2s var(--ease) backwards; }
+  .notes > li:nth-child(2) { animation-delay: .02s; }
+  .notes > li:nth-child(3) { animation-delay: .02s; }
+  .notes > li:nth-child(4) { animation-delay: .02s; }
+  .notes > li:nth-child(5) { animation-delay: .02s; }
+  .notes > li:nth-child(6) { animation-delay: .02s; }
+  .notes > li:nth-child(n+7) { animation-delay: .04s; }
   .note-dot { animation: pop-in .4s var(--spring) backwards, dot-pulse 1.6s ease-out .4s 2; }
   .note-row { transition: background-color .25s var(--ease), transform .15s var(--ease); }
   .note-row:active { transform: scale(.985); }
@@ -125,12 +348,12 @@
   .bell:has(.bell-badge) > svg { transform-origin: 50% 0; animation: bell-ring .9s ease-in-out .5s 1; }
 
   /* lists of people and groups: the first rows stagger in; later rows (loaded as you scroll) simply appear */
-  .people > li:nth-child(-n+8), .people > .person:nth-child(-n+8) { animation: slide-in-left .38s var(--ease) backwards; }
-  .people > :nth-child(2) { animation-delay: .04s; }
-  .people > :nth-child(3) { animation-delay: .08s; }
-  .people > :nth-child(4) { animation-delay: .12s; }
-  .people > :nth-child(5) { animation-delay: .16s; }
-  .people > :nth-child(n+6) { animation-delay: .2s; }
+  .people > li:nth-child(-n+8), .people > .person:nth-child(-n+8) { animation: slide-in-left .2s var(--ease) backwards; }
+  .people > :nth-child(2) { animation-delay: .02s; }
+  .people > :nth-child(3) { animation-delay: .02s; }
+  .people > :nth-child(4) { animation-delay: .02s; }
+  .people > :nth-child(5) { animation-delay: .02s; }
+  .people > :nth-child(n+6) { animation-delay: .02s; }
 
   /* small touches */
   .person-link { transition: background-color .22s var(--ease), color .22s var(--ease), transform .15s var(--ease); }
@@ -154,6 +377,51 @@
 @media (max-width: 599.98px) { .fx-orb, .fx-chip { animation: none !important; } }
 /* Fast drags stay glued to the finger: no transition on a row while it is being dragged */
 .note-swipe.dragging .note-swipe-fg { transition: none !important; }
+
+/* ---------- moving between pages: liquid glass ---------- */
+/* (Shell.tsx starts the transition, names <main> "page" for its duration and sets data-nav on <html> to "forward" or "back" when the move
+   is between two main tabs; browsers without view transitions simply switch pages.)
+   The old page slips away like a pane of glass sliding off, softened and brightened as it goes; the new one slides in from the other side
+   out of a blur and settles with a little overshoot. The highlighted tab is a glass pill that stretches as it travels, then springs back. */
+@media (prefers-reduced-motion: no-preference) {
+  /* Kept deliberately light so a tab change feels instant: only opacity and a few pixels of movement (no blur, no filters,
+     no scaling of the whole page, which are what made it stutter), over about a fifth of a second. The rest of the window
+     is not cross-faded at all. */
+  ::view-transition-group(root) { animation: none; }
+  ::view-transition-old(root), ::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
+  ::view-transition-group(page) { animation-duration: .18s; animation-timing-function: ease-out; }
+  ::view-transition-old(page) { animation: vt-out .08s linear both; }
+  ::view-transition-new(page) { animation: vt-in .18s cubic-bezier(.22, 1, .36, 1) both; }
+  :root[data-nav="forward"]::view-transition-new(page) { animation-name: vt-in-fwd; }
+  :root[data-nav="back"]::view-transition-new(page) { animation-name: vt-in-back; }
+  @keyframes vt-out { to { opacity: 0; } }
+  @keyframes vt-in { from { opacity: 0; transform: translateY(6px); } }
+  @keyframes vt-in-fwd { from { opacity: 0; transform: translateX(14px); } }
+  @keyframes vt-in-back { from { opacity: 0; transform: translateX(-14px); } }
+  ::view-transition-group(tab-pill) { animation-duration: .25s; animation-timing-function: var(--ease); }
+  ::view-transition-old(tab-pill), ::view-transition-new(tab-pill) { height: 100%; }
+}
+
+/* ---------- messaging: bubbles spring in from the side they belong to ---------- */
+/* Only messages that arrive or are sent while a chat is open get `.enter` (ThreadPage), so opening a chat never plays a hundred animations. */
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes msg-in-mine { from { opacity: 0; transform: translate(20px, 14px) scale(.8); } }
+  @keyframes msg-in-theirs { from { opacity: 0; transform: translate(-20px, 14px) scale(.8); } }
+  @keyframes msg-rise { from { opacity: 0; transform: translateY(6px); } }
+  @keyframes panel-up { from { opacity: 0; transform: translateY(14px); } }
+  .msg.enter.mine .msg-col, .msg.failed .msg-col { transform-origin: right bottom; animation: msg-in-mine .45s var(--spring) backwards; }
+  .msg.enter.theirs .msg-col { transform-origin: left bottom; animation: msg-in-theirs .45s var(--spring) backwards; }
+  .msg.enter .chat-sep { animation: msg-rise .35s var(--ease) backwards; }
+  .msg-seen, .msg-failed { animation: msg-rise .3s var(--ease) backwards; }
+  .msg-failed { animation-name: shake-in; animation-duration: .4s; }
+  .chat-composer .send, .chat-composer .like { animation: pop-in .35s var(--spring) backwards; }
+  .pending-thumb { animation: pop-in .35s var(--spring) backwards; }
+  .chat-compose .media-picker { animation: panel-up .3s var(--ease) backwards; }
+  .chat-intro { animation: msg-rise .45s var(--ease) backwards; }
+  .chat-composer textarea { transition: outline-color .2s var(--ease), background-color .2s var(--ease); }
+  .bubble { transition: transform .15s var(--ease); }
+  .bubble:active { transform: scale(.98); }
+}
 
 /* Settings > Accessibility > Reduce motion: the same calm result as the device setting, chosen inside the app. */
 html[data-motion="reduced"] *, html[data-motion="reduced"] *::before, html[data-motion="reduced"] *::after {

@@ -55,7 +55,7 @@ export function dailyReport(entries: Entry[], date: string): string {
 }
 
 /**
- * Text for the "Copy for Weekly Report" button: the Monday to Sunday week that contains `date`, one heading per day
+ * Text for the "Copy for Weekly Report" button: the Sunday to Saturday week that contains `date`, one heading per day
  * with entries, oldest first, and the hours for the day and the week. `origin` (the first day of the logbook) is Week 1.
  */
 export function weeklyReport(entries: Entry[], date: string, origin: string): string {

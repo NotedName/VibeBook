@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useFriendsOf } from "./friendList";
+import { useCanSee } from "./audience";
 import { useProfile, useSession } from "./session";
 import PersonRow from "./PersonRow";
 import { RowsSkeleton } from "./Skeleton";
@@ -11,7 +12,9 @@ export default function FriendsSheet({ uid, onClose, initialView = "all" }: { ui
   const s = useSession();
   const mine = uid === s.uid;
   const p = useProfile(uid);
-  const shown = mine || p?.friendsVisible !== false;
+  const canSee = useCanSee(uid, p ? p.friendsAudience : "private");
+  const loadingAccess = !mine && (p === undefined || (p !== null && canSee === undefined));
+  const shown = mine || canSee === true;
   const theirs = useFriendsOf(uid, !mine && shown);
   const [view, setView] = useState<"all" | "mutual">(mine ? "all" : initialView);
   // Friends you have in common come first, and are marked "Mutual".
@@ -41,12 +44,12 @@ export default function FriendsSheet({ uid, onClose, initialView = "all" }: { ui
               <button type="button" className={`sort-chip${view === "mutual" ? " on" : ""}`} aria-pressed={view === "mutual"} onClick={() => setView("mutual")}>Mutual {mutualIds.size}</button>
             </div>
           )}
-          {!shown || theirs.error ? (
-            <p className="hint notes-empty">{name} keeps the friends list private.</p>
+          {loadingAccess ? <RowsSkeleton /> : !shown || theirs.error ? (
+            <p className="hint notes-empty">{name} has not shared the friends list with you.</p>
           ) : list === null ? <RowsSkeleton />
             : list.length === 0 ? <p className="hint notes-empty">{mine ? "You have not added any friends yet." : view === "mutual" ? `You and ${name} have no mutual friends yet.` : `${name} has no friends to show yet.`}</p>
             : <ul className="people">{list.map((id) => <PersonRow key={id} uid={id} badge={!mine && mutualIds.has(id) ? <i className="mutual-badge">Mutual</i> : undefined} />)}</ul>}
-          {mine && <p className="hint">Other people can see this list unless you turn it off in Settings, under Privacy.</p>}
+          {mine && <p className="hint">Who can see this list is set in Settings, under Privacy.</p>}
         </div>
       </div>
     </div>

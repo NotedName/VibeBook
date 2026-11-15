@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from "react";
-import { deleteEntry, loadPhotos, setEntryArchived, type Entry, type Photo } from "./entries";
+import { deleteEntry, loadPhotos, setEntryArchived, setEntryVisibility, type Entry, type Photo } from "./entries";
 import { copyText, entryText, entryWhen, longDay } from "./report";
 import { useProfile, useSession } from "./session";
 import { personHash } from "./profiles";
-import { VISIBILITY } from "./types";
+import { VISIBILITY, type Visibility } from "./types";
+import { chosenVisibility } from "./entryPrivacy";
 import Avatar from "./Avatar";
 import ClampedText from "./ClampedText";
-import { ArchiveIcon, CommentIcon, CopyIcon, DownloadIcon, EditIcon, GlobeIcon, GroupsIcon, LockIcon, MoreIcon, RepostIcon, ShareIcon, TrashIcon, UnarchiveIcon, UsersIcon } from "./icons";
+import { ArchiveIcon, CheckIcon, CommentIcon, CopyIcon, DownloadIcon, EditIcon, GlobeIcon, GroupsIcon, LockIcon, MoreIcon, RepostIcon, ShareIcon, TrashIcon, UnarchiveIcon, UsersIcon } from "./icons";
 import GroupShareSheet from "./GroupShareSheet";
 import ShareSheet from "./ShareSheet";
 import { removeRepost, repostId } from "./reposts";
@@ -56,6 +57,7 @@ function FullEntryCard({ entry, onEdit, inGroup, single = false }: Props) {
   const [commenting, setCommenting] = useState(single);
   const commentCount = useCommentCount(ownerUid, entry.id);
   const [menu, setMenu] = useState(false);
+  const [visOpen, setVisOpen] = useState(false);
   const [sharing, setSharing] = useState<"share" | "repost" | null>(null);
   const reposter = useProfile(entry.repostedBy);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -85,7 +87,7 @@ function FullEntryCard({ entry, onEdit, inGroup, single = false }: Props) {
 
   useEffect(() => {
     if (!menu) return;
-    const close = () => { setMenu(false); setArmed(false); setArmedRemove(false); };
+    const close = () => { setMenu(false); setVisOpen(false); setArmed(false); setArmedRemove(false); };
     const onDown = (e: MouseEvent) => { if (!menuRef.current?.contains(e.target as Node)) close(); };
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && close();
     document.addEventListener("mousedown", onDown);
@@ -104,6 +106,16 @@ function FullEntryCard({ entry, onEdit, inGroup, single = false }: Props) {
     setMenu(false);
     if (await downloadPhotos(photos, entry.title)) s.notify(photos.length > 1 ? "Photos saved" : "Photo saved");
     else s.notify("Could not download the photos");
+  }
+
+  function changeVisibility(v: Visibility) {
+    setMenu(false);
+    setVisOpen(false);
+    if (v === chosenVisibility(entry)) return;
+    setEntryVisibility(ownerUid, entry, v).then(
+      () => s.notify(`Now visible to: ${VISIBILITY.find((x) => x.id === v)!.label.toLowerCase()}`),
+      () => s.notify("Could not change who can see this"),
+    );
   }
 
   function toggleArchive() {
@@ -192,6 +204,21 @@ function FullEntryCard({ entry, onEdit, inGroup, single = false }: Props) {
                   {entry.archived ? <><UnarchiveIcon />Unarchive</> : <><ArchiveIcon />Archive</>}
                 </button>
               )}
+              {mine && (
+                <>
+                  <button type="button" role="menuitem" aria-expanded={visOpen} disabled={inPrivateGroup}
+                    title={inPrivateGroup ? "Shared to a private group: only its members can see this entry." : undefined}
+                    onClick={() => setVisOpen(!visOpen)}>
+                    {VIS_ICON[vis.id]}Who can see this
+                  </button>
+                  {visOpen && VISIBILITY.map((v) => (
+                    <button key={v.id} type="button" role="menuitemradio" className="menu-sub" aria-checked={chosenVisibility(entry) === v.id}
+                      onClick={() => changeVisibility(v.id)}>
+                      {chosenVisibility(entry) === v.id ? <CheckIcon /> : <span className="menu-gap" aria-hidden="true" />}{v.label}
+                    </button>
+                  ))}
+                </>
+              )}
               {mine && onEdit && (
                 <>
                   <button type="button" role="menuitem" onClick={() => { setMenu(false); onEdit(entry); }}><EditIcon />Edit</button>
@@ -234,13 +261,14 @@ function FullEntryCard({ entry, onEdit, inGroup, single = false }: Props) {
         <ReactionBar ownerUid={ownerUid} entryId={entry.id} title={entry.title} myUid={s.uid} onError={s.notify} />
         <button type="button" className={`act${commenting ? " on" : ""}`} aria-expanded={commenting}
           aria-label={commentCount ? `Comment, ${commentCount} so far` : "Comment"}
-          onClick={() => setCommenting(!commenting)}><CommentIcon /><span>Comment</span>{!!commentCount && <b className="count">{commentCount}</b>}</button>
+          onClick={() => setCommenting(!commenting)}><CommentIcon /><span className="label">Comment</span>{!!commentCount && <b className="count">{commentCount}</b>}</button>
         {isPublic && !mine && (
           <button type="button" className={`act${myRepost ? " on" : ""}`} aria-pressed={!!myRepost}
-            onClick={() => setSharing("repost")}><RepostIcon /><span>{myRepost ? "Reposted" : "Repost"}</span></button>
+            aria-label={myRepost ? "Reposted" : "Repost"} title={myRepost ? "Reposted" : "Repost"}
+            onClick={() => setSharing("repost")}><RepostIcon /><span className="label">{myRepost ? "Reposted" : "Repost"}</span></button>
         )}
         {(isPublic || mine) && (
-          <button type="button" className="act" onClick={() => setSharing("share")}><ShareIcon /><span>Share</span></button>
+          <button type="button" className="act" aria-label="Share" title="Share" onClick={() => setSharing("share")}><ShareIcon /><span className="label">Share</span></button>
         )}
       </div>
 

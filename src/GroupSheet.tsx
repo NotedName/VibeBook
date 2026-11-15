@@ -6,6 +6,7 @@ import { canAutoFocus } from "./focus";
 import GroupAccessFields from "./GroupAccessFields";
 import type { GroupPrivacy } from "./types";
 import { useScrollLock } from "./scrollLock";
+import FormError from "./FormError";
 
 export default function GroupSheet({ onClose, onCreated }: { onClose: () => void; onCreated: (id: string) => void }) {
   const { uid } = useSession();
@@ -54,7 +55,7 @@ export default function GroupSheet({ onClose, onCreated }: { onClose: () => void
               maxLength={GROUP_DESC_MAX} placeholder="Who should join, and what do you share here?" />
           </label>
           <GroupAccessFields privacy={privacy} questions={questions} onPrivacy={setPrivacy} onQuestions={setQuestions} disabled={busy} />
-          {error && <p className="error" role="alert">{error}</p>}
+          {error && <FormError>{error}</FormError>}
         </div>
         <div className="sheet-actions">
           <button type="button" className="btn" onClick={onClose}>Cancel</button>

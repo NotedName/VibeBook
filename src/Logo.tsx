@@ -1,21 +1,22 @@
-/** VibeBook mark: a book opening, with a little light rising from its pages. */
+import type { CSSProperties } from "react";
+
+// Each stroke is normalised to length 1 (pathLength) and given an order (--i), so hovering the logo can draw it stroke by stroke (see fluid.css).
+const st = (i: number) => ({ "--i": i }) as CSSProperties;
+
+/** VibeBook mark: an open book with lines of text on both pages and three coloured rays rising from its spine. */
 export function LogoMark({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 64 64" fill="none" stroke="currentColor" strokeWidth="3"
       strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <defs>
-        <linearGradient id="vb-swoosh" x1="0" y1="1" x2="1" y2="0">
-          <stop offset="0" stopColor="#b23cff" />
-          <stop offset=".6" stopColor="#ff6aa8" />
-          <stop offset="1" stopColor="#ffa15a" />
-        </linearGradient>
-      </defs>
-      <path d="M32 18C26 14 16 13 8 15v34c8-2 18-1 24 3" />
-      <path d="M32 18c6-4 16-5 24-3v34c-8-2-18-1-24 3" />
-      <path d="M32 18v34" />
-      <path d="M7 54c9-2 18-1 25 3 7-4 16-5 25-3" />
-      <path d="M14 24h12M14 30h12M14 36h8M38 24h12M38 30h12M38 36h8" />
-      <path d="M32 11V5M22 13l-3-5M42 13l3-5" stroke="url(#vb-swoosh)" />
+      <path pathLength={1} style={st(0)} d="M32 16C26 12 16 12 7 14v34c9-2 19-1 25 3" />
+      <path pathLength={1} style={st(0)} d="M32 16c6-4 16-4 25-2v34c-9-2-19-1-25 3" />
+      <path pathLength={1} style={st(1)} d="M32 16v35" />
+      <path pathLength={1} style={st(2)} d="M7 54c9-2 18-1 25 3 7-4 16-5 25-3" />
+      <path pathLength={1} style={st(3)} d="M13 25h13M13 31h13M13 37h8" />
+      <path pathLength={1} style={st(3)} d="M38 25h13M38 31h13M38 37h8" />
+      <path pathLength={1} style={st(4)} d="M18.5 9l3.5 5" stroke="#b23cff" />
+      <path pathLength={1} style={st(5)} d="M32 4.5v6" stroke="#ff6aa8" />
+      <path pathLength={1} style={st(6)} d="M45.5 9L42 14" stroke="#ffa15a" />
     </svg>
   );
 }

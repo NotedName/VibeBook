@@ -7,6 +7,7 @@ import { MAX_GROUPS_PER_ENTRY } from "./types";
 import { GroupAvatar } from "./GroupRow";
 import { CloseIcon } from "./icons";
 import { useScrollLock } from "./scrollLock";
+import FormError from "./FormError";
 
 type Props = {
   /** "own" shares your own entry to groups; "repost" reposts someone else's public entry. */
@@ -84,7 +85,7 @@ export default function GroupShareSheet({ kind, entry, onClose }: Props) {
               : `"${entry.title}" is added to your logbook and shown to people who see your reposts. Tick groups to share it there too.`}
           </p>
           {kind === "own" && groupIds.some((id) => s.groups.list.find((g) => g.id === id)?.privacy === "private") && (
-            <p className="hint unsaved">A private group is ticked. Only its members will see this entry: it comes off your profile, the feed and its share link, and visitors see "join the group to see this post".</p>
+            <p className="hint unsaved">A private group is ticked: only its members will see this entry. It leaves your profile, the feed and its share link.</p>
           )}
           <fieldset className="group-pick">
             <legend>Groups</legend>
@@ -109,9 +110,9 @@ export default function GroupShareSheet({ kind, entry, onClose }: Props) {
                 })}
               </ul>
             )}
-            <p className="hint">Up to {MAX_GROUPS_PER_ENTRY} groups.{kind === "repost" && " A post can only be in a group once, so groups that already have it are greyed out."}</p>
+            <p className="hint">Up to {MAX_GROUPS_PER_ENTRY} groups.{kind === "repost" && " Groups that already have it are greyed out."}</p>
           </fieldset>
-          {error && <p className="error" role="alert">{error}</p>}
+          {error && <FormError>{error}</FormError>}
         </div>
         <div className="sheet-actions">
           {existing

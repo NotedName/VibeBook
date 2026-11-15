@@ -4,6 +4,7 @@ import { auth } from "./firebase";
 import { authMessage } from "./authErrors";
 import { MailIcon } from "./icons";
 import { BrandName } from "./Logo";
+import FormError from "./FormError";
 
 const RESEND_SECONDS = 30;
 
@@ -72,7 +73,7 @@ export default function VerifyEmail({ user, onVerified }: Props) {
           We sent a link to <b>{user.email}</b>. Open it to confirm this is your address, then come back here.
         </p>
         <p className="hint">Nothing in your inbox? Check spam or promotions.</p>
-        {error && <p className="error" role="alert">{error}</p>}
+        {error && <FormError>{error}</FormError>}
         {message && <p className="ok" role="status">{message}</p>}
         <button type="button" className="btn primary wide" disabled={busy} onClick={check}>I have verified</button>
         <button type="button" className="btn wide" disabled={busy || cooldown > 0} onClick={resend}>

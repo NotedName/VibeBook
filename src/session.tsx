@@ -1,7 +1,6 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import type { User } from "firebase/auth";
 import type { Entry } from "./entries";
-import type { EntryPrefill } from "./EntrySheet";
 import type { MyGroups } from "./groups";
 import { fetchProfile } from "./profiles";
 import type { Repost } from "./reposts";
@@ -30,8 +29,6 @@ export type Session = SocialState & {
   editProfile: () => void;
   /** entry null = new entry; groupId pre-selects a group to share a new entry with. */
   openEntry: (entry: Entry | null, groupId?: string) => void;
-  /** Opens a new entry already filled with hours, as when pressing Clock out. */
-  openEntryWithHours: (prefill: EntryPrefill) => void;
 };
 
 const Ctx = createContext<Session | null>(null);

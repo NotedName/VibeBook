@@ -28,6 +28,8 @@
   --shadow: 0 1px 2px rgba(0, 0, 0, .35), 0 12px 32px -16px rgba(0, 0, 0, .7);
   --shadow-lift: 0 2px 4px rgba(0, 0, 0, .35), 0 18px 40px -16px rgba(0, 0, 0, .8);
   --shadow-pop: 0 12px 36px -8px rgba(0, 0, 0, .6);
+  --neu-hi: rgba(255, 255, 255, .07);  /* soft-UI light edge and shadow, for switches and time fields */
+  --neu-lo: rgba(0, 0, 0, .55);
   --scrim: rgba(0, 0, 0, .7);
   --col: 640px;
   --radius: 22px;      /* cards: posts, profile, lists, side cards */
@@ -59,6 +61,8 @@
     --shadow: 0 1px 2px rgba(20, 20, 20, .08), 0 12px 30px -16px rgba(70, 40, 110, .35);
     --shadow-lift: 0 2px 4px rgba(20, 20, 20, .08), 0 18px 40px -16px rgba(70, 40, 110, .45);
     --shadow-pop: 0 12px 36px -8px rgba(40, 20, 70, .3);
+    --neu-hi: rgba(255, 255, 255, .95);
+    --neu-lo: rgba(110, 98, 135, .38);
     --scrim: rgba(20, 20, 20, .55);
     --honey-o: .17;
     color-scheme: light;
@@ -78,6 +82,8 @@
   --shadow: 0 1px 2px rgba(20, 20, 20, .08), 0 12px 30px -16px rgba(70, 40, 110, .35);
   --shadow-lift: 0 2px 4px rgba(20, 20, 20, .08), 0 18px 40px -16px rgba(70, 40, 110, .45);
   --shadow-pop: 0 12px 36px -8px rgba(40, 20, 70, .3);
+  --neu-hi: rgba(255, 255, 255, .95);
+  --neu-lo: rgba(110, 98, 135, .38);
   --scrim: rgba(20, 20, 20, .55);
   --honey-o: .17;
   color-scheme: light;
@@ -112,13 +118,14 @@ body {
 /* Honeycomb behind everything, on every screen. One fixed layer, never animated: the hexagon outline is a mask, so the colour is
    --honey (the theme's accent) and it recolours itself with light, dark and AMOLED. Cards and sheets sit on top; it shows between them. */
 body::before {
-  content: ""; position: fixed; inset: 0 0 -100px 0; z-index: -1; pointer-events: none;
-  /* Parallax: src/parallax.ts sets --parallax-y (0 to -100px, one hexagon tile tall, so the pattern repeats seamlessly). */
+  content: ""; position: fixed; inset: calc(var(--honey-h, 100px) * -1) calc(var(--honey-w, 56px) * -1); z-index: -1; pointer-events: none;
+  /* Parallax: src/parallax.ts sets --parallax-y (0 to minus one tile height, so the pattern repeats seamlessly).
+     The layer reaches one tile past every edge, so the ambient drift in fluid.css (which uses `translate`, not `transform`) never shows a gap.
+     The pattern itself (--honey-mask, --honey-w, --honey-h, --honey-k) comes from the chosen style, see the end of this file. */
   transform: translate3d(0, var(--parallax-y, 0px), 0); will-change: transform;
-  background: var(--honey); opacity: var(--honey-o);
-  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='100' viewBox='0 0 56 100'%3E%3Cpath d='M28 66L0 50L0 16L28 0L56 16L56 50L28 66L28 100' fill='none' stroke='%23000' stroke-width='2'/%3E%3Cpath d='M28 0L28 34L0 50L0 84L28 100L56 84L56 50L28 34' fill='none' stroke='%23000' stroke-width='2'/%3E%3C/svg%3E");
-  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='100' viewBox='0 0 56 100'%3E%3Cpath d='M28 66L0 50L0 16L28 0L56 16L56 50L28 66L28 100' fill='none' stroke='%23000' stroke-width='2'/%3E%3Cpath d='M28 0L28 34L0 50L0 84L28 100L56 84L56 50L28 34' fill='none' stroke='%23000' stroke-width='2'/%3E%3C/svg%3E");
-  -webkit-mask-size: 56px 100px; mask-size: 56px 100px;
+  background: var(--honey); opacity: calc(var(--honey-o) * var(--honey-k, 1));
+  -webkit-mask-image: var(--honey-mask); mask-image: var(--honey-mask);
+  -webkit-mask-size: var(--honey-w, 56px) var(--honey-h, 100px); mask-size: var(--honey-w, 56px) var(--honey-h, 100px);
 }
 h1, h2, h3, p { margin: 0; }
 button, input, textarea { font: inherit; color: inherit; }
@@ -403,7 +410,13 @@ a.btn { text-decoration: none; }
 }
 .tab svg { width: 20px; height: 20px; }
 .tab:hover { color: var(--text); }
-.tab.on { color: var(--accent-text); border-bottom-color: var(--accent); }
+.tab.on {
+  color: var(--accent-text); border-bottom-color: var(--accent); view-transition-name: tab-pill;
+  /* glass pill: a faint tint, a bright top edge and a soft inner glow */
+  border-radius: 12px 12px 0 0;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 16%, transparent), color-mix(in srgb, var(--accent) 3%, transparent));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .28), inset 0 0 0 1px rgba(255, 255, 255, .06);
+}
 /* New entry sits in the navigation, between Feed and Groups. Wide desktop screens use the side column instead. */
 .tab-new { background: none; border: 0; font-family: inherit; cursor: pointer; color: var(--text); }
 .tab-new i {
@@ -435,7 +448,9 @@ a.btn { text-decoration: none; }
 .seg label:has(input:focus-visible), .cover-opt:has(input:focus-visible) { outline: 2px solid var(--accent-text); outline-offset: 2px; }
 
 /* ---------- profile editing ---------- */
-.avatar-edit { display: flex; align-items: center; gap: 14px; }
+/* profile photo: picture and label on one row, then the same full-width button row the cover photo has */
+.avatar-edit { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 8px 14px; }
+.avatar-edit .photo-actions { grid-column: 1 / -1; }
 .avatar-edit-btns { display: flex; flex-wrap: wrap; gap: 8px; }
 .count { justify-self: end; font-weight: 400; }
 .covers { grid-template-columns: repeat(3, 1fr); }
@@ -449,10 +464,19 @@ a.btn { text-decoration: none; }
 
 /* Edit profile: one column on phones; photos on the left and the fields on the right once there is room. */
 .ps-grid { display: grid; gap: 14px; }
-/* phones keep the order: photo, fields, cover */
+/* phones: the profile photo, then the cover photo (and cover colours) right under it, then the fields */
 .ps-photos { display: contents; }
-.ps-fields { display: grid; gap: 14px; order: 1; }
-.ps-grid .cover-edit, .ps-grid .covers { order: 2; }
+.ps-grid .avatar-edit { order: 0; }
+.ps-grid .cover-edit { order: 1; }
+.ps-grid .covers { order: 2; }
+.ps-fields { display: grid; gap: 14px; order: 3; }
+/* Change / Adjust / Remove: the same size and look for both photos, sharing the row */
+.photo-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.photo-actions.solo { grid-template-columns: minmax(0, 1fr); }
+.photo-actions .btn { width: 100%; min-width: 0; padding-inline: 8px; white-space: nowrap; overflow: hidden; }
+.photo-actions .btn span { overflow: hidden; text-overflow: ellipsis; }
+.photo-actions .btn.danger { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 45%, var(--line)); }
+@media (max-width: 359.98px) { .photo-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); } .photo-actions .btn:first-child { grid-column: 1 / -1; } }
 @media (min-width: 860px) {
   .sheet.profile-sheet { max-width: 880px; }
   .profile-sheet .sheet-body { padding: 20px 24px; }
@@ -643,7 +667,8 @@ a.btn { text-decoration: none; }
 
 /* ---------- reactions, video, share links ---------- */
 .react-btn .count { font-weight: 700; font-variant-numeric: tabular-nums; }
-.react-btn .label { display: none; }
+/* Action buttons (Vibe, Pass, Comment, Repost, Share) show only their icon on small screens and add the word from 640px up. */
+.act .label { display: none; }
 /* A reaction you have given is shown by its filled icon in the normal text colour, so nothing stays coloured and the theme stays intact.
    Vibe (green) and Pass (red) only light up while pressed, then fade back. */
 .react-btn.on { color: var(--text); }
@@ -654,7 +679,7 @@ a.btn { text-decoration: none; }
 @keyframes react-flash-vibe { 0%, 45% { color: var(--vibe); background: color-mix(in srgb, var(--vibe) 16%, transparent); } }
 @keyframes react-flash-pass { 0%, 45% { color: var(--danger); background: color-mix(in srgb, var(--danger) 16%, transparent); } }
 .react-btn:disabled { opacity: .7; cursor: default; }
-@media (min-width: 640px) { .react-btn .label { display: inline; } }
+@media (min-width: 640px) { .act .label { display: inline; } }
 .locked-hint { margin: 0; padding: 0 14px 10px; font-size: calc(13px * var(--ts)); color: var(--accent-text); }
 
 .video { background: #000; margin: 0 14px 12px; border-radius: var(--radius-md); overflow: hidden; }
@@ -697,6 +722,10 @@ a.btn { text-decoration: none; }
 .menu button:hover { background: var(--surface-2); }
 .menu button svg { width: 18px; height: 18px; flex: none; }
 .menu button.danger { color: var(--danger); }
+.menu button:disabled { opacity: .5; cursor: default; }
+.menu button.menu-sub { padding-left: 40px; font-weight: 500; }
+.menu button.menu-sub svg { margin-left: -28px; color: var(--accent-text); }
+.menu button.menu-sub .menu-gap { display: none; }
 
 /* ---------- photo editor ---------- */
 .overlay.editor { z-index: 50; }
@@ -793,8 +822,6 @@ a.btn { text-decoration: none; }
 .emoji-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(38px, 1fr)); gap: 2px; }
 .emoji-grid button { background: none; border: 0; border-radius: var(--radius-sm); font-size: calc(24px * var(--ts)); line-height: 1; padding: 7px 0; }
 .emoji-grid button:hover, .emoji-grid button:focus-visible { background: var(--accent-soft); }
-.emoji-field { display: grid; gap: 8px; justify-items: start; }
-.emoji-field .media-picker { justify-self: stretch; }
 
 /* ---------- group roles and management ---------- */
 .role-badge {
@@ -953,6 +980,9 @@ a.btn { text-decoration: none; }
   .settings-layout { grid-template-columns: 190px minmax(0, 1fr); }
   .settings-nav { padding: 14px 10px; }
 }
+.settings-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 10px 16px; border-top: 1px solid var(--line); }
+.settings-foot .hint { margin: 0; }
+.settings-foot .btn { flex: none; }
 .setting { border: 0; padding: 0; margin: 0; min-width: 0; display: grid; gap: 8px; }
 .setting legend, .setting-title { font-weight: 600; font-size: calc(14px * var(--ts)); color: var(--text); padding: 0 0 6px; }
 .sheet .switch-row {
@@ -962,13 +992,20 @@ a.btn { text-decoration: none; }
 .switch-row small { display: block; color: var(--muted); }
 .switch-row.off { opacity: .55; cursor: default; }
 .switch-row input { position: absolute; opacity: 0; pointer-events: none; }
-.switch { flex: none; width: 44px; height: 26px; border-radius: var(--radius-pill); background: var(--line); position: relative; transition: background-color .22s var(--ease); }
-.switch::after {
-  content: ""; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff;
-  transition: transform .22s var(--ease);
+/* Soft-UI switch: the track is pressed into the surface, the knob stands out of it. Turning it on tints the track and lights the knob. */
+.switch {
+  flex: none; width: 50px; height: 28px; border-radius: var(--radius-pill); position: relative; background: var(--surface-2);
+  box-shadow: inset 2px 2px 5px var(--neu-lo), inset -2px -2px 5px var(--neu-hi);
+  transition: background-color .3s var(--ease), box-shadow .3s var(--ease);
 }
-.switch-row input:checked + .switch { background: var(--accent); }
-.switch-row input:checked + .switch::after { transform: translateX(18px); }
+.switch::after {
+  content: ""; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%;
+  background: linear-gradient(145deg, color-mix(in srgb, var(--surface) 70%, #fff), color-mix(in srgb, var(--surface) 88%, #000));
+  box-shadow: 2px 2px 5px var(--neu-lo), -1px -1px 3px var(--neu-hi), inset 0 0 0 5px transparent;
+  transition: transform .35s var(--spring), box-shadow .3s var(--ease);
+}
+.switch-row input:checked + .switch { background: color-mix(in srgb, var(--accent) 80%, var(--surface-2)); box-shadow: inset 2px 2px 6px rgba(0, 0, 0, .45), inset -1px -1px 4px var(--neu-hi); }
+.switch-row input:checked + .switch::after { transform: translateX(22px); box-shadow: 2px 2px 5px rgba(0, 0, 0, .4), -1px -1px 3px var(--neu-hi), inset 0 0 0 5px var(--accent-soft), 0 0 12px var(--accent); }
 .switch-row:has(input:focus-visible) { outline: 2px solid var(--accent-text); outline-offset: 2px; }
 .account-line { color: var(--text); overflow-wrap: anywhere; }
 
@@ -1038,13 +1075,20 @@ a.btn { text-decoration: none; }
   border-radius: var(--radius-sm); padding-left: 12px;
 }
 .username-field:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
-.username-field .at { color: var(--muted); font-weight: 600; }
+/* The @ and the typed name are one control: same size and weight, and the box (not the input) carries the border, focus ring and error colour. */
+.username-field { font-size: max(16px, calc(16px * var(--ts))); font-weight: 400; }
+.username-field .at { color: var(--muted); font: inherit; line-height: 1; user-select: none; }
 .username-field input,
 .sheet .username-field input:not([type="file"]),
-.auth-card .username-field input {
-  border: 0; background: none; box-shadow: none; padding-left: 4px; min-width: 0; flex: 1;
+.auth-card .username-field input,
+.auth-card .username-field input:focus,
+.auth-card .username-field input[aria-invalid],
+.auth-card .username-field input[aria-invalid]:focus,
+.sheet .username-field input:not([type="file"]):focus {
+  border: 0; background: none; box-shadow: none; outline: none; font: inherit; padding-left: 2px; min-width: 0; flex: 1; width: auto;
 }
-.username-field input:focus { outline: none; box-shadow: none; }
+.username-field:has(input[aria-invalid="true"]) { border-color: var(--danger); }
+.username-field:has(input[aria-invalid="true"]):focus-within { box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 25%, transparent); }
 .username-status { min-height: 1.2em; font-weight: 400; color: var(--muted); overflow-wrap: anywhere; }
 .username-status.free { color: var(--accent-text); }
 .username-status.invalid, .username-status.taken { color: var(--danger); }
@@ -1480,6 +1524,10 @@ mark.hl.cur { background: #ff9f1c; box-shadow: 0 0 0 2px #ff9f1c; }
 .msg-photo img { display: block; max-width: 100%; max-height: 340px; width: auto; height: auto; border-radius: 18px; background: var(--surface-2); }
 .msg-gif { display: block; max-width: min(280px, 100%); max-height: 300px; width: auto; height: auto; border-radius: 18px; background: var(--surface-2); }
 .msg-time { color: var(--muted); font-size: calc(11px * var(--ts)); margin: 0 6px; }
+.msg.pending .bubble, .msg.pending .msg-gif, .msg.pending .msg-photo { opacity: .6; transition: opacity .3s ease; }
+.msg-failed { justify-self: end; display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 4px 12px; margin: 4px 2px 0; color: var(--danger); font-size: calc(12px * var(--ts)); }
+.msg.failed .bubble.mine { opacity: .6; }
+.msg.failed .msg-gif { opacity: .6; }
 .msg-seen { justify-self: end; display: flex; align-items: center; gap: 4px; margin: 3px 2px 0; color: var(--muted); font-size: calc(11px * var(--ts)); }
 .msg-seen .av { width: 14px; height: 14px; font-size: 7px; }
 .chat-locked { flex: none; margin: 0; padding: 14px var(--gutter); text-align: center; border-top: 1px solid var(--line); }
@@ -1560,6 +1608,13 @@ html.scroll-locked { overscroll-behavior: none; }
 .range-filter { margin: 10px var(--gutter) 0; display: grid; gap: 8px; }
 .range-top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .range-summary { color: var(--muted); font-size: calc(13px * var(--ts)); }
+.menu-wide { min-width: min(260px, calc(100vw - 32px)); }
+.menu-range { display: grid; gap: 8px; padding: 4px 12px 10px; }
+.menu-range label { display: grid; gap: 4px; font-size: calc(13px * var(--ts)); font-weight: 600; color: var(--muted); }
+.menu-range input { min-width: 0; }
+.menu-range .btn { justify-self: start; }
+.sort-btn.filtered { position: relative; }
+.sort-btn.filtered::after { content: ""; position: absolute; top: 6px; right: 6px; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
 .range-fields { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; padding: 10px; background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius-sm); }
 .range-fields label { display: grid; gap: 4px; flex: 1 1 140px; min-width: 0; font-size: calc(13px * var(--ts)); font-weight: 600; color: var(--muted); }
 .range-fields input { min-width: 0; }
@@ -1595,3 +1650,89 @@ html.scroll-locked { overscroll-behavior: none; }
 .cal-legend li { display: flex; align-items: center; gap: 6px; }
 .cal-key { display: inline-block; width: 14px; height: 14px; border-radius: 4px; border: 1px solid var(--line); position: relative; }
 .cal-key.changed::after { content: ""; position: absolute; top: 2px; right: 2px; width: 4px; height: 4px; border-radius: 50%; background: currentColor; }
+
+/* ---------- schedule: from, to and break side by side ---------- */
+.time-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.time-row label { min-width: 0; }
+.time-row input { width: 100%; min-width: 0; }
+
+/* ---------- count badges on the bells ---------- */
+/* The layout rules for tab badges (.badge, .topbar .badge) set left / position for the tabs and, being more specific or later, pulled the
+   bell counters out of place (stretched between left and right, or pushed into the button's flow). Pin the bell counter to the icon's corner. */
+.icon-btn.bell .bell-badge { position: absolute; top: 0; right: 0; left: auto; margin: 0; }
+
+/* Notifications: swipe left = mark as read (accent strip on the right), swipe right = delete (red strip on the left). */
+.note-swipe-bg.del { background: #c0392b; color: #fff; }
+.notes-swipe-hint { margin: 0 0 6px; text-align: center; font-size: calc(12px * var(--ts)); }
+
+/* ---------- honeycomb styles (Settings > Appearance > Background) ---------- */
+/* Each style sets the mask (the pattern), its tile size, and how strong it is. The same variables draw the previews in Settings. */
+:root, .honey-sw[data-style="classic"] { --honey-mask: url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2756%27 height=%27100%27 viewBox=%270 0 56 100%27%3E%3Cpath d=%27M28 66L0 50L0 16L28 0L56 16L56 50L28 66L28 100%27 fill=%27none%27 stroke=%27%23000%27 stroke-width=%272%27/%3E%3Cpath d=%27M28 0L28 34L0 50L0 84L28 100L56 84L56 50L28 34%27 fill=%27none%27 stroke=%27%23000%27 stroke-width=%272%27/%3E%3C/svg%3E"); --honey-w: 56px; --honey-h: 100px; --honey-k: 1; }
+html[data-honey="fine"], .honey-sw[data-style="fine"] { --honey-mask: url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2728%27 height=%2750%27 viewBox=%270 0 56 100%27%3E%3Cpath d=%27M28 66L0 50L0 16L28 0L56 16L56 50L28 66L28 100%27 fill=%27none%27 stroke=%27%23000%27 stroke-width=%273%27/%3E%3Cpath d=%27M28 0L28 34L0 50L0 84L28 100L56 84L56 50L28 34%27 fill=%27none%27 stroke=%27%23000%27 stroke-width=%273%27/%3E%3C/svg%3E"); --honey-w: 28px; --honey-h: 50px; --honey-k: 1; }
+html[data-honey="large"], .honey-sw[data-style="large"] { --honey-mask: url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%27112%27 height=%27200%27 viewBox=%270 0 56 100%27%3E%3Cpath d=%27M28 66L0 50L0 16L28 0L56 16L56 50L28 66L28 100%27 fill=%27none%27 stroke=%27%23000%27 stroke-width=%271%27/%3E%3Cpath d=%27M28 0L28 34L0 50L0 84L28 100L56 84L56 50L28 34%27 fill=%27none%27 stroke=%27%23000%27 stroke-width=%271%27/%3E%3C/svg%3E"); --honey-w: 112px; --honey-h: 200px; --honey-k: 1; }
+html[data-honey="bold"], .honey-sw[data-style="bold"] { --honey-mask: url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2756%27 height=%27100%27 viewBox=%270 0 56 100%27%3E%3Cpath d=%27M28 66L0 50L0 16L28 0L56 16L56 50L28 66L28 100%27 fill=%27none%27 stroke=%27%23000%27 stroke-width=%274.5%27/%3E%3Cpath d=%27M28 0L28 34L0 50L0 84L28 100L56 84L56 50L28 34%27 fill=%27none%27 stroke=%27%23000%27 stroke-width=%274.5%27/%3E%3C/svg%3E"); --honey-w: 56px; --honey-h: 100px; --honey-k: 0.7; }
+html[data-honey="cells"], .honey-sw[data-style="cells"] { --honey-mask: url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2756%27 height=%27100%27 viewBox=%270 0 56 100%27%3E%3Cpolygon points=%2728.0%2C6.6 50.4%2C19.4 50.4%2C46.6 28.0%2C59.4 5.6%2C46.6 5.6%2C19.4%27 fill=%27%23000%27/%3E%3Cpolygon points=%270.0%2C56.6 22.4%2C69.4 22.4%2C96.6 0.0%2C109.4 -22.4%2C96.6 -22.4%2C69.4%27 fill=%27%23000%27/%3E%3Cpolygon points=%2756.0%2C56.6 78.4%2C69.4 78.4%2C96.6 56.0%2C109.4 33.6%2C96.6 33.6%2C69.4%27 fill=%27%23000%27/%3E%3Cpolygon points=%270.0%2C-43.4 22.4%2C-30.6 22.4%2C-3.4 0.0%2C9.4 -22.4%2C-3.4 -22.4%2C-30.6%27 fill=%27%23000%27/%3E%3Cpolygon points=%2756.0%2C-43.4 78.4%2C-30.6 78.4%2C-3.4 56.0%2C9.4 33.6%2C-3.4 33.6%2C-30.6%27 fill=%27%23000%27/%3E%3C/svg%3E"); --honey-w: 56px; --honey-h: 100px; --honey-k: 0.55; }
+html[data-honey="dots"], .honey-sw[data-style="dots"] { --honey-mask: url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2756%27 height=%27100%27 viewBox=%270 0 56 100%27%3E%3Ccircle cx=%2728%27 cy=%2733%27 r=%273%27 fill=%27%23000%27/%3E%3Ccircle cx=%270%27 cy=%2783%27 r=%273%27 fill=%27%23000%27/%3E%3Ccircle cx=%2756%27 cy=%2783%27 r=%273%27 fill=%27%23000%27/%3E%3Ccircle cx=%270%27 cy=%27-17%27 r=%273%27 fill=%27%23000%27/%3E%3Ccircle cx=%2756%27 cy=%27-17%27 r=%273%27 fill=%27%23000%27/%3E%3C/svg%3E"); --honey-w: 56px; --honey-h: 100px; --honey-k: 1.1; }
+html[data-honey="off"] body::before, html[data-honey="off"] body::after { display: none; }
+.honey-sw[data-style="off"] { --honey-mask: none; }
+
+/* Settings: pick the honeycomb style */
+.honey-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 8px; }
+.honey-opt { position: relative; display: grid; gap: 6px; justify-items: center; padding: 8px 6px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface-2); font-size: calc(13px * var(--ts)); font-weight: 600; cursor: pointer; min-width: 0; text-align: center; }
+.honey-opt input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.honey-opt.on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-text); }
+.honey-opt:has(input:focus-visible) { outline: 2px solid var(--accent-text); outline-offset: 2px; }
+.honey-sw { position: relative; width: 100%; height: 52px; border-radius: 6px; overflow: hidden; background: var(--surface); display: grid; place-items: center; color: var(--muted); font-size: calc(12px * var(--ts)); font-weight: 600; }
+.honey-sw::before {
+  content: ""; position: absolute; inset: 0; background: var(--honey); opacity: calc(.55 * var(--honey-k, 1) + .15);
+  -webkit-mask-image: var(--honey-mask); mask-image: var(--honey-mask);
+  -webkit-mask-size: var(--honey-w) var(--honey-h); mask-size: var(--honey-w) var(--honey-h);
+}
+.honey-sw[data-style="off"]::before { display: none; }
+
+/* A viewer's day-by-day look at a shared schedule */
+.cal-day.picked { box-shadow: 0 0 0 2px var(--text); }
+.day-detail { display: grid; gap: 4px; margin-top: 10px; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface-2); }
+.day-detail h3 { font-family: var(--font-display); font-size: calc(15px * var(--ts)); }
+.day-detail p { margin: 0; font-size: calc(14px * var(--ts)); overflow-wrap: anywhere; }
+.schedule-days-btn { justify-self: start; margin-top: 6px; }
+
+/* Logged hours */
+.hours-log-btn { justify-self: stretch; width: 100%; }
+.start-edited { color: var(--accent-text) !important; font-weight: 600 !important; }
+.log-week { display: grid; gap: 6px; }
+.log-week h3 { font-family: var(--font-display); font-size: calc(14px * var(--ts)); display: flex; flex-wrap: wrap; gap: 2px 10px; align-items: baseline; }
+.log-week h3 small { color: var(--muted); font-weight: 400; font-size: calc(12px * var(--ts)); }
+.log-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.log-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 8px; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface-2); }
+.log-row.running { border-color: var(--accent); background: var(--accent-soft); grid-template-columns: minmax(0, 1fr) auto; }
+.log-main { display: grid; gap: 2px; min-width: 0; font-size: calc(14px * var(--ts)); }
+.log-main b { overflow-wrap: anywhere; }
+.log-times { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: calc(13px * var(--ts)); flex-wrap: wrap; }
+.log-times svg { width: 14px; height: 14px; flex: none; }
+.log-badge { justify-self: start; padding: 2px 8px; border-radius: var(--radius-pill); background: var(--accent-soft); color: var(--accent-text); font-size: calc(12px * var(--ts)); font-weight: 600; }
+.log-len { font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.log-edit { width: 36px; height: 36px; }
+
+/* ---------- time and date fields (Edit start, Daily schedule): soft-UI pressed-in fields that match the switches ---------- */
+.hours-form input:is([type="time"], [type="date"], [type="number"]), .time-row input {
+  width: 100%; box-sizing: border-box; min-height: 48px; padding: 0 10px 0 12px; border: 1px solid transparent; border-radius: var(--radius-sm);
+  background: var(--surface-2); color: var(--text); font: inherit; font-size: max(16px, calc(16px * var(--ts))); font-weight: 600;
+  font-variant-numeric: tabular-nums; -webkit-appearance: none; appearance: none;
+  box-shadow: inset 2px 2px 5px var(--neu-lo), inset -2px -2px 5px var(--neu-hi);
+  transition: border-color .2s var(--ease), box-shadow .2s var(--ease);
+}
+.hours-form input:is([type="time"], [type="date"], [type="number"]):focus, .time-row input:focus {
+  outline: none; border-color: var(--accent); box-shadow: inset 2px 2px 5px var(--neu-lo), inset -2px -2px 5px var(--neu-hi), 0 0 0 3px var(--accent-soft);
+}
+.hours-form input::-webkit-datetime-edit, .time-row input::-webkit-datetime-edit { padding: 0; }
+.hours-form input::-webkit-datetime-edit-fields-wrapper, .time-row input::-webkit-datetime-edit-fields-wrapper { padding: 0; }
+.hours-form input::-webkit-calendar-picker-indicator, .time-row input::-webkit-calendar-picker-indicator {
+  margin: 0 0 0 2px; padding: 4px; border-radius: 50%; cursor: pointer; opacity: .75; transition: opacity .2s var(--ease), background-color .2s var(--ease);
+}
+.hours-form input::-webkit-calendar-picker-indicator:hover, .time-row input::-webkit-calendar-picker-indicator:hover { opacity: 1; background: var(--accent-soft); }
+/* Date and start time side by side; From and To side by side with the break under them (three fields do not fit a phone) */
+.hours-form label { flex: 1 1 140px; }
+.hours-form label:has(input[type="date"]) { flex-grow: 1.35; }
+.time-row { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.time-row label:nth-child(3) { grid-column: 1 / -1; }

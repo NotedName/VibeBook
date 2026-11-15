@@ -5,7 +5,13 @@ import { addDays, dayOfWeek, daysBetween } from "./weeks";
  * unavailable although their weekday is usually a work day (a holiday, an absence); `daysOn` are dates that are
  * available although their weekday is usually off (working a Saturday). `hoursPerDay` is a full day's hours.
  */
-export type Availability = { workDays: number[]; daysOff: string[]; daysOn: string[]; hoursPerDay: number };
+export type Availability = {
+  workDays: number[]; daysOff: string[]; daysOn: string[];
+  /** paid hours in a full day: start to end, less the break. This is what every calculation uses. */
+  hoursPerDay: number;
+  /** how that day is made up, "HH:MM", so the schedule sheet can show it again */
+  startTime?: string; endTime?: string; breakMinutes?: number;
+};
 
 export const DEFAULT_AVAILABILITY: Availability = { workDays: [1, 2, 3, 4, 5], daysOff: [], daysOn: [], hoursPerDay: 8 };
 /** Most dates that can be listed as exceptions (firestore.rules allows the same). */
@@ -13,16 +19,36 @@ export const MAX_EXCEPTIONS = 400;
 
 const isDate = (x: unknown): x is string => typeof x === "string" && /^\d{4}-\d{2}-\d{2}$/.test(x);
 
+const pad = (n: number) => String(n).padStart(2, "0");
+export const isTime = (x: unknown): x is string => typeof x === "string" && /^([01]\d|2[0-3]):[0-5]\d$/.test(x);
+const toMinutes = (t: string) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
+const toTime = (n: number) => `${pad(Math.floor(n / 60))}:${pad(n % 60)}`;
+
+/** Minutes in a full day: from start to end, less the break. 0 when the times are missing, not in order, or the break takes the whole day. */
+export function shiftMinutes(start: string, end: string, breakMinutes: number): number {
+  if (!isTime(start) || !isTime(end)) return 0;
+  return Math.max(0, toMinutes(end) - toMinutes(start) - breakMinutes);
+}
+
+/** Start, end and break to show for someone who only ever saved hours per day: an 08:00 start and no break, ending when the hours are done. */
+export function defaultTimes(hoursPerDay: number): { startTime: string; endTime: string; breakMinutes: number } {
+  const total = Math.round(hoursPerDay * 60);
+  const start = total <= 16 * 60 ? 8 * 60 : 0;
+  return { startTime: toTime(start), endTime: toTime(Math.min(start + total, 24 * 60 - 1)), breakMinutes: 0 };
+}
+
 /** Reads what is stored, falling back to the defaults for anything missing or malformed. */
 export function normalizeAvailability(raw: Record<string, unknown> | undefined): Availability {
   if (!raw) return DEFAULT_AVAILABILITY;
   const days = Array.isArray(raw.workDays) ? [...new Set(raw.workDays.filter((d): d is number => Number.isInteger(d) && d >= 0 && d <= 6))] : null;
   const hpd = typeof raw.hoursPerDay === "number" && raw.hoursPerDay > 0 && raw.hoursPerDay <= 24 ? raw.hoursPerDay : DEFAULT_AVAILABILITY.hoursPerDay;
+  const timed = isTime(raw.startTime) && isTime(raw.endTime) && typeof raw.breakMinutes === "number" && raw.breakMinutes >= 0 && raw.breakMinutes <= 1440;
   return {
     workDays: days ?? DEFAULT_AVAILABILITY.workDays,
     daysOff: Array.isArray(raw.daysOff) ? raw.daysOff.filter(isDate) : [],
     daysOn: Array.isArray(raw.daysOn) ? raw.daysOn.filter(isDate) : [],
     hoursPerDay: hpd,
+    ...(timed ? { startTime: raw.startTime as string, endTime: raw.endTime as string, breakMinutes: raw.breakMinutes as number } : {}),
   };
 }
 

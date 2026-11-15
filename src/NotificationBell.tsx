@@ -55,20 +55,24 @@ function What({ item }: { item: NoteItem }) {
 }
 
 
-/** How far (px) a row must be dragged sideways to count as "mark as read". */
+/** How far (px) a row must be dragged sideways to count. */
 const SWIPE_AT = 72;
 
 /**
- * Drag a notification left or right to mark it read. Vertical movement still scrolls the list (touch-action: pan-y),
- * and a drag never counts as a tap, so it does not open the notification. Read notifications do not move.
+ * Drag a notification sideways: left marks it as read, right deletes it. Vertical movement still scrolls the list
+ * (touch-action: pan-y), and a drag never counts as a tap, so it does not open the notification. A direction that
+ * does not apply (a read notification cannot be marked read again) does not move.
  */
-function SwipeToRead({ enabled, onRead, children }: { enabled: boolean; onRead: () => void; children: ReactNode }) {
+function SwipeRow({ canRead, onRead, onDelete, deleteLabel = "Delete", children }: {
+  canRead: boolean; onRead: () => void; onDelete: () => void; deleteLabel?: string; children: ReactNode;
+}) {
   const [dx, setDx] = useState(0);
   const [dragging, setDragging] = useState(false);
   const st = useRef({ x: 0, y: 0, id: -1, live: false, moved: false });
+  const clamp = (mx: number) => Math.max(canRead ? -160 : 0, Math.min(160, mx));
 
   function down(e: RPointerEvent<HTMLDivElement>) {
-    if (!enabled || !e.isPrimary || (e.pointerType === "mouse" && e.button !== 0)) return;
+    if (!e.isPrimary || (e.pointerType === "mouse" && e.button !== 0)) return;
     st.current = { x: e.clientX, y: e.clientY, id: e.pointerId, live: false, moved: false };
   }
   function move(e: RPointerEvent<HTMLDivElement>) {
@@ -82,7 +86,7 @@ function SwipeToRead({ enabled, onRead, children }: { enabled: boolean; onRead: 
       e.currentTarget.setPointerCapture(e.pointerId);
       setDragging(true);
     }
-    setDx(Math.max(-160, Math.min(160, mx)));
+    setDx(clamp(mx));
   }
   function end(e: RPointerEvent<HTMLDivElement>, cancelled: boolean) {
     const s = st.current;
@@ -91,31 +95,33 @@ function SwipeToRead({ enabled, onRead, children }: { enabled: boolean; onRead: 
     if (!s.live) return;
     s.live = false;
     setDragging(false);
-    const passed = !cancelled && Math.abs(e.clientX - s.x) >= SWIPE_AT;
+    const mx = clamp(e.clientX - s.x);
     setDx(0);
-    if (passed) onRead();
+    if (cancelled || Math.abs(mx) < SWIPE_AT) return;
+    if (mx < 0) onRead(); else onDelete();
   }
 
+  const left = dx < 0;
   return (
     <div className={`note-swipe${dragging ? " dragging" : ""}`}
       onPointerDown={down} onPointerMove={move}
       onPointerUp={(e) => end(e, false)} onPointerCancel={(e) => end(e, true)}
       // a drag ends in a click on the link underneath: swallow that one
       onClickCapture={(e) => { if (st.current.moved) { e.preventDefault(); e.stopPropagation(); st.current.moved = false; } }}>
-      <div className="note-swipe-bg" aria-hidden="true"
-        style={{ opacity: Math.min(1, Math.abs(dx) / SWIPE_AT), justifyContent: dx < 0 ? "flex-end" : "flex-start" }}>
-        <CheckIcon /> Mark as read
+      <div className={`note-swipe-bg ${left ? "read" : "del"}`} aria-hidden="true"
+        style={{ opacity: Math.min(1, Math.abs(dx) / SWIPE_AT), justifyContent: left ? "flex-end" : "flex-start" }}>
+        {left ? <><CheckIcon /> Mark as read</> : <><TrashIcon /> {deleteLabel}</>}
       </div>
       <div className="note-swipe-fg" style={{ transform: dx ? `translateX(${dx}px)` : undefined }}>{children}</div>
     </div>
   );
 }
 
-function Row({ item, onOpen, onRead }: { item: NoteItem; onOpen: (item: NoteItem) => void; onRead: (item: NoteItem) => void }) {
+function Row({ item, onOpen, onRead, onDelete }: { item: NoteItem; onOpen: (item: NoteItem) => void; onRead: (item: NoteItem) => void; onDelete: (item: NoteItem) => void }) {
   const shown = item.actors.slice(0, 3);
   return (
     <li>
-      <SwipeToRead enabled={item.unread} onRead={() => onRead(item)}>
+      <SwipeRow canRead={item.unread} onRead={() => onRead(item)} onDelete={() => onDelete(item)}>
         <a className={`note-row${item.unread ? " unread" : ""}`} href={noteHref(item)} draggable={false} onClick={() => onOpen(item)}>
           <span className={`note-avatars${shown.length > 1 ? " stack" : ""}`}>
             {shown.map((u) => <ActorAvatar key={u} uid={u} />)}
@@ -126,17 +132,17 @@ function Row({ item, onOpen, onRead }: { item: NoteItem; onOpen: (item: NoteItem
           </span>
           {item.unread && <i className="note-dot" aria-label="Unread" />}
         </a>
-      </SwipeToRead>
+      </SwipeRow>
     </li>
   );
 }
 
-function GroupAlertRow({ alert, onOpen, onRead }: { alert: GroupAlert; onOpen: (gid: string) => void; onRead: (gid: string) => void }) {
+function GroupAlertRow({ alert, onOpen, onSeen }: { alert: GroupAlert; onOpen: (gid: string) => void; onSeen: (gid: string) => void }) {
   const { groups } = useSession();
   const name = groups.list.find((g) => g.id === alert.gid)?.name || "a group";
   return (
     <li>
-      <SwipeToRead enabled onRead={() => onRead(alert.gid)}>
+      <SwipeRow canRead onRead={() => onSeen(alert.gid)} onDelete={() => onSeen(alert.gid)} deleteLabel="Dismiss">
         <a className="note-row unread" href={`#/g/${encodeURIComponent(alert.gid)}`} draggable={false} onClick={() => onOpen(alert.gid)}>
           <span className="note-avatars"><span className="av av-sm" aria-hidden="true"><GroupsIcon /></span></span>
           <span className="note-text">
@@ -144,7 +150,7 @@ function GroupAlertRow({ alert, onOpen, onRead }: { alert: GroupAlert; onOpen: (
           </span>
           <i className="note-dot" aria-label="Unread" />
         </a>
-      </SwipeToRead>
+      </SwipeRow>
     </li>
   );
 }
@@ -191,6 +197,10 @@ function NotificationsSheet({ items, loading, alerts, unreadIds, onOpen, onOpenG
     markRead(s.uid, ids).catch(() => s.notify("Could not mark it as read"));
   }
 
+  function deleteOne(item: NoteItem) {
+    removeNotes(s.uid, item.notes.map((n) => n.id)).catch(() => s.notify("Could not delete it"));
+  }
+
   return (
     <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className="sheet" role="dialog" aria-modal="true" aria-label="Notifications">
@@ -211,14 +221,15 @@ function NotificationsSheet({ items, loading, alerts, unreadIds, onOpen, onOpenG
               </button>
             </div>
           )}
+          {(items.length > 0 || alerts.length > 0) && <p className="hint notes-swipe-hint">Swipe left to mark as read, right to delete.</p>}
           {loading && items.length === 0 && alerts.length === 0
             ? <RowsSkeleton />
             : items.length === 0 && alerts.length === 0
             ? <p className="hint notes-empty">You are all caught up. Requests, likes, comments and reposts show up here.</p>
             : (
               <ul className="notes">
-                {alerts.map((a) => <GroupAlertRow key={a.gid} alert={a} onOpen={onOpenGroup} onRead={s.markGroupSeen} />)}
-                {items.map((it) => <Row key={it.key} item={it} onOpen={onOpen} onRead={readOne} />)}
+                {alerts.map((a) => <GroupAlertRow key={a.gid} alert={a} onOpen={onOpenGroup} onSeen={s.markGroupSeen} />)}
+                {items.map((it) => <Row key={it.key} item={it} onOpen={onOpen} onRead={readOne} onDelete={deleteOne} />)}
               </ul>
             )}
         </div>

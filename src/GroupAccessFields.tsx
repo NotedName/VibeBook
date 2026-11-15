@@ -34,7 +34,7 @@ export default function GroupAccessFields({ privacy, questions, onPrivacy, onQue
       {privacy === "private" && (
         <fieldset className="join-questions" disabled={disabled}>
           <legend>Questions for people who ask to join <small>(optional)</small></legend>
-          <p className="hint">Everyone who asks to join also writes a short message about why. Add questions to learn more, such as their school or team.</p>
+          <p className="hint">People who ask to join write a short note on why. Add questions, such as school or team.</p>
           {questions.map((q, i) => (
             <div className="q-row" key={i}>
               <input value={q} maxLength={QUESTION_MAX} onChange={(e) => set(i, e.target.value)}

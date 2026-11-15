@@ -31,7 +31,7 @@ export default function ArchivedPage() {
       <div className="title-row">
         <h1 className="page-title">Archived entries</h1>
       </div>
-      <p className="hint archived-note"><ArchiveIcon />Only you can see these. They are hidden from your logbook, the feed, groups and share links, and left out of your stats and reports, until you unarchive them.</p>
+      <p className="hint archived-note"><ArchiveIcon />Only you can see these. Hidden from your logbook, feed, groups, share links, stats and reports until you unarchive.</p>
       {error && <p className="error note" role="alert">{error}</p>}
       {entries === null && <FeedSkeleton />}
       {entries !== null && archived.length === 0 && !error && (

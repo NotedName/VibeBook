@@ -3,8 +3,9 @@ import {
   collection, deleteDoc, doc, getDoc, getDocs, limit, query, runTransaction, serverTimestamp, updateDoc, where,
 } from "firebase/firestore";
 import { db } from "./firebase";
-import type { CoverId, Profile } from "./types";
+import { isAudience, type Audience, type CoverId, type Profile } from "./types";
 import { clip } from "./text";
+import { syncSchedule } from "./hours";
 
 export const NAME_MAX = 60;
 export const HEADLINE_MAX = 80;
@@ -93,7 +94,7 @@ export function resolveUserRef(ref: string): Promise<string | null> {
   return p;
 }
 
-type Stored = Partial<Omit<Profile, "uid">>;
+type Stored = Partial<Omit<Profile, "uid">> & { friendsVisible?: boolean; hoursVisible?: boolean };
 
 function toProfile(uid: string, d: Stored): Profile {
   return {
@@ -106,8 +107,10 @@ function toProfile(uid: string, d: Stored): Profile {
     avatar: d.avatar ?? "",
     cover: (d.cover as CoverId) ?? "amethyst",
     coverPhoto: d.coverPhoto ?? "",
-    friendsVisible: d.friendsVisible !== false,
-    hoursVisible: d.hoursVisible === true,
+    // Profiles saved before audiences existed hold friendsVisible / hoursVisible booleans; they map to the same reach.
+    friendsAudience: isAudience(d.friendsAudience) ? d.friendsAudience : d.friendsVisible === false ? "private" : "everyone",
+    hoursAudience: isAudience(d.hoursAudience) ? d.hoursAudience : d.hoursVisible === true ? "everyone" : "private",
+    scheduleAudience: isAudience(d.scheduleAudience) ? d.scheduleAudience : "private",
   };
 }
 export { toProfile };
@@ -145,8 +148,9 @@ export async function saveProfile(uid: string, p: Omit<Profile, "uid">): Promise
     avatar: p.avatar,
     cover: p.cover,
     coverPhoto: p.coverPhoto,
-    friendsVisible: p.friendsVisible !== false,
-    hoursVisible: p.hoursVisible === true,
+    friendsAudience: p.friendsAudience,
+    hoursAudience: p.hoursAudience,
+    scheduleAudience: p.scheduleAudience,
   };
   if (clean.username) {
     const problem = usernameProblem(clean.username);
@@ -181,24 +185,37 @@ export async function saveProfile(uid: string, p: Omit<Profile, "uid">): Promise
   return saved;
 }
 
-/** Settings > Privacy: lets other people open your friends list, or hides it from everyone but you. */
-export async function setFriendsVisible(uid: string, visible: boolean): Promise<void> {
-  await updateDoc(doc(db, "profiles", uid), { friendsVisible: visible });
+type AudienceField = "friendsAudience" | "hoursAudience" | "scheduleAudience";
+
+async function saveAudience(uid: string, field: AudienceField, audience: Audience): Promise<void> {
+  await updateDoc(doc(db, "profiles", uid), { [field]: audience });
   const cached = await fetchProfile(uid).catch(() => null);
-  if (cached) primeProfile({ ...cached, friendsVisible: visible });
-  logActivity(uid, visible ? "Let other people see your friends list" : "Hid your friends list from other people");
+  if (cached) primeProfile({ ...cached, [field]: audience });
+}
+
+const AUDIENCE_WORDS: Record<Audience, string> = { private: "only you", friends: "your friends", fof: "friends of your friends", everyone: "everyone" };
+
+/** Settings > Privacy: who can open your friends list. */
+export async function setFriendsAudience(uid: string, audience: Audience): Promise<void> {
+  await saveAudience(uid, "friendsAudience", audience);
+  logActivity(uid, `Showed your friends list to ${AUDIENCE_WORDS[audience]}`);
 }
 
 /**
- * Settings > Privacy: lets other people see how many hours you have logged (and of how many required). Off by default.
- * Turning it off also deletes the shared summary (users/{uid}/hours/shared), so nothing is left to read.
+ * Settings > Privacy: who can see how many hours you have logged (and of how many required). Only me by default.
+ * Choosing only me also deletes the shared summary (users/{uid}/hours/shared), so nothing is left to read.
  */
-export async function setHoursVisible(uid: string, visible: boolean): Promise<void> {
-  await updateDoc(doc(db, "profiles", uid), { hoursVisible: visible });
-  if (!visible) await deleteDoc(doc(db, "users", uid, "hours", "shared")).catch(() => {});
-  const cached = await fetchProfile(uid).catch(() => null);
-  if (cached) primeProfile({ ...cached, hoursVisible: visible });
-  logActivity(uid, visible ? "Let other people see your hours" : "Hid your hours from other people");
+export async function setHoursAudience(uid: string, audience: Audience): Promise<void> {
+  await saveAudience(uid, "hoursAudience", audience);
+  if (audience === "private") await deleteDoc(doc(db, "users", uid, "hours", "shared"));
+  logActivity(uid, `Showed your hours to ${AUDIENCE_WORDS[audience]}`);
+}
+
+/** Settings > Privacy: who can see which days you work and how long. Choosing anyone publishes your saved days; only me deletes them. */
+export async function setScheduleAudience(uid: string, audience: Audience): Promise<void> {
+  await saveAudience(uid, "scheduleAudience", audience);
+  await syncSchedule(uid, audience !== "private");
+  logActivity(uid, `Showed your schedule to ${AUDIENCE_WORDS[audience]}`);
 }
 
 /** Finds people whose name or username starts with every word typed ("@" in front is ignored). */

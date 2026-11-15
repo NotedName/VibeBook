@@ -1,11 +1,14 @@
+import { useCanSee } from "./audience";
 import { useSharedHours } from "./hours";
+import type { Audience } from "./types";
 import { formatHM } from "./weeks";
 import { HoursSkeleton } from "./Skeleton";
 
-/** The hours someone has chosen to show on their profile (Settings > Privacy > Show my hours). Nothing is drawn when they have not. */
-export default function SharedHoursCard({ uid, visible }: { uid: string; visible: boolean }) {
-  const hours = useSharedHours(uid, visible);
-  if (!visible || hours === null) return null;
+/** The hours someone has chosen to show on their profile (Settings > Privacy > Who can see my hours). Nothing is drawn when they have not. */
+export default function SharedHoursCard({ uid, audience }: { uid: string; audience: Audience }) {
+  const can = useCanSee(uid, audience);
+  const hours = useSharedHours(uid, can === true);
+  if (can !== true || hours === null) return null;
   if (hours === undefined) return <HoursSkeleton />;
   const { minutes, requiredMinutes } = hours;
   const pct = requiredMinutes ? Math.min(100, Math.round((minutes / requiredMinutes) * 100)) : 0;

@@ -6,7 +6,7 @@ import { allDescriptions, copyText, dailyReport, longDay, todayStr, weeklyReport
 import { earliestDay, weekRange } from "../weeks";
 import HoursCard from "../HoursCard";
 import ReportSheet from "../ReportSheet";
-import DateRangeFilter, { inRange, NO_RANGE, rangeActive } from "../DateRangeFilter";
+import { inRange, NO_RANGE, rangeActive, RangeSummary } from "../DateRangeFilter";
 import { useSession } from "../session";
 import { dateDir, useGrouping, useSortedEntries, useSortMode } from "../sorting";
 import { useLikedEntries } from "../likes";
@@ -128,10 +128,12 @@ function Logbook({ onViewAs }: { onViewAs: () => void }) {
       )}
       {friendsOpen && <FriendsSheet uid={s.uid} onClose={() => setFriendsOpen(false)} />}
       <ProfileTabs tab={tab} onChange={setTab} showLikes>
-        {shown.length > 1 && <SortMenu mode={mode} onChange={setMode} grouping={tab === "notes" ? grouping : undefined} onGrouping={setGrouping} />}
+        {(pool.length > 1 || rangeActive(range)) && (
+          <SortMenu mode={mode} onChange={setMode} grouping={tab === "notes" ? grouping : undefined} onGrouping={setGrouping} range={range} onRange={setRange} />
+        )}
       </ProfileTabs>
 
-      <DateRangeFilter value={range} onChange={setRange} shown={filtered.length} total={pool.length} />
+      <RangeSummary value={range} onChange={setRange} shown={filtered.length} total={pool.length} />
 
       <div className="composer">
         <Avatar profile={s.me} />

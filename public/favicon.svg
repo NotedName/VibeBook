@@ -1,13 +1,10 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" stroke="#7e49b3" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
-  <defs>
-    <linearGradient id="g" x1="0" y1="1" x2="1" y2="0">
-      <stop offset="0" stop-color="#b23cff" />
-      <stop offset=".6" stop-color="#ff6aa8" />
-      <stop offset="1" stop-color="#ffa15a" />
-    </linearGradient>
-  </defs>
-  <path d="M32 18C26 14 16 13 8 15v34c8-2 18-1 24 3" />
-  <path d="M32 18c6-4 16-5 24-3v34c-8-2-18-1-24 3" />
-  <path d="M32 18v34" />
-  <path d="M32 11V5M22 13l-3-5M42 13l3-5" stroke="url(#g)" />
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" stroke="#7e49b3" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M32 16C26 12 16 12 7 14v34c9-2 19-1 25 3" />
+  <path d="M32 16c6-4 16-4 25-2v34c-9-2-19-1-25 3" />
+  <path d="M32 16v35" />
+  <path d="M7 54c9-2 18-1 25 3 7-4 16-5 25-3" />
+  <path d="M13 25h13M13 31h13M13 37h8M38 25h13M38 31h13M38 37h8" />
+  <path d="M18.5 9l3.5 5" stroke="#b23cff" />
+  <path d="M32 4.5v6" stroke="#ff6aa8" />
+  <path d="M45.5 9L42 14" stroke="#ffa15a" />
 </svg>

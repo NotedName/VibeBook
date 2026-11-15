@@ -5,6 +5,7 @@ import { ANSWER_MAX, REQUEST_MESSAGE_MAX, type Group } from "./types";
 import { CloseIcon } from "./icons";
 import { GroupAvatar } from "./GroupRow";
 import { useScrollLock } from "./scrollLock";
+import FormError from "./FormError";
 
 /** Ask to join a private group: a message about why, and an answer for each of the group's questions. */
 export default function JoinRequestSheet({ group, onClose, onSent }: { group: Group; onClose: () => void; onSent?: () => void }) {
@@ -48,7 +49,7 @@ export default function JoinRequestSheet({ group, onClose, onSent }: { group: Gr
         </div>
         <div className="sheet-body">
           <p className="join-who"><GroupAvatar name={group.name} photo={group.avatar} size="sm" /><b>{group.name}</b></p>
-          <p className="hint">This is a private group. An admin or moderator reads your request and decides. Only members can see what is shared inside.</p>
+          <p className="hint">Private group: an admin or moderator reviews your request. Only members see what is shared inside.</p>
           <label>Why would you like to join?
             <textarea rows={3} value={message} onChange={(e) => setMessage(e.target.value)} required maxLength={REQUEST_MESSAGE_MAX}
               placeholder="A sentence or two for the admins." />
@@ -60,7 +61,7 @@ export default function JoinRequestSheet({ group, onClose, onSent }: { group: Gr
                 onChange={(e) => setAnswers(answers.map((a, j) => (j === i ? e.target.value : a)))} />
             </label>
           ))}
-          {error && <p className="error" role="alert">{error}</p>}
+          {error && <FormError>{error}</FormError>}
         </div>
         <div className="sheet-actions">
           <button type="button" className="btn" onClick={onClose}>Cancel</button>

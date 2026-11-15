@@ -212,7 +212,7 @@ export default function AuthForm({ initialMode = "signin", onBack }: Props) {
           <button type="submit" className="btn primary wide" disabled={busy}>
             {busy ? "Please wait…" : signup ? "Create account" : "Sign in"}
           </button>
-          {signup && <p className="hint">We will email you a link to confirm your address before you can start. Your username is reserved once you confirm.</p>}
+          {signup && <p className="hint">We will email you a link to confirm your address. Your username is reserved once you confirm.</p>}
         </form>
         {onBack && <button type="button" className="btn" onClick={onBack}>← Back to the post</button>}
       </div>

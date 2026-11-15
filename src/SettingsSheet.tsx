@@ -1,18 +1,18 @@
 import { useEffect, useState, type CSSProperties } from "react";
-import { TEXT_SIZES, useAppearance, type ThemeMode } from "./theme";
-import { PHOTO_QUALITY, usePreferences } from "./preferences";
+import { HONEY_STYLES, resetAppearance, TEXT_SIZES, useAppearance, type ThemeMode } from "./theme";
+import { PHOTO_QUALITY, resetPreferences, usePreferences } from "./preferences";
 import { ACTIVITY_SHOWN, useActivityState } from "./activity";
 import { ago } from "./notifications";
 import { useProfile, useSession } from "./session";
-import { personHash, setFriendsVisible, setHoursVisible } from "./profiles";
-import { VISIBILITY } from "./types";
+import { personHash, setFriendsAudience, setHoursAudience, setScheduleAudience } from "./profiles";
+import { AUDIENCES, VISIBILITY, type Audience } from "./types";
 import { BrandName } from "./Logo";
 import { TermsContent } from "./Terms";
 import { CloseIcon, GlobeIcon, LockIcon, MoonIcon, MonitorIcon, SunIcon, UsersIcon } from "./icons";
 import { useScrollLock } from "./scrollLock";
 import { RowsSkeleton } from "./Skeleton";
 
-const CATEGORIES = ["Appearance", "Media", "Entries", "Notifications", "Privacy", "Accessibility", "Activity", "About"] as const;
+const CATEGORIES = ["Appearance", "Media", "Notifications", "Privacy", "Accessibility", "Activity", "About"] as const;
 type Category = (typeof CATEGORIES)[number];
 
 type Option<T extends string | number> = { id: T; label: string; icon?: React.ReactNode };
@@ -62,7 +62,20 @@ function Appearance() {
     <>
       <Choice name="theme-mode" legend="Theme" value={a.mode} options={MODES} onChange={a.setMode}
         hint={a.mode === "system" ? `Follows your device: currently ${a.theme}.` : undefined} />
-      <Switch label="AMOLED black" hint={dark ? "Pure black backgrounds" : "Applies in dark mode"}
+      <fieldset className="setting">
+        <legend>Background</legend>
+        <div className="honey-grid" role="radiogroup" aria-label="Honeycomb background">
+          {HONEY_STYLES.map((h) => (
+            <label key={h.id} className={`honey-opt${a.honey === h.id ? " on" : ""}`}>
+              <input type="radio" name="honey-style" checked={a.honey === h.id} onChange={() => a.setHoney(h.id)} />
+              <span className="honey-sw" data-style={h.id}>{h.id === "off" ? "None" : null}</span>
+              {h.label}
+            </label>
+          ))}
+        </div>
+        <p className="hint">The honeycomb behind the app. It follows your theme colour.</p>
+      </fieldset>
+      <Switch label="AMOLED black" hint={dark ? "Pure black backgrounds" : "Dark mode only"}
         checked={a.amoled} disabled={!dark} onChange={a.setAmoled} />
       <div className="setting">
         <label htmlFor="text-size" className="setting-title">Text size: {TEXT_SIZES[a.textSize]}</label>
@@ -87,20 +100,11 @@ function Media() {
   return (
     <Choice name="photo-quality" legend="Photo upload quality" value={p.photo} onChange={p.setPhoto}
       options={PHOTO_QUALITY.map((q) => ({ id: q.id, label: q.label }))}
-      hint={`${PHOTO_QUALITY.find((q) => q.id === p.photo)!.hint} Applies to photos you add from now on.`} />
+      hint={`${PHOTO_QUALITY.find((q) => q.id === p.photo)!.hint} New photos only.`} />
   );
 }
 
 const VIS_ICON = { private: <LockIcon />, friends: <UsersIcon />, public: <GlobeIcon /> };
-
-function Entries() {
-  const p = usePreferences();
-  return (
-    <Choice name="default-visibility" legend="Who can see new entries" value={p.visibility} onChange={p.setVisibility}
-      options={VISIBILITY.map((v) => ({ id: v.id, label: v.label, icon: VIS_ICON[v.id] }))}
-      hint={`${VISIBILITY.find((v) => v.id === p.visibility)!.hint} You can still change it on each entry.`} />
-  );
-}
 
 function Notifications() {
   const p = usePreferences();
@@ -108,14 +112,14 @@ function Notifications() {
   return (
     <>
       <span className="setting-title">Groups</span>
-      <Switch label="Group invitations" hint="Show an alert in the bell when someone invites you to a group"
+      <Switch label="Group invitations" hint="Alert when someone invites you"
         checked={p.groupInvites} onChange={p.setGroupInvites} />
-      <Switch label="New posts in my groups" hint="Show an alert in the bell when someone posts in a group you are in. Alerts appear while VibeBook is open."
+      <Switch label="New posts in my groups" hint="Alert for posts in your groups, while VibeBook is open"
         checked={p.groupPosts} onChange={p.setGroupPosts} />
       <fieldset className="setting">
         <legend>Alerts for each group</legend>
         {groups.list.length === 0
-          ? <p className="hint">Join a group to choose alerts for it.</p>
+          ? <p className="hint">No groups yet.</p>
           : groups.list.map((g) => (
             <Switch key={g.id} label={g.name} hint={p.mutedGroups.includes(g.id) ? "Muted" : "New posts"} disabled={!p.groupPosts}
               checked={p.groupPosts && !p.mutedGroups.includes(g.id)} onChange={(on) => p.setGroupMuted(g.id, !on)} />
@@ -125,19 +129,41 @@ function Notifications() {
   );
 }
 
+const FRIENDS_HINT: Record<Audience, string> = {
+  private: "Only you can see your friends.",
+  friends: "Only your friends can see your friends.",
+  fof: "Friends and their friends can see them.",
+  everyone: "Anyone signed in can see them.",
+};
+const HOURS_HINT: Record<Audience, string> = {
+  private: "Hidden from others.",
+  friends: "Shows hours logged and required. Entries and times stay private.",
+  fof: "Shows hours logged and required. Entries and times stay private.",
+  everyone: "Shows hours logged and required. Entries and times stay private.",
+};
+const SCHEDULE_HINT: Record<Audience, string> = {
+  private: "Hidden from others.",
+  friends: "Shows your work days and hours a day. Days off stay private.",
+  fof: "Shows your work days and hours a day. Days off stay private.",
+  everyone: "Shows your work days and hours a day. Days off stay private.",
+};
+
 function Privacy() {
   const { me, uid, notify } = useSession();
-  const shown = me?.friendsVisible !== false;
-  const hoursShown = me?.hoursVisible === true;
+  const p = usePreferences();
+  const save = (job: Promise<void>) => { job.catch(() => notify("Could not save that. Try again.")); };
+  if (!me) return null;
   return (
     <>
-      <Switch label="Show my friends to other people"
-        hint={shown ? "Anyone signed in can open the Friends button on your profile and see your friends." : "Your friends list is hidden. Other people see that it is private; you still see it."}
-        checked={shown} onChange={(on) => { setFriendsVisible(uid, on).catch(() => notify("Could not save that. Try again.")); }} />
-      <Switch label="Show my hours to other people"
-        hint={hoursShown ? "Anyone signed in can see how many hours you have logged, and how many you need, on your profile. Your entries and times stay private." : "Off. Other people cannot see your hours."}
-        checked={hoursShown} onChange={(on) => { setHoursVisible(uid, on).catch(() => notify("Could not save that. Try again.")); }} />
-      <p className="hint">The friends switch only affects the list of your friends, and the hours switch only your total. Your entries still follow the visibility you pick on each one.</p>
+      <Choice name="default-visibility" legend="Who can see new entries" value={p.visibility} onChange={p.setVisibility}
+        options={VISIBILITY.map((v) => ({ id: v.id, label: v.label, icon: VIS_ICON[v.id] }))}
+        hint={`${VISIBILITY.find((v) => v.id === p.visibility)!.hint} Change one entry from its ⋯ menu.`} />
+      <Choice name="friends-audience" legend="Who can see my friends" value={me.friendsAudience} options={AUDIENCES} className="four"
+        hint={FRIENDS_HINT[me.friendsAudience]} onChange={(a) => save(setFriendsAudience(uid, a))} />
+      <Choice name="hours-audience" legend="Who can see my hours" value={me.hoursAudience} options={AUDIENCES} className="four"
+        hint={HOURS_HINT[me.hoursAudience]} onChange={(a) => save(setHoursAudience(uid, a))} />
+      <Choice name="schedule-audience" legend="Who can see my schedule" value={me.scheduleAudience} options={AUDIENCES} className="four"
+        hint={SCHEDULE_HINT[me.scheduleAudience]} onChange={(a) => save(setScheduleAudience(uid, a))} />
     </>
   );
 }
@@ -145,7 +171,7 @@ function Privacy() {
 function Accessibility() {
   const p = usePreferences();
   return (
-    <Switch label="Reduce motion" hint="Turns off animations. Your device's own setting is always respected too."
+    <Switch label="Reduce motion" hint="Turns off animations"
       checked={p.reduceMotion} onChange={p.setReduceMotion} />
   );
 }
@@ -154,14 +180,13 @@ function About() {
   return (
     <>
       <div className="about-brand brand"><BrandName /></div>
-      <p>VibeBook is meant to save your OJT entries. Use it to log what you did each day, and to keep a record of everything you worked on throughout your OJT internship.</p>
+      <p>VibeBook keeps your OJT entries: log what you did each day and look back on it any time.</p>
       <ul className="about-list">
-        <li>Write an entry for each day with photos, the skills you picked up and a short description.</li>
-        <li>Copy an entry straight into your daily report instead of rewriting your day.</li>
-        <li>Choose who sees each entry: only you, your friends, or the public. You can also share entries in groups.</li>
-        <li>Look back through your logbook any time to see your progress from the first day to the last.</li>
+        <li>Daily entries with photos, skills and a description.</li>
+        <li>Copy an entry straight into your daily report.</li>
+        <li>Share with only you, friends, the public or groups.</li>
       </ul>
-      <p className="hint">Your entries, photos, profile and activity log are saved in your VibeBook account, so they are there on every device you sign in on. Display settings such as theme and text size are saved on each device.</p>
+      <p className="hint">Entries, photos and profile are saved to your account. Display settings are saved per device.</p>
       <details className="about-terms">
         <summary>Terms and Conditions</summary>
         <TermsContent />
@@ -180,10 +205,10 @@ function ActivityLog({ onNavigate }: { onNavigate: () => void }) {
   const { items, ready } = useActivityState(uid);
 
   if (!ready && items.length === 0) return <RowsSkeleton />;
-  if (items.length === 0) return <p className="hint notes-empty">Nothing yet. What you do in VibeBook, such as entries, comments, reactions and friends, is listed here.</p>;
+  if (items.length === 0) return <p className="hint notes-empty">Nothing yet. Your actions will show up here.</p>;
   return (
     <>
-      <p className="hint">{items.length >= ACTIVITY_SHOWN ? `Your latest ${ACTIVITY_SHOWN} actions` : `${items.length} ${items.length === 1 ? "action" : "actions"} logged`}. Saved to your account, so it is the same on every device you sign in on; the log cannot be deleted or cleared.</p>
+      <p className="hint">{items.length >= ACTIVITY_SHOWN ? `Your latest ${ACTIVITY_SHOWN} actions` : `${items.length} ${items.length === 1 ? "action" : "actions"}`}. Saved to your account; it cannot be cleared.</p>
       <ul className="activity" onClick={(e) => (e.target as HTMLElement).closest("a") && onNavigate()}>
         {items.map((it) => (
           <li key={it.id}>
@@ -198,6 +223,7 @@ function ActivityLog({ onNavigate }: { onNavigate: () => void }) {
 
 export default function SettingsSheet({ onClose }: { onClose: () => void }) {
   const [category, setCategory] = useState<Category>("Appearance");
+  const [armedReset, setArmedReset] = useState(false);
 
   useScrollLock();
   useEffect(() => {
@@ -222,13 +248,19 @@ export default function SettingsSheet({ onClose }: { onClose: () => void }) {
         <div className="sheet-body" role="tabpanel">
           {category === "Appearance" && <Appearance />}
           {category === "Media" && <Media />}
-          {category === "Entries" && <Entries />}
           {category === "Notifications" && <Notifications />}
           {category === "Privacy" && <Privacy />}
           {category === "Accessibility" && <Accessibility />}
           {category === "Activity" && <ActivityLog onNavigate={onClose} />}
           {category === "About" && <About />}
         </div>
+        </div>
+        <div className="settings-foot">
+          <button type="button" className={`btn small${armedReset ? " armed" : ""}`} onBlur={() => setArmedReset(false)}
+            onClick={() => { if (!armedReset) { setArmedReset(true); return; } setArmedReset(false); resetAppearance(); resetPreferences(); }}>
+            {armedReset ? "Tap again to reset" : "Reset settings"}
+          </button>
+          <p className="hint">Resets this device's settings, including new entry visibility. Friends, hours and schedule privacy stay.</p>
         </div>
       </div>
     </div>

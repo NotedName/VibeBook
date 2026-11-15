@@ -1,6 +1,6 @@
 import { logActivity } from "./activity";
 import {
-  collection, deleteField, doc, getDocs, orderBy, query, serverTimestamp, writeBatch,
+  collection, deleteField, doc, getDocs, orderBy, query, serverTimestamp, updateDoc, writeBatch,
   type DocumentReference, type Timestamp,
 } from "firebase/firestore";
 import { db } from "./firebase";
@@ -44,6 +44,10 @@ export type EntryInput = {
   clockOut?: string;
   /** Length of the shift in minutes, stored so reports and totals do not recompute it. Set with clockIn and clockOut. */
   minutes?: number;
+  /** The clock-in time was changed before clocking out. `originalStart` (HH:mm) and `originalStartDate` are when the clock really started. */
+  startEdited?: boolean;
+  originalStart?: string;
+  originalStartDate?: string;
   title: string;
   skills: string[];
   description: string;
@@ -210,6 +214,12 @@ export async function setEntryArchived(uid: string, entry: Entry, archived: bool
   teaserOp(batch, uid, entry.id, entry.date, entry.time, priv, archived);
   await batch.commit();
   logActivity(uid, `${archived ? "Archived" : "Unarchived"} the entry “${entry.title}”`);
+}
+
+/** Changes who can see an existing entry, without touching anything else. */
+export async function setEntryVisibility(uid: string, entry: Entry, visibility: Visibility): Promise<void> {
+  const priv = await privateGroupIds(entry.groupIds ?? []);
+  await updateDoc(doc(entriesRef(uid), entry.id), visibilityFields(visibility, priv.length > 0, false));
 }
 
 /** Changes which groups an existing entry is shared to, without touching anything else. */

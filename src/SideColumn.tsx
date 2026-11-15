@@ -16,16 +16,21 @@ function SideFriend({ uid }: { uid: string }) {
   );
 }
 
-/** Shortcuts shown beside the page on wide screens. Hidden on phones and tablets by CSS. */
-export default function SideColumn({ onNewEntry, groupId }: { onNewEntry: () => void; groupId?: string }) {
+/** Shortcuts shown beside the page on wide screens, plus the floating New entry button. Both are hidden on phones and tablets by CSS. */
+export default function SideColumn({ onNewEntry, groupId, showNew = true }: { onNewEntry: () => void; groupId?: string; showNew?: boolean }) {
   const s = useSession();
   const groups = s.groups.list.slice(0, 6);
   const notes = useNotes(s.uid);
   const closest = useClosestFriends(s.uid, s.friends, notes, 5);
   return (
+    <>
+    {/* New entry floats at the bottom right of wide screens (see .side-fab in layout.css); it used to be the first block of this column. */}
+    {showNew && (
+      <button type="button" className="side-fab" onClick={onNewEntry} title="New entry">
+        <i><PlusIcon /></i><span className="side-fab-label">New entry</span>
+      </button>
+    )}
     <aside className="side" aria-label="Shortcuts">
-      <button type="button" className="btn primary wide" onClick={onNewEntry}><PlusIcon /> New entry</button>
-
       {groupId && <GroupMembersCard gid={groupId} />}
 
       {(s.invites.length > 0 || s.incoming.length > 0) && (
@@ -68,5 +73,6 @@ export default function SideColumn({ onNewEntry, groupId }: { onNewEntry: () => 
         <a className="btn wide" href="#/people">Find people</a>
       </section>
     </aside>
+    </>
   );
 }

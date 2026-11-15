@@ -3,8 +3,18 @@ export type Visibility = "private" | "friends" | "public";
 export const VISIBILITY: { id: Visibility; label: string; hint: string }[] = [
   { id: "private", label: "Only me", hint: "Only you can see this entry." },
   { id: "friends", label: "Friends", hint: "You and your friends can see this entry." },
-  { id: "public", label: "Public", hint: "Friends and followers can see this entry, and anyone with its share link can view it without signing in." },
+  { id: "public", label: "Public", hint: "Friends, followers and anyone with the share link can see this entry." },
 ];
+
+/** Who can see one of your profile details (friends list, hours, schedule). "fof" is friends of friends. */
+export type Audience = "private" | "friends" | "fof" | "everyone";
+export const AUDIENCES: { id: Audience; label: string }[] = [
+  { id: "private", label: "Only me" },
+  { id: "friends", label: "Friends" },
+  { id: "fof", label: "Friends of friends" },
+  { id: "everyone", label: "Everyone" },
+];
+export const isAudience = (x: unknown): x is Audience => AUDIENCES.some((a) => a.id === x);
 
 export type CoverId = "amethyst" | "dusk" | "steel";
 export const COVERS: { id: CoverId; label: string }[] = [
@@ -25,10 +35,12 @@ export type Profile = {
   avatar: string; // small JPEG data URL, "" when none
   cover: CoverId;
   coverPhoto: string; // JPEG data URL shown over the cover color, "" when none
-  /** Whether other people can open this person's friends list. Defaults to true; Settings > Privacy turns it off. */
-  friendsVisible: boolean;
-  /** Whether other people can see how many hours this person has logged. Defaults to false; Settings > Privacy turns it on. */
-  hoursVisible: boolean;
+  /** Who can open this person's friends list. Defaults to everyone. Settings > Privacy. */
+  friendsAudience: Audience;
+  /** Who can see how many hours this person has logged. Defaults to only me. Settings > Privacy. */
+  hoursAudience: Audience;
+  /** Who can see which days this person works. Defaults to only me. Settings > Privacy. */
+  scheduleAudience: Audience;
 };
 
 export type FriendRequest = { id: string; from: string; to: string };

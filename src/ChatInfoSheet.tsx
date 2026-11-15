@@ -54,12 +54,12 @@ export default function ChatInfoSheet({ uid, profile, friend, onSearch, onClose 
           <section className="chat-info-settings" aria-label="Chat settings">
             <h3>Settings</h3>
             <label className="switch-row">
-              <span>Mute this chat<small>New messages from {name} stay in the list but do not add to the unread count in the top bar</small></span>
+              <span>Mute this chat<small>Messages from {name} still arrive but are not counted as unread</small></span>
               <input type="checkbox" role="switch" checked={muted} onChange={(e) => prefs.setChatMuted(uid, e.target.checked)} />
               <i className="switch" aria-hidden="true" />
             </label>
             <label className="switch-row">
-              <span>Enter sends the message<small>Off makes Enter start a new line, so only the Send button sends. Applies to all chats on this device</small></span>
+              <span>Enter sends the message<small>Off: Enter adds a new line. Applies to all chats on this device</small></span>
               <input type="checkbox" role="switch" checked={enterOn(prefs.enterSends)} onChange={(e) => prefs.setEnterSends(e.target.checked)} />
               <i className="switch" aria-hidden="true" />
             </label>

@@ -32,6 +32,7 @@
         var light = mode === "light" || (mode !== "dark" && sysLight);
         root.setAttribute("data-theme", light ? "light" : "dark");
         if (amoled) root.setAttribute("data-amoled", "on");
+        try { var hn = localStorage.getItem("vibebook-honey"); if (hn) root.setAttribute("data-honey", hn); } catch (e) {}
         if (size !== null && /^[0-4]$/.test(size)) root.setAttribute("data-text-size", size);
         document.querySelector('meta[name="theme-color"]').setAttribute("content", light ? "#f3f2f5" : amoled ? "#000000" : "#1e1c23");
       } catch (e) {}
@@ -66,7 +67,9 @@
         stroke-dasharray: 1 1; animation: sp-draw .7s cubic-bezier(.65, 0, .35, 1) both;
         animation-delay: calc(.1s + var(--i) * .08s);
       }
-      .sp-p.sw { stroke: url(#sp-swoosh); }
+      .sp-p.ray1 { stroke: #b23cff; }
+      .sp-p.ray2 { stroke: #ff6aa8; }
+      .sp-p.ray3 { stroke: #ffa15a; }
       /* the two pages swing open from the spine */
       .sp-l, .sp-r { transform-box: fill-box; animation: sp-draw .7s cubic-bezier(.65, 0, .35, 1) both, sp-open .9s cubic-bezier(.22, 1, .36, 1) both; animation-delay: .1s, .1s; }
       .sp-l { transform-origin: 100% 50%; }
@@ -109,17 +112,14 @@
       <div class="sp-glow" aria-hidden="true"></div>
       <div class="sp-in">
         <svg class="sp-mark" viewBox="0 0 64 64" aria-hidden="true">
-          <defs>
-            <linearGradient id="sp-swoosh" x1="0" y1="1" x2="1" y2="0">
-              <stop offset="0" stop-color="#b23cff" /><stop offset=".6" stop-color="#ff6aa8" /><stop offset="1" stop-color="#ffa15a" />
-            </linearGradient>
-          </defs>
-          <path class="sp-p sp-l" pathLength="1" style="--i:0" d="M32 18C26 14 16 13 8 15v34c8-2 18-1 24 3" />
-          <path class="sp-p sp-r" pathLength="1" style="--i:0" d="M32 18c6-4 16-5 24-3v34c-8-2-18-1-24 3" />
-          <path class="sp-p" pathLength="1" style="--i:1" d="M32 18v34" />
+          <path class="sp-p sp-l" pathLength="1" style="--i:0" d="M32 16C26 12 16 12 7 14v34c9-2 19-1 25 3" />
+          <path class="sp-p sp-r" pathLength="1" style="--i:0" d="M32 16c6-4 16-4 25-2v34c-9-2-19-1-25 3" />
+          <path class="sp-p" pathLength="1" style="--i:1" d="M32 16v35" />
           <path class="sp-p" pathLength="1" style="--i:2" d="M7 54c9-2 18-1 25 3 7-4 16-5 25-3" />
-          <path class="sp-p" pathLength="1" style="--i:4" d="M14 24h12M14 30h12M14 36h8M38 24h12M38 30h12M38 36h8" />
-          <path class="sp-p sw" pathLength="1" style="--i:6" d="M32 11V5M22 13l-3-5M42 13l3-5" />
+          <path class="sp-p" pathLength="1" style="--i:3" d="M13 25h13M13 31h13M13 37h8M38 25h13M38 31h13M38 37h8" />
+          <path class="sp-p ray1" pathLength="1" style="--i:4" d="M18.5 9l3.5 5" />
+          <path class="sp-p ray2" pathLength="1" style="--i:5" d="M32 4.5v6" />
+          <path class="sp-p ray3" pathLength="1" style="--i:6" d="M45.5 9L42 14" />
         </svg>
         <div class="sp-word" aria-hidden="true"><b class="a" style="--i:0">V</b><b class="a" style="--i:1">i</b><b class="a" style="--i:2">b</b><b class="a" style="--i:3">e</b><b style="--i:4">B</b><b style="--i:5">o</b><b style="--i:6">o</b><b style="--i:7">k</b></div>
         <div class="sp-bar" aria-hidden="true"><i></i></div>

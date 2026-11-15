@@ -45,12 +45,12 @@ export default function RelationButtons({ uid }: { uid: string }) {
         </>
       )}
       {rel === "friends" && (
-        <a className="btn" href={`#/m/${encodeURIComponent(uid)}`}><MessagesIcon /> Message</a>
+        <a className="btn" href={`#/m/${encodeURIComponent(uid)}`} title="Message"><MessagesIcon /><span className="lbl">Message</span></a>
       )}
       {rel === "friends" && (
         <button type="button" className={`btn${armed ? " armed" : ""}`} disabled={busy}
           onClick={() => (armed ? run(() => unfriend(s.uid, uid), "Removed from friends") : setArmed(true))}>
-          {armed ? "Tap to unfriend" : <><CheckIcon /> Friends</>}
+          {armed ? "Tap to unfriend" : <><CheckIcon /><span className="lbl">Friends</span></>}
         </button>
       )}
       {rel !== "friends" && (

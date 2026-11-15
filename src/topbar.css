@@ -1,0 +1,45 @@
+/* ---------- one unified top bar ---------- */
+/* Before: round grey buttons, tabs with an underline, a glass pill and a floating bar each had their own shape and colours.
+   Now the bar speaks one language: soft capsules, the same tint on hover, the same accent tint for "you are here".
+   Loaded last, so it sits on top of the per-screen layout rules in layout.css (the .topbar prefix keeps it stronger than them). */
+.topbar {
+  --bar-tint: color-mix(in srgb, var(--text) 6%, transparent);
+  --bar-hover: color-mix(in srgb, var(--text) 11%, transparent);
+}
+
+/* the actions (messages, notifications, settings, account) share one capsule instead of four loose buttons */
+.topbar .top-actions { gap: 2px; padding: 4px; background: var(--bar-tint); border-radius: var(--radius-pill); }
+.topbar .top-actions .icon-btn { background: none; border-radius: 50%; }
+.topbar .top-actions .icon-btn:hover { background: var(--bar-hover); }
+.topbar .top-actions .icon-btn.on, .topbar .top-actions .icon-btn.on:hover { background: var(--accent-soft); color: var(--accent-text); }
+@media (hover: hover) {
+  /* buttons in the capsule stay round; the morph to a soft square would break the shape of the capsule */
+  .topbar .top-actions .icon-btn:not(.avatar-btn):hover:not(:disabled) { border-radius: 50%; }
+}
+
+/* the tabs: pills with no underline, tinted when hovered, accent-tinted when current */
+.topbar .tabs .tab { border-bottom: 0; border-radius: var(--radius-pill); box-shadow: none; }
+.topbar .tabs .tab:hover { background: var(--bar-hover); color: var(--text); }
+.topbar .tabs .tab.on, .topbar .tabs .tab.on:hover { background: var(--accent-soft); color: var(--accent-text); box-shadow: none; }
+
+/* stacked tabs (phone bar, tablet side rail) are tall, so their corners are softer than a full pill */
+@media (max-width: 599.98px) {
+  .topbar .tabs { border-radius: 30px; }
+  .topbar .tabs .tab { border-radius: 25px; }
+}
+@media (min-width: 600px) and (max-width: 1023.98px) and (min-height: 501px), (horizontal-viewport-segments: 2) {
+  .topbar .tabs .tab { border-radius: 20px; }
+  .topbar .top-actions { border-radius: 28px; }
+}
+
+/* desktop: the tabs sit in a capsule that matches the actions on the other side */
+@media (min-width: 1024px) {
+  .topbar .tabs { gap: 2px; padding: 4px; background: var(--bar-tint); border-radius: var(--radius-pill); }
+  .topbar .tabs .tab { padding: 8px 18px; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .topbar .tabs .tab, .topbar .top-actions, .topbar .top-actions .icon-btn {
+    transition: background-color .25s var(--ease), color .25s var(--ease), border-radius .25s var(--ease), transform .25s var(--spring);
+  }
+}

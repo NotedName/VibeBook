@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { deleteDoc, deleteField, doc, onSnapshot, setDoc } from "firebase/firestore";
+import { deleteDoc, deleteField, doc, getDoc, onSnapshot, setDoc } from "firebase/firestore";
 import { db } from "./firebase";
 import { nowStr, todayStr } from "./report";
 import { cleanExceptions, DEFAULT_AVAILABILITY, MAX_EXCEPTIONS, normalizeAvailability, type Availability } from "./availability";
@@ -7,11 +7,13 @@ import { EMPTY_DETAILS, type ReportDetails } from "./reportDocs";
 
 /**
  * Small private documents under users/{uid}/hours, so they follow you to every device:
- *  - goal:   { requiredHours, workDays, daysOff, daysOn, hoursPerDay }  the hours your school or company requires (the
+ *  - goal:   { requiredHours, workDays, daysOff, daysOn, hoursPerDay, startTime, endTime, breakMinutes }  the hours your school or company requires (the
  *            target of the progress bar) and which days you can work (see availability.ts);
  *  - clock:  { date, time }     the moment you clocked in, present only while the clock is running;
- *  - shared: { minutes, requiredMinutes? }  a summary other people can read, only while hoursVisible is on in your profile
- *            (Settings > Privacy). Kept in step with your entries by HoursCard; deleted when you turn the setting off;
+ *  - shared: { minutes, requiredMinutes? }  a summary the people in your hoursAudience can read (Settings > Privacy). Kept in
+ *            step with your entries by HoursCard; deleted when you choose only me;
+ *  - schedule: { workDays, hoursPerDay, daysOff, daysOn, startTime, endTime, breakMinutes }  the usual week and single dates the people in your scheduleAudience can read. Kept in step by
+ *            saveAvailability; deleted when you choose only me;
  *  - report: the names and school lines printed at the top of exported reports (see reportDocs.ts).
  * Hours worked themselves live on the entries (clockIn, clockOut, minutes).
  */
@@ -20,6 +22,8 @@ export const MAX_REQUIRED_HOURS = 10000;
 const goalRef = (uid: string) => doc(db, "users", uid, "hours", "goal");
 const clockRef = (uid: string) => doc(db, "users", uid, "hours", "clock");
 const reportRef = (uid: string) => doc(db, "users", uid, "hours", "report");
+
+const scheduleRef = (uid: string) => doc(db, "users", uid, "hours", "schedule");
 
 export type SharedHours = { minutes: number; requiredMinutes: number | null };
 
@@ -48,6 +52,39 @@ export const publishHours = (uid: string, minutes: number, requiredMinutes: numb
   setDoc(doc(db, "users", uid, "hours", "shared"),
     requiredMinutes ? { minutes: Math.max(0, Math.round(minutes)), requiredMinutes: Math.round(requiredMinutes) } : { minutes: Math.max(0, Math.round(minutes)) });
 
+/** What people in your schedule audience can read: the usual week, the single dates that differ from it, and the daily times. */
+export type SharedSchedule = Availability;
+
+/** The usual week someone has chosen to show. null: nothing shared; undefined while loading. */
+export function useSharedSchedule(uid: string, enabled: boolean): SharedSchedule | null | undefined {
+  const [state, setState] = useState<SharedSchedule | null | undefined>(undefined);
+  useEffect(() => {
+    if (!enabled) { setState(null); return; }
+    setState(undefined);
+    return onSnapshot(
+      scheduleRef(uid),
+      (snap) => {
+        const a = normalizeAvailability(snap.data());
+        setState(snap.exists() ? a : null);
+      },
+      () => setState(null),
+    );
+  }, [uid, enabled]);
+  return state;
+}
+
+export const publishSchedule = (uid: string, a: Availability) =>
+  setDoc(scheduleRef(uid), {
+    workDays: a.workDays, hoursPerDay: a.hoursPerDay, daysOff: a.daysOff, daysOn: a.daysOn,
+    ...(a.startTime && a.endTime && a.breakMinutes !== undefined ? { startTime: a.startTime, endTime: a.endTime, breakMinutes: a.breakMinutes } : {}),
+  });
+
+/** Copies your saved days to the shared schedule, or deletes it when `audience` is only me. */
+export async function syncSchedule(uid: string, share: boolean): Promise<void> {
+  if (!share) { await deleteDoc(scheduleRef(uid)); return; }
+  await publishSchedule(uid, normalizeAvailability((await getDoc(goalRef(uid))).data()));
+}
+
 export type HoursGoal = { hours: number | null; availability: Availability; ready: boolean };
 
 /** The hours required (null when none is set) and the days you can work. `ready` is false until the first answer. */
@@ -72,12 +109,14 @@ export async function setRequiredHours(uid: string, hours: number): Promise<void
   await setDoc(goalRef(uid), { requiredHours: Math.round(hours * 100) / 100 }, { merge: true });
 }
 
-/** Saves which days are available. Exceptions the usual week already covers are dropped first. */
-export async function saveAvailability(uid: string, value: Availability): Promise<void> {
+/** Saves which days are available. Exceptions the usual week already covers are dropped first. `share`: also update the shared schedule. */
+export async function saveAvailability(uid: string, value: Availability, share: boolean): Promise<void> {
   const a = cleanExceptions(value);
   if (a.daysOff.length > MAX_EXCEPTIONS || a.daysOn.length > MAX_EXCEPTIONS) throw new Error(`At most ${MAX_EXCEPTIONS} dates can be changed. Clear some old ones first.`);
   if (!(a.hoursPerDay > 0 && a.hoursPerDay <= 24)) throw new Error("Hours per day must be between 0 and 24.");
-  await setDoc(goalRef(uid), { workDays: a.workDays, daysOff: a.daysOff, daysOn: a.daysOn, hoursPerDay: Math.round(a.hoursPerDay * 100) / 100 }, { merge: true });
+  const times = a.startTime && a.endTime && a.breakMinutes !== undefined ? { startTime: a.startTime, endTime: a.endTime, breakMinutes: a.breakMinutes } : {};
+  await setDoc(goalRef(uid), { workDays: a.workDays, daysOff: a.daysOff, daysOn: a.daysOn, hoursPerDay: Math.round(a.hoursPerDay * 100) / 100, ...times }, { merge: true });
+  if (share) await publishSchedule(uid, a);
 }
 
 /** What is printed at the top of exported reports; null until loaded. */
@@ -98,7 +137,8 @@ export function useReportDetails(uid: string): ReportDetails | null {
 export const saveReportDetails = (uid: string, d: ReportDetails) =>
   setDoc(reportRef(uid), Object.fromEntries(Object.entries(d).map(([k, v]) => [k, v.trim().slice(0, 120)])));
 
-export type RunningClock = { date: string; time: string };
+/** `edited`: the start was changed after clocking in; `origDate` and `origTime` are when the clock really started. */
+export type RunningClock = { date: string; time: string; edited?: boolean; origDate?: string; origTime?: string };
 
 /** The running clock, null when clocked out, undefined until the first answer. */
 export function useRunningClock(uid: string): RunningClock | null | undefined {
@@ -107,7 +147,9 @@ export function useRunningClock(uid: string): RunningClock | null | undefined {
     clockRef(uid),
     (snap) => {
       const d = snap.data();
-      setClock(snap.exists() && typeof d?.date === "string" && typeof d?.time === "string" ? { date: d.date, time: d.time } : null);
+      const ok = snap.exists() && typeof d?.date === "string" && typeof d?.time === "string";
+      const edited = ok && d?.edited === true && typeof d?.origDate === "string" && typeof d?.origTime === "string";
+      setClock(!ok ? null : edited ? { date: d!.date, time: d!.time, edited: true, origDate: d!.origDate, origTime: d!.origTime } : { date: d!.date, time: d!.time });
     },
     () => setClock(null),
   ), [uid]);
@@ -116,7 +158,12 @@ export function useRunningClock(uid: string): RunningClock | null | undefined {
 
 export const clockIn = (uid: string) => setDoc(clockRef(uid), { date: todayStr(), time: nowStr() });
 /** Fixes the start time of the running clock (and its date, when the shift started on another day). */
-export const editClockStart = (uid: string, date: string, time: string) => setDoc(clockRef(uid), { date, time });
+export function editClockStart(uid: string, date: string, time: string, current: RunningClock) {
+  const origDate = current.origDate ?? current.date, origTime = current.origTime ?? current.time;
+  // Setting it back to the real start clears the "edited" mark.
+  if (date === origDate && time === origTime) return setDoc(clockRef(uid), { date, time });
+  return setDoc(clockRef(uid), { date, time, edited: true, origDate, origTime });
+}
 /** Stops the clock without logging anything. */
 export const discardClock = (uid: string) => deleteDoc(clockRef(uid));
 

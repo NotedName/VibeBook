@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import {
-  allowBack, approveRequest, canChangeRole, canRemove, cleanQuestions, declineRequest, GROUP_DESC_MAX, GROUP_NAME_MAX, removeMember,
-  saveGroupChanges, setMemberRole, useBannedUids, useJoinRequests,
+  approveRequest, cleanQuestions, declineRequest, GROUP_DESC_MAX, GROUP_NAME_MAX, saveGroupChanges, useJoinRequests,
 } from "./groups";
 import { syncEntryPrivacy } from "./entryPrivacy";
-import { ROLES, type Group, type GroupPrivacy, type GroupRole, type JoinRequest, type Member } from "./types";
+import type { Group, GroupPrivacy, GroupRole, JoinRequest } from "./types";
 import GroupAccessFields from "./GroupAccessFields";
 import { ago } from "./notifications";
 import { useProfile, useSession } from "./session";
@@ -14,100 +13,15 @@ import { coverBanner, squareAvatar } from "./image";
 import PhotoEditor from "./PhotoEditor";
 import { CameraIcon, CloseIcon, ImageIcon } from "./icons";
 import { GroupAvatar } from "./GroupRow";
-import RoleTiers from "./RoleTiers";
+import { useAction } from "./MemberManage";
 import { useScrollLock } from "./scrollLock";
 
 type Props = {
   group: Group;
   /** the signed-in person's role here: only admins and moderators can open this sheet */
   myRole: GroupRole;
-  /** everyone in the group, owner counted as admin, in display order */
-  members: Member[];
   onClose: () => void;
 };
-
-const roleLabel = (r: GroupRole) => ROLES.find((x) => x.id === r)!.label;
-
-/** Run an action with a busy flag, and tell the person how it went. */
-function useAction() {
-  const { notify } = useSession();
-  const [busy, setBusy] = useState(false);
-  async function run(fn: () => Promise<unknown>, ok: string) {
-    setBusy(true);
-    try { await fn(); notify(ok); }
-    catch { notify("That did not go through. Try again."); }
-    finally { setBusy(false); }
-  }
-  return { busy, run };
-}
-
-function MemberRow({ gid, member, myRole, ownerUid }: { gid: string; member: Member; myRole: GroupRole; ownerUid: string }) {
-  const s = useSession();
-  const p = useProfile(member.uid);
-  const { busy, run } = useAction();
-  const [armed, setArmed] = useState(false);
-  const name = p === undefined ? "…" : p?.displayName || "VibeBook member";
-  const changeRole = canChangeRole(myRole, member, ownerUid, s.uid);
-  const removable = canRemove(myRole, member, ownerUid, s.uid);
-
-  useEffect(() => {
-    if (!armed) return;
-    const t = setTimeout(() => setArmed(false), 3500);
-    return () => clearTimeout(t);
-  }, [armed]);
-
-  return (
-    <li className="person member-row">
-      <a href={personHash(member.uid, p)} className="person-link">
-        <Avatar profile={p} size="md" />
-        <span className="person-text">
-          <b>{name}{member.uid === s.uid && " (you)"}</b>
-          <span>{member.uid === ownerUid ? "Owner · Admin" : roleLabel(member.role)}</span>
-        </span>
-      </a>
-      {(changeRole || removable) && (
-      <div className="member-actions">
-        {changeRole && (
-          <select className="role-select" aria-label={`Role for ${name}`} value={member.role} disabled={busy}
-            onChange={(e) => {
-              const role = e.target.value as GroupRole;
-              run(() => setMemberRole(gid, member.uid, role), `${name} is now ${roleLabel(role).toLowerCase()}`);
-            }}>
-            {ROLES.map((r) => <option key={r.id} value={r.id}>{r.label}</option>)}
-          </select>
-        )}
-        {removable && (
-          <button type="button" className={`btn${armed ? " armed" : ""}`} disabled={busy}
-            onClick={() => (armed ? run(() => removeMember(gid, member.uid, s.uid), `${name} was removed`) : setArmed(true))}>
-            {armed ? "Tap to confirm" : "Remove"}
-          </button>
-        )}
-      </div>
-      )}
-    </li>
-  );
-}
-
-function RemovedRow({ gid, uid, canAllow }: { gid: string; uid: string; canAllow: boolean }) {
-  const p = useProfile(uid);
-  const { busy, run } = useAction();
-  const name = p === undefined ? "…" : p?.displayName || "VibeBook member";
-  return (
-    <li className="person member-row">
-      <span className="person-link">
-        <Avatar profile={p} size="md" />
-        <span className="person-text"><b>{name}</b><span>Cannot rejoin</span></span>
-      </span>
-      {canAllow && (
-        <div className="member-actions">
-          <button type="button" className="btn" disabled={busy} onClick={() => run(() => allowBack(gid, uid), `${name} can rejoin`)}>
-            Allow back
-          </button>
-        </div>
-      )}
-    </li>
-  );
-}
 
 function RequestRow({ group, request }: { group: Group; request: JoinRequest }) {
   const s = useSession();
@@ -254,7 +168,7 @@ function Details({ group, onDirty }: { group: Group; onDirty: (dirty: boolean) =
             : "Entries stay as they are until their authors next open VibeBook, when they go back to the visibility their authors chose. People waiting to join can join directly."}
         </p>
       )}
-      {changed && <p className="hint unsaved" role="status">You have changes that are not saved yet. Nothing changes for the group until you press Save changes.</p>}
+      {changed && <p className="hint unsaved" role="status">Unsaved changes. Press Save changes to apply them.</p>}
       <div className="manage-save">
         <button type="submit" className="btn primary" disabled={busy || !changed || !name.trim()}>{busy ? "Saving…" : "Save changes"}</button>
         {changed && <button type="button" className="btn" disabled={busy} onClick={discard}>Discard changes</button>}
@@ -263,10 +177,9 @@ function Details({ group, onDirty }: { group: Group; onDirty: (dirty: boolean) =
   );
 }
 
-/** Admins and moderators manage a group here: its details, its members' roles, and who has been removed. */
-export default function GroupManageSheet({ group, myRole, members, onClose }: Props) {
+/** Admins and moderators manage a group here: its details and who is waiting to join. Roles and removals are in the Members popup. */
+export default function GroupManageSheet({ group, myRole, onClose }: Props) {
   const isAdmin = myRole === "admin";
-  const banned = useBannedUids(group.id, true);
   const dirty = useRef(false);
   const onDirty = useCallback((d: boolean) => { dirty.current = d; }, []);
   // Closing with unsaved changes asks first, so a stray tap outside the sheet does not throw an edit away.
@@ -292,23 +205,11 @@ export default function GroupManageSheet({ group, myRole, members, onClose }: Pr
         <div className="sheet-body">
           <p className="hint">
             {isAdmin
-              ? "Admins edit the group, change roles and remove members. Moderators remove members and take posts out of the feed."
-              : "Moderators can remove members and take posts out of the feed. Open a post's menu in the feed to remove it."}
+              ? "Admins edit the group and decide who may join. To change roles or remove people, open Members."
+              : "Moderators decide who may join and take posts out of the feed (open a post's menu to remove it). To remove people, open Members."}
           </p>
           <Requests group={group} />
           {isAdmin && <section className="manage-section"><h3>Details</h3><Details group={group} onDirty={onDirty} /></section>}
-          <section className="manage-section">
-            <h3>Members <span>{members.length}</span></h3>
-            <RoleTiers members={members} ownerUid={group.ownerUid} list="people"
-              render={(m) => <MemberRow key={m.uid} gid={group.id} member={m} myRole={myRole} ownerUid={group.ownerUid} />} />
-            <p className="hint">Removed people cannot rejoin until an admin allows them back.</p>
-          </section>
-          {banned.length > 0 && (
-            <section className="manage-section">
-              <h3>Removed <span>{banned.length}</span></h3>
-              <ul className="people">{banned.map((u) => <RemovedRow key={u} gid={group.id} uid={u} canAllow={isAdmin} />)}</ul>
-            </section>
-          )}
         </div>
       </div>
     </div>

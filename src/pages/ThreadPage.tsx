@@ -1,8 +1,8 @@
 import {
-  useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ClipboardEvent, type KeyboardEvent,
+  useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ClipboardEvent, type KeyboardEvent,
 } from "react";
 import {
-  isUnread, markConversationSeen, MESSAGE_MAX, PAGE, SEARCH_WINDOW, sendMessage, useMessages, type Message,
+  failureReason, isUnread, markConversationSeen, MESSAGE_MAX, PAGE, SEARCH_WINDOW, sendMessage, useMessages, type Message, type Outgoing,
 } from "../messages";
 import { personHash } from "../profiles";
 import { useProfile, useSession } from "../session";
@@ -52,12 +52,31 @@ const isBigEmoji = (text: string) => EMOJI_ONLY.test(text.replace(/\s+/g, ""));
 const enterSends = enterSendsMessage;
 
 type BubblesProps = {
-  messages: Message[]; me: string; other: Profile | null | undefined; otherSeenAt: number;
+  messages: Message[]; loading: boolean; me: string; other: Profile | null | undefined; otherSeenAt: number;
   q: string; activeId: string; onPhoto: (src: string) => void;
 };
 
-function Bubbles({ messages, me, other, otherSeenAt, q, activeId, onPhoto }: BubblesProps) {
+/** Whether the device thinks it is online (a message waiting to send says "Waiting for connection" while it is not). */
+function useOnline(): boolean {
+  return useSyncExternalStore(
+    (cb) => { window.addEventListener("online", cb); window.addEventListener("offline", cb); return () => { window.removeEventListener("online", cb); window.removeEventListener("offline", cb); }; },
+    () => navigator.onLine,
+  );
+}
+
+function Bubbles({ messages, loading, me, other, otherSeenAt, q, activeId, onPhoto }: BubblesProps) {
   const [timeFor, setTimeFor] = useState("");
+  const online = useOnline();
+  // Only messages that arrive (or are sent) while the chat is open animate in; the ones loaded with it, and older ones, just appear.
+  const known = useRef(new Set<string>());
+  const animated = useRef(new Set<string>());
+  const primed = useRef(false);
+  const newest = useRef(0);
+  useEffect(() => {
+    if (loading) return;
+    for (const m of messages) { known.current.add(m.id); newest.current = Math.max(newest.current, m.at); }
+    primed.current = true;
+  });
   const lastMine = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i--) if (messages[i].from === me) return messages[i].id;
     return "";
@@ -76,8 +95,9 @@ function Bubbles({ messages, me, other, otherSeenAt, q, activeId, onPhoto }: Bub
         const pos = starts && ends ? "solo" : starts ? "first" : ends ? "last" : "mid";
         const big = !m.image && !m.gif && isBigEmoji(m.text);
         const seen = otherSeenAt > 0 && otherSeenAt >= m.at;
+        if (primed.current && !known.current.has(m.id) && m.at >= newest.current) animated.current.add(m.id);
         return (
-          <div key={m.id} className={`msg ${mine ? "mine" : "theirs"} ${pos}`} data-mid={m.id}>
+          <div key={m.id} className={`msg ${mine ? "mine" : "theirs"} ${pos}${animated.current.has(m.id) ? " enter" : ""}${m.pending ? " pending" : ""}`} data-mid={m.id}>
             {sep && <p className="chat-sep">{sepLabel(m.at)}</p>}
             <div className="msg-row">
               {!mine && <span className="msg-av">{ends && <Avatar profile={other} size="sm" />}</span>}
@@ -98,7 +118,9 @@ function Bubbles({ messages, me, other, otherSeenAt, q, activeId, onPhoto }: Bub
               </div>
             </div>
             {mine && m.id === lastMine && (
-              <div className="msg-seen">{seen ? <><Avatar profile={other} size="sm" />Seen</> : "Sent"}</div>
+              <div className="msg-seen" key={m.pending ? "sending" : seen ? "seen" : "sent"}>
+                {m.pending ? (online ? "Sending…" : "Waiting for connection…") : seen ? <><Avatar profile={other} size="sm" />Seen</> : "Sent"}
+              </div>
             )}
           </div>
         );
@@ -109,10 +131,14 @@ function Bubbles({ messages, me, other, otherSeenAt, q, activeId, onPhoto }: Bub
 
 type Pending = { id: number; url: string };
 
-function Composer({ me, other, onSend }: { me: string; other: string; onSend: () => void }) {
+/** A message that could not be sent. It stays in the chat with Retry and Delete, so nothing you typed is lost. */
+type Failed = { key: number; out: Outgoing; reason: string };
+const outboxes = new Map<string, Failed[]>(); // per conversation, so leaving the chat and coming back keeps them
+let failedSeq = 0;
+
+function Composer({ onSend }: { onSend: (out: Outgoing) => void }) {
   const s = useSession();
   const [text, setText] = useState("");
-  const [busy, setBusy] = useState(false);
   const [preparing, setPreparing] = useState(0);
   const [pending, setPending] = useState<Pending[]>([]);
   const [panel, setPanel] = useState(false);
@@ -142,38 +168,25 @@ function Composer({ me, other, onSend }: { me: string; other: string; onSend: ()
     }
   }
 
-  async function send() {
-    if (!ready || busy || preparing > 0) return;
-    setBusy(true);
-    onSend();
-    try {
-      for (const p of pending) {
-        await sendMessage(me, other, { image: p.url });
-        setPending((list) => list.filter((x) => x.id !== p.id));
-      }
-      if (hasText) { await sendMessage(me, other, { text }); setText(""); }
-      setPanel(false);
-      box.current?.focus();
-    } catch {
-      s.notify("That did not send. Try again.");
-    } finally { setBusy(false); }
-  }
-
-  async function sendQuick(out: { text?: string; gif?: string }) {
-    if (busy) return;
-    setBusy(true);
-    onSend();
-    try { await sendMessage(me, other, out); } catch { s.notify("That did not send. Try again."); } finally { setBusy(false); }
+  // The message appears in the chat at once (as "Sending…") and the box is cleared; if it cannot be sent, ThreadPage keeps it as "Not sent".
+  function send() {
+    if (!ready || preparing > 0) return;
+    const body = text;
+    const pics = pending;
+    setPending([]); setText(""); setPanel(false);
+    for (const p of pics) onSend({ image: p.url });
+    if (body.trim()) onSend({ text: body });
+    box.current?.focus();
   }
 
   function pickMedia(media: Media) {
     setPanel(false);
-    void sendQuick(media.gif ? { gif: media.gif } : { text: media.sticker });
+    onSend(media.gif ? { gif: media.gif } : { text: media.sticker });
   }
 
   function onKey(e: KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === "Escape") setPanel(false);
-    if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing && enterSends()) { e.preventDefault(); void send(); }
+    if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing && enterSends()) { e.preventDefault(); send(); }
   }
 
   function onPaste(e: ClipboardEvent<HTMLTextAreaElement>) {
@@ -195,17 +208,17 @@ function Composer({ me, other, onSend }: { me: string; other: string; onSend: ()
         </div>
       )}
       {panel && <MediaPicker onPick={pickMedia} onEmoji={(e) => insertEmoji(box.current, text, e, setText, MESSAGE_MAX)} />}
-      <form className="chat-composer" onSubmit={(e) => { e.preventDefault(); void send(); }}>
-        <button type="button" className="icon-btn tool" aria-label="Add photos" title="Add photos" disabled={busy}
+      <form className="chat-composer" onSubmit={(e) => { e.preventDefault(); send(); }}>
+        <button type="button" className="icon-btn tool" aria-label="Add photos" title="Add photos" 
           onClick={() => files.current?.click()}><ImageIcon /></button>
         <button type="button" className={`icon-btn tool${panel ? " on" : ""}`} aria-label="Emoji, stickers and GIFs" title="Emoji, stickers and GIFs"
           aria-expanded={panel} onClick={() => setPanel((v) => !v)}><SmileIcon /></button>
         <textarea ref={box} rows={1} value={text} maxLength={MESSAGE_MAX} placeholder="Aa" aria-label="Message"
           onChange={(e) => setText(e.target.value)} onKeyDown={onKey} onPaste={onPaste} />
         {ready
-          ? <button type="submit" className="icon-btn send" aria-label="Send" disabled={busy || preparing > 0}><SendIcon /></button>
-          : <button type="button" className="icon-btn like" aria-label="Send a thumbs up" title="Send a thumbs up" disabled={busy}
-            onClick={() => void sendQuick({ text: "👍" })}>👍</button>}
+          ? <button key="send" type="submit" className="icon-btn send" aria-label="Send" disabled={preparing > 0}><SendIcon /></button>
+          : <button key="like" type="button" className="icon-btn like" aria-label="Send a thumbs up" title="Send a thumbs up"
+            onClick={() => onSend({ text: "👍" })}>👍</button>}
         <input ref={files} type="file" accept="image/*" multiple hidden
           onChange={(e) => { void addFiles(Array.from(e.target.files ?? [])); e.target.value = ""; }} />
       </form>
@@ -238,6 +251,20 @@ export default function ThreadPage({ uid: other }: { uid: string }) {
   const [infoOpen, setInfoOpen] = useState(false);
   const [q, setQ] = useState("");
   const [curId, setCurId] = useState("");
+  const [failed, setFailed] = useState<Failed[]>(() => outboxes.get(other) ?? []);
+
+  const changeFailed = useCallback((fn: (cur: Failed[]) => Failed[]) => setFailed((cur) => {
+    const next = fn(cur);
+    outboxes.set(other, next);
+    return next;
+  }), [other]);
+  // Sending never blocks the box: the message shows up as "Sending…", and if the server turns it down it comes back here.
+  const dispatch = useCallback((out: Outgoing) => {
+    stick.current = true;
+    sendMessage(s.uid, other, out).catch((err) => changeFailed((cur) => [...cur, { key: failedSeq++, out, reason: failureReason(err) }]));
+  }, [s.uid, other, changeFailed]);
+  const retry = (f: Failed) => { changeFailed((cur) => cur.filter((x) => x.key !== f.key)); dispatch(f.out); };
+  const discard = (f: Failed) => changeFailed((cur) => cur.filter((x) => x.key !== f.key));
 
   // Opening a conversation, or getting a message while it is open, marks it read.
   useEffect(() => {
@@ -251,7 +278,7 @@ export default function ThreadPage({ uid: other }: { uid: string }) {
 
   // Stay at the newest message, unless the person has scrolled up to read older ones.
   const last = messages[messages.length - 1]?.id;
-  useLayoutEffect(() => { if (stick.current) toBottom(); }, [last, loading, toBottom]);
+  useLayoutEffect(() => { if (stick.current) toBottom(); }, [last, loading, failed.length, toBottom]);
 
   // Older messages were added above: keep what the person was reading where it was.
   const first = messages[0]?.id;
@@ -336,6 +363,7 @@ export default function ThreadPage({ uid: other }: { uid: string }) {
             onClick={() => setCurId(matches[active - 1])}><ChevronUpIcon /></button>
           <button type="button" className="icon-btn" aria-label="Next (newer) match" disabled={active < 0 || active >= matches.length - 1}
             onClick={() => setCurId(matches[active + 1])}><ChevronDownIcon /></button>
+          <button type="button" className="icon-btn" aria-label="Close search" title="Close search" onClick={closeSearch}><CloseIcon /></button>
         </header>
       ) : (
         <header className="chat-bar">
@@ -374,8 +402,24 @@ export default function ThreadPage({ uid: other }: { uid: string }) {
                 {messages.length === 0 && <p className="hint">No messages yet. Say hello.</p>}
               </div>
             )}
-            <Bubbles messages={messages} me={s.uid} other={p} otherSeenAt={chat?.otherSeenAt ?? 0}
+            <Bubbles messages={messages} loading={loading} me={s.uid} other={p} otherSeenAt={chat?.otherSeenAt ?? 0}
               q={finding ? q : ""} activeId={finding ? activeId : ""} onPhoto={setViewer} />
+            {failed.map((f) => (
+              <div key={f.key} className="msg mine solo failed" role="group" aria-label="Message not sent">
+                <div className="msg-row">
+                  <div className="msg-col">
+                    {f.out.image && <img className="msg-gif" src={f.out.image} alt="Photo not sent" />}
+                    {f.out.gif && <img className="msg-gif" src={f.out.gif} alt="GIF not sent" referrerPolicy="no-referrer" />}
+                    {f.out.text && <div className="bubble mine">{f.out.text}</div>}
+                  </div>
+                </div>
+                <div className="msg-failed" role="alert">
+                  <span>Not sent. {f.reason}</span>
+                  <button type="button" className="link-act" onClick={() => retry(f)}>Retry</button>
+                  <button type="button" className="link-act" onClick={() => discard(f)}>Delete</button>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
         {showJump && (
@@ -385,7 +429,7 @@ export default function ThreadPage({ uid: other }: { uid: string }) {
       </div>
 
       {friend
-        ? <Composer me={s.uid} other={other} onSend={() => { stick.current = true; }} />
+        ? <Composer onSend={dispatch} />
         : <p className="hint chat-locked">You can only message people who are your friends.</p>}
       {infoOpen && (
         <ChatInfoSheet uid={other} profile={p} friend={friend} onClose={() => setInfoOpen(false)}

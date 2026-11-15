@@ -6,6 +6,8 @@ import { newestFirst } from "../entries";
 import { dateDir, useSortedEntries, useSortMode } from "../sorting";
 import SortMenu from "../SortMenu";
 import SharedHoursCard from "../SharedHoursCard";
+import SharedScheduleCard from "../SharedScheduleCard";
+import { useCanSee } from "../audience";
 import { useRepostedEntries } from "../reposts";
 import { useTeasedEntries } from "../teasers";
 import ProfileHeader from "../ProfileHeader";
@@ -39,7 +41,8 @@ export default function PersonPage({ uid }: { uid: string }) {
   const entries = useSortedEntries(pool, mode);
   const rel = s.relationOf(uid);
   const [friendsOpen, setFriendsOpen] = useState<"all" | "mutual" | null>(null);
-  const { mutual } = useMutualFriends(uid, s.friends, uid !== s.uid && p?.friendsVisible !== false);
+  const canSeeFriends = useCanSee(uid, p ? p.friendsAudience : "private");
+  const { mutual } = useMutualFriends(uid, s.friends, uid !== s.uid && canSeeFriends === true);
 
   if (p === undefined) return <><ProfileSkeleton /><FeedSkeleton /></>;
   if (p === null) {
@@ -57,8 +60,8 @@ export default function PersonPage({ uid }: { uid: string }) {
         <div className="profile-actions">
           <RelationButtons uid={uid} />
           <button type="button" className="btn" onClick={() => setFriendsOpen("all")}
-            title={p.friendsVisible === false && uid !== s.uid ? "Friends list is private" : undefined}>
-            {p.friendsVisible === false && uid !== s.uid ? <LockIcon /> : <UsersIcon />} Friends
+            title={canSeeFriends === false && uid !== s.uid ? "Friends list is private" : undefined}>
+            {canSeeFriends === false && uid !== s.uid ? <LockIcon /> : <UsersIcon />} Friends
           </button>
         </div>
         {mutual && mutual.length > 0 && (
@@ -66,7 +69,8 @@ export default function PersonPage({ uid }: { uid: string }) {
             <UsersIcon />{mutual.length} mutual friend{mutual.length === 1 ? "" : "s"}
           </button>
         )}
-        <SharedHoursCard uid={uid} visible={p.hoursVisible === true} />
+        <SharedHoursCard uid={uid} audience={p.hoursAudience} />
+        <SharedScheduleCard uid={uid} audience={p.scheduleAudience} />
         {rel === "incoming" && <p className="hint pad-b">{p.displayName} sent you a friend request.</p>}
       </ProfileHeader>
       <ProfileTabs tab={tab} onChange={setTab}>

@@ -11,7 +11,7 @@ type Props = {
   /** Day headings only make sense when the list runs in date order. */
   dayHeadings?: boolean;
   /**
-   * Also split the list by week (Monday to Sunday), each week with its number and total hours, and show the hours
+   * Also split the list by week (Sunday to Saturday), each week with its number and total hours, and show the hours
    * under each day. `origin` is the first day of the logbook: that week is Week 1. Only for your own entries.
    */
   weeks?: { origin: string };

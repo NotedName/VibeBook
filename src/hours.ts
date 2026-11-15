@@ -10,6 +10,8 @@ import { EMPTY_DETAILS, type ReportDetails } from "./reportDocs";
  *  - goal:   { requiredHours, workDays, daysOff, daysOn, hoursPerDay }  the hours your school or company requires (the
  *            target of the progress bar) and which days you can work (see availability.ts);
  *  - clock:  { date, time }     the moment you clocked in, present only while the clock is running;
+ *  - shared: { minutes, requiredMinutes? }  a summary other people can read, only while hoursVisible is on in your profile
+ *            (Settings > Privacy). Kept in step with your entries by HoursCard; deleted when you turn the setting off;
  *  - report: the names and school lines printed at the top of exported reports (see reportDocs.ts).
  * Hours worked themselves live on the entries (clockIn, clockOut, minutes).
  */
@@ -18,6 +20,33 @@ export const MAX_REQUIRED_HOURS = 10000;
 const goalRef = (uid: string) => doc(db, "users", uid, "hours", "goal");
 const clockRef = (uid: string) => doc(db, "users", uid, "hours", "clock");
 const reportRef = (uid: string) => doc(db, "users", uid, "hours", "report");
+
+export type SharedHours = { minutes: number; requiredMinutes: number | null };
+
+/** What someone has chosen to show of their hours. null: nothing shared (hidden, or not saved yet); undefined while loading. */
+export function useSharedHours(uid: string, enabled: boolean): SharedHours | null | undefined {
+  const [state, setState] = useState<SharedHours | null | undefined>(undefined);
+  useEffect(() => {
+    if (!enabled) { setState(null); return; }
+    setState(undefined);
+    return onSnapshot(
+      doc(db, "users", uid, "hours", "shared"),
+      (snap) => {
+        const d = snap.data();
+        setState(snap.exists() && typeof d?.minutes === "number"
+          ? { minutes: d.minutes, requiredMinutes: typeof d.requiredMinutes === "number" && d.requiredMinutes > 0 ? d.requiredMinutes : null }
+          : null);
+      },
+      () => setState(null),
+    );
+  }, [uid, enabled]);
+  return state;
+}
+
+/** Saves the summary other people see: the minutes logged so far and the minutes required (null when no goal is set). */
+export const publishHours = (uid: string, minutes: number, requiredMinutes: number | null) =>
+  setDoc(doc(db, "users", uid, "hours", "shared"),
+    requiredMinutes ? { minutes: Math.max(0, Math.round(minutes)), requiredMinutes: Math.round(requiredMinutes) } : { minutes: Math.max(0, Math.round(minutes)) });
 
 export type HoursGoal = { hours: number | null; availability: Availability; ready: boolean };
 

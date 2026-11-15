@@ -1,3 +1,4 @@
+import { BlockSkeleton } from "./Skeleton";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent } from "react";
 import { createPortal } from "react-dom";
 import { CloseIcon, FlipIcon, RotateIcon } from "./icons";
@@ -192,7 +193,7 @@ export default function PhotoEditor({ file, onApply, onCancel, fixedRatio, outSi
 
         <div className="sheet-body">
           {loadError && <p className="error" role="alert">That photo could not be opened.</p>}
-          {!loadError && !oriented && <p className="hint">Loading photo…</p>}
+          {!loadError && !oriented && <BlockSkeleton label="Loading photo" />}
           <canvas ref={canvasRef} className={`editor-canvas${fixedRatio === 1 ? " round" : ""}`} hidden={!oriented}
             onPointerDown={onDown} onPointerMove={onMove} onPointerUp={() => (drag.current = null)}
             onPointerCancel={() => (drag.current = null)} />

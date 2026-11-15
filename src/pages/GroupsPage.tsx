@@ -109,6 +109,9 @@ export default function GroupsPage() {
         </section>
       ) : (
         <>
+          {!s.groups.ready && s.groups.list.length === 0 && (
+            <section className="people-section"><h2>Your groups</h2><RowsSkeleton /></section>
+          )}
           {s.groups.list.length > 0 && (
             <section className="people-section">
               <h2>Your groups <span>{s.groups.list.length}</span></h2>

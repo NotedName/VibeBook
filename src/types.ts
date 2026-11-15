@@ -27,6 +27,8 @@ export type Profile = {
   coverPhoto: string; // JPEG data URL shown over the cover color, "" when none
   /** Whether other people can open this person's friends list. Defaults to true; Settings > Privacy turns it off. */
   friendsVisible: boolean;
+  /** Whether other people can see how many hours this person has logged. Defaults to false; Settings > Privacy turns it on. */
+  hoursVisible: boolean;
 };
 
 export type FriendRequest = { id: string; from: string; to: string };

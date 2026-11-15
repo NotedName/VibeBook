@@ -171,7 +171,7 @@ export default function Shell({ user }: { user: User }) {
   const isMe = route.name === "person" && (route.handle === uid || route.handle.toLowerCase() === me?.username);
   const active = isMe ? { name: "me" } as Route : route;
   const incomingCount = social.incoming.length;
-  const subPage = active.name === "person" || active.name === "group" || active.name === "post" || active.name === "archived" || active.name === "thread";
+  const subPage = active.name === "person" || active.name === "group" || active.name === "post" || active.name === "archived";
   const backTo = active.name === "group" ? "#/groups" : active.name === "person" ? "#/people" : active.name === "archived" ? "#/me" : active.name === "thread" ? "#/messages" : "#/feed";
   const newEntry = () => setEntrySheet({ entry: null, groupId: active.name === "group" ? active.id : undefined });
   const goBack = () => { if (trail.current.length > 1) history.back(); else location.hash = backTo; };
@@ -213,7 +213,7 @@ export default function Shell({ user }: { user: User }) {
       </header>
 
       <div className="page">
-      <main className={`logbook${active.name === "thread" ? " chat-page" : ""}`}>
+      <main className={`logbook${active.name === "thread" ? " chat-page" : active.name === "messages" ? " inbox-page" : ""}`}>
         {subPage && (
           <div className="backbar">
             <button type="button" className="back-btn" onClick={goBack} aria-label="Go back">

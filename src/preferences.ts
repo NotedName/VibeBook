@@ -22,10 +22,14 @@ type Prefs = {
   groupPosts: boolean;
   /** groups with post alerts turned off */
   mutedGroups: string[];
+  /** people whose chats do not add to the unread count in the top bar */
+  mutedChats: string[];
+  /** does the Enter key send a message? "auto": yes with a keyboard, no on a touch screen (Enter is a new line there) */
+  enterSends: "auto" | "on" | "off";
 };
 
 const KEY = "vibebook-prefs";
-const DEFAULTS: Prefs = { photo: "standard", visibility: "private", reduceMotion: false, groupInvites: true, groupPosts: true, mutedGroups: [] };
+const DEFAULTS: Prefs = { photo: "standard", visibility: "private", reduceMotion: false, groupInvites: true, groupPosts: true, mutedGroups: [], mutedChats: [], enterSends: "auto" };
 
 function load(): Prefs {
   try {
@@ -37,6 +41,8 @@ function load(): Prefs {
       groupInvites: raw.groupInvites !== false,
       groupPosts: raw.groupPosts !== false,
       mutedGroups: Array.isArray(raw.mutedGroups) ? raw.mutedGroups.filter((g) => typeof g === "string") : [],
+      mutedChats: Array.isArray(raw.mutedChats) ? raw.mutedChats.filter((g) => typeof g === "string") : [],
+      enterSends: raw.enterSends === "on" || raw.enterSends === "off" ? raw.enterSends : "auto",
     };
   } catch { return DEFAULTS; }
 }
@@ -59,6 +65,9 @@ apply();
 
 export const photoQuality = () => PHOTO_QUALITY.find((q) => q.id === state.photo)!;
 export const defaultVisibility = () => state.visibility;
+/** Whether Enter sends a message in a chat (the Send button always does). */
+export const enterSendsMessage = () =>
+  state.enterSends === "auto" ? !window.matchMedia("(pointer: coarse)").matches : state.enterSends === "on";
 
 export function usePreferences() {
   const p = useSyncExternalStore((l) => { listeners.add(l); return () => { listeners.delete(l); }; }, () => state);
@@ -69,6 +78,9 @@ export function usePreferences() {
     setReduceMotion: (reduceMotion: boolean) => update({ reduceMotion }),
     setGroupInvites: (groupInvites: boolean) => update({ groupInvites }),
     setGroupPosts: (groupPosts: boolean) => update({ groupPosts }),
+    setChatMuted: (uid: string, muted: boolean) =>
+      update({ mutedChats: muted ? [...new Set([...state.mutedChats, uid])] : state.mutedChats.filter((g) => g !== uid) }),
+    setEnterSends: (enterSends: boolean) => update({ enterSends: enterSends ? "on" : "off" }),
     setGroupMuted: (gid: string, muted: boolean) =>
       update({ mutedGroups: muted ? [...new Set([...state.mutedGroups, gid])] : state.mutedGroups.filter((g) => g !== gid) }),
   };

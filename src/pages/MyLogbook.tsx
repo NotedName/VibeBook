@@ -8,7 +8,7 @@ import HoursCard from "../HoursCard";
 import ReportSheet from "../ReportSheet";
 import DateRangeFilter, { inRange, NO_RANGE, rangeActive } from "../DateRangeFilter";
 import { useSession } from "../session";
-import { dateDir, useSortedEntries, useSortMode } from "../sorting";
+import { dateDir, useGrouping, useSortedEntries, useSortMode } from "../sorting";
 import { useLikedEntries } from "../likes";
 import ProfileTabs, { type ProfileTab } from "../ProfileTabs";
 import SortMenu from "../SortMenu";
@@ -17,7 +17,7 @@ import Avatar from "../Avatar";
 import EntryList from "../EntryList";
 import { FeedSkeleton } from "../Skeleton";
 import PersonPage from "./PersonPage";
-import { EyeIcon } from "../icons";
+import { CopyIcon, DownloadIcon, EyeIcon } from "../icons";
 import FriendsSheet from "../FriendsSheet";
 
 function Logbook({ onViewAs }: { onViewAs: () => void }) {
@@ -29,6 +29,7 @@ function Logbook({ onViewAs }: { onViewAs: () => void }) {
   const [friendsOpen, setFriendsOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [range, setRange] = useState(NO_RANGE);
+  const [reportKind, setReportKind] = useState<"day" | "week">("day");
 
   useEffect(
     () => onSnapshot(
@@ -46,6 +47,7 @@ function Logbook({ onViewAs }: { onViewAs: () => void }) {
   // Notes are what you wrote; Reposts and Likes are other people's entries. Only Notes count towards your stats and reports.
   const [tab, setTab] = useState<ProfileTab>("notes");
   const [mode, setMode] = useSortMode("logbook");
+  const [grouping, setGrouping] = useGrouping("logbook");
   const myUid = useMemo(() => [s.uid], [s.uid]);
   const reposts = useRepostedEntries(myUid, 50, dateDir(mode));
   const likes = useLikedEntries(s.uid, tab === "likes");
@@ -91,26 +93,32 @@ function Logbook({ onViewAs }: { onViewAs: () => void }) {
           ))}
         </div>
 
-        <HoursCard entries={list} />
+        <HoursCard entries={list} loading={entries === null} />
 
         <div className="report">
-          <div className="report-row">
+          <div className="report-tabs" role="group" aria-label="Report type">
+            <button type="button" className={reportKind === "day" ? "on" : ""} aria-pressed={reportKind === "day"} onClick={() => setReportKind("day")}>Daily</button>
+            <button type="button" className={reportKind === "week" ? "on" : ""} aria-pressed={reportKind === "week"} onClick={() => setReportKind("week")}>Weekly</button>
+          </div>
+          {reportKind === "day" ? (
             <label className="report-date">Report for
               <input type="date" value={reportDate} onChange={(e) => setReportDate(e.target.value || todayStr())} />
             </label>
-            <button type="button" className="btn primary" onClick={copyReport}>Copy for Daily Report</button>
-            <button type="button" className="btn" onClick={copyDescriptions}>Copy descriptions</button>
-          </div>
+          ) : (
+            <>
+              <label className="report-date">Week of
+                <input type="date" value={reportWeek} onChange={(e) => setReportWeek(e.target.value || todayStr())} />
+              </label>
+              <small className="report-range">{weekRange(reportWeek)}</small>
+            </>
+          )}
           <div className="report-row">
-            <label className="report-date">Week of
-              <input type="date" value={reportWeek} onChange={(e) => setReportWeek(e.target.value || todayStr())} />
-            </label>
-            <button type="button" className="btn primary" onClick={copyWeekly}>Copy for Weekly Report</button>
-            <small className="report-range">{weekRange(reportWeek)}</small>
+            <button type="button" className="btn primary" onClick={reportKind === "day" ? copyReport : copyWeekly}>
+              <CopyIcon /> {reportKind === "day" ? "Copy for Daily Report" : "Copy for Weekly Report"}
+            </button>
+            <button type="button" className="btn" onClick={copyDescriptions}><CopyIcon /> Copy descriptions</button>
           </div>
-          <div className="report-row">
-            <button type="button" className="btn primary export-btn" onClick={() => setExportOpen(true)}>Export as Word or PDF</button>
-          </div>
+          <button type="button" className="btn" onClick={() => setExportOpen(true)}><DownloadIcon /> Export as Word or PDF</button>
         </div>
       </ProfileHeader>
 
@@ -120,7 +128,7 @@ function Logbook({ onViewAs }: { onViewAs: () => void }) {
       )}
       {friendsOpen && <FriendsSheet uid={s.uid} onClose={() => setFriendsOpen(false)} />}
       <ProfileTabs tab={tab} onChange={setTab} showLikes>
-        {shown.length > 1 && <SortMenu mode={mode} onChange={setMode} />}
+        {shown.length > 1 && <SortMenu mode={mode} onChange={setMode} grouping={tab === "notes" ? grouping : undefined} onGrouping={setGrouping} />}
       </ProfileTabs>
 
       <DateRangeFilter value={range} onChange={setRange} shown={filtered.length} total={pool.length} />
@@ -167,7 +175,8 @@ function Logbook({ onViewAs }: { onViewAs: () => void }) {
           </div>
         )}
         <EntryList entries={shown} onEdit={s.openEntry} dayHeadings={mode.kind === "newest" || mode.kind === "oldest"}
-          weeks={tab === "notes" ? { origin: earliestDay(list) } : undefined} />
+          weeks={tab === "notes" && grouping === "weeks" ? { origin: earliestDay(list) } : undefined}
+          dayHours={tab === "notes"} />
       </div>
     </>
   );

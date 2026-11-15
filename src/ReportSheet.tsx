@@ -1,3 +1,4 @@
+import { FieldsSkeleton } from "./Skeleton";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { loadPhotos, type Entry } from "./entries";
 import { todayStr } from "./report";
@@ -169,14 +170,14 @@ export default function ReportSheet({ entries, initialRange, onClose }: Props) {
             <i className="switch" aria-hidden="true" />
           </label>
           <label className="switch-row">
-            <span>Show hours worked<small>Adds an Hours column and a total. The school's own template has none.</small></span>
+            <span>Show hours worked<small>Adds an Hours column and a total.</small></span>
             <input type="checkbox" role="switch" checked={showHours} onChange={(e) => setShowHours(e.target.checked)} />
             <i className="switch" aria-hidden="true" />
           </label>
 
           <fieldset className="setting report-details">
             <legend>Printed at the top (remembered for next time)</legend>
-            {details === null ? <p className="hint">Loading…</p> : FIELDS.map((f) => (
+            {details === null ? <FieldsSkeleton count={FIELDS.length} label="Loading report details" /> : FIELDS.map((f) => (
               <label key={f.key}>{f.label}
                 <input value={details[f.key]} maxLength={120} placeholder={f.placeholder} onChange={(e) => setDetail(f.key, e.target.value)} />
               </label>

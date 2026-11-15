@@ -76,23 +76,29 @@ const MAX_NOTES = 100;
 
 /** Live notifications for the signed-in person, newest first. */
 export function useNotes(uid: string): Note[] {
+  return useNotesState(uid).notes;
+}
+
+/** Same as useNotes, plus `ready`: false until the server has answered the first time (so a list can show a skeleton). */
+export function useNotesState(uid: string): { notes: Note[]; ready: boolean } {
   const [notes, setNotes] = useState<Note[]>([]);
+  const [ready, setReady] = useState(false);
   useEffect(
     () => onSnapshot(
       query(collection(db, "users", uid, "notifications"), orderBy("createdAt", "desc"), limit(MAX_NOTES)),
-      (snap) => setNotes(snap.docs.map((d) => {
+      (snap) => { setReady(true); setNotes(snap.docs.map((d) => {
         const x = d.data();
         const t = x.createdAt as Timestamp | null;
         return {
           id: d.id, type: x.type, actorUid: x.actorUid, createdAt: t ? t.toMillis() : Date.now(), read: x.read === true,
           ownerUid: x.ownerUid, entryId: x.entryId, photoId: x.photoId, title: x.title, groupId: x.groupId, groupName: x.groupName,
         } as Note;
-      })),
-      () => setNotes([]),
+      })); },
+      () => { setNotes([]); setReady(true); },
     ),
     [uid],
   );
-  return notes;
+  return { notes, ready };
 }
 
 /** More than this many of one kind collapse into a single notification. */

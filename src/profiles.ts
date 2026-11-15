@@ -1,6 +1,6 @@
 import { logActivity } from "./activity";
 import {
-  collection, doc, getDoc, getDocs, limit, query, runTransaction, serverTimestamp, updateDoc, where,
+  collection, deleteDoc, doc, getDoc, getDocs, limit, query, runTransaction, serverTimestamp, updateDoc, where,
 } from "firebase/firestore";
 import { db } from "./firebase";
 import type { CoverId, Profile } from "./types";
@@ -107,6 +107,7 @@ function toProfile(uid: string, d: Stored): Profile {
     cover: (d.cover as CoverId) ?? "amethyst",
     coverPhoto: d.coverPhoto ?? "",
     friendsVisible: d.friendsVisible !== false,
+    hoursVisible: d.hoursVisible === true,
   };
 }
 export { toProfile };
@@ -145,6 +146,7 @@ export async function saveProfile(uid: string, p: Omit<Profile, "uid">): Promise
     cover: p.cover,
     coverPhoto: p.coverPhoto,
     friendsVisible: p.friendsVisible !== false,
+    hoursVisible: p.hoursVisible === true,
   };
   if (clean.username) {
     const problem = usernameProblem(clean.username);
@@ -185,6 +187,18 @@ export async function setFriendsVisible(uid: string, visible: boolean): Promise<
   const cached = await fetchProfile(uid).catch(() => null);
   if (cached) primeProfile({ ...cached, friendsVisible: visible });
   logActivity(uid, visible ? "Let other people see your friends list" : "Hid your friends list from other people");
+}
+
+/**
+ * Settings > Privacy: lets other people see how many hours you have logged (and of how many required). Off by default.
+ * Turning it off also deletes the shared summary (users/{uid}/hours/shared), so nothing is left to read.
+ */
+export async function setHoursVisible(uid: string, visible: boolean): Promise<void> {
+  await updateDoc(doc(db, "profiles", uid), { hoursVisible: visible });
+  if (!visible) await deleteDoc(doc(db, "users", uid, "hours", "shared")).catch(() => {});
+  const cached = await fetchProfile(uid).catch(() => null);
+  if (cached) primeProfile({ ...cached, hoursVisible: visible });
+  logActivity(uid, visible ? "Let other people see your hours" : "Hid your hours from other people");
 }
 
 /** Finds people whose name or username starts with every word typed ("@" in front is ignored). */

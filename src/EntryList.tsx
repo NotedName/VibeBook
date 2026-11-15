@@ -15,15 +15,17 @@ type Props = {
    * under each day. `origin` is the first day of the logbook: that week is Week 1. Only for your own entries.
    */
   weeks?: { origin: string };
+  /** Show the hours under each day without the week headings (the Days view of your logbook). */
+  dayHours?: boolean;
 };
 
 /** Entries in the order given, under week and day headings when they run by date. */
-export default function EntryList({ entries, onEdit, inGroup, dayHeadings = true, weeks }: Props) {
+export default function EntryList({ entries, onEdit, inGroup, dayHeadings = true, weeks, dayHours }: Props) {
   let lastDay = "";
   let lastWeek = "";
   const byWeek = new Map<string, Entry[]>();
   const byDay = new Map<string, Entry[]>();
-  if (weeks && dayHeadings) {
+  if ((weeks || dayHours) && dayHeadings) {
     entries.forEach((e) => {
       const day = stampOf(e).slice(0, 10);
       byDay.set(day, [...(byDay.get(day) ?? []), e]);
@@ -52,7 +54,7 @@ export default function EntryList({ entries, onEdit, inGroup, dayHeadings = true
             {header && (
               <div className="day-label">
                 {longDay(day)}
-                {weeks && dayMinutes > 0 && <small className="day-hours">{formatHM(dayMinutes)}</small>}
+                {(weeks || dayHours) && dayMinutes > 0 && <small className="day-hours">{formatHM(dayMinutes)}</small>}
               </div>
             )}
             <EntryCard entry={e} onEdit={onEdit} inGroup={inGroup} />

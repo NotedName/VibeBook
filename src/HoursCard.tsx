@@ -1,12 +1,13 @@
 import { useEffect, useState, type FormEvent } from "react";
-import type { Entry } from "./entries";
+import { addEntry, type Entry } from "./entries";
 import { clockTime, longDay, nowStr, todayStr } from "./report";
-import { discardClock, clockIn, editClockStart, MAX_REQUIRED_HOURS, runningMinutes, setRequiredHours, useHoursGoal, useRunningClock } from "./hours";
+import { discardClock, clockIn, editClockStart, MAX_REQUIRED_HOURS, publishHours, runningMinutes, setRequiredHours, useHoursGoal, useRunningClock } from "./hours";
 import { availableDaysIn, projectFinish } from "./availability";
 import AvailabilitySheet from "./AvailabilitySheet";
-import { formatHM, sumMinutes, weekEnd, weekStart } from "./weeks";
+import { formatHM, spanMinutes, sumMinutes, weekEnd, weekStart } from "./weeks";
 import { useSession } from "./session";
 import { ClockIcon, EditIcon } from "./icons";
+import { HoursSkeleton } from "./Skeleton";
 
 const WEEKDAYS = [
   { day: 1, short: "Mon" }, { day: 2, short: "Tue" }, { day: 3, short: "Wed" }, { day: 4, short: "Thu" },
@@ -14,7 +15,7 @@ const WEEKDAYS = [
 ];
 
 /** Hours spent against the hours required, plus Clock in / Clock out. `entries` are your own, unarchived entries. */
-export default function HoursCard({ entries }: { entries: Entry[] }) {
+export default function HoursCard({ entries, loading = false }: { entries: Entry[]; /** the entries have not arrived yet */ loading?: boolean }) {
   const s = useSession();
   const goal = useHoursGoal(s.uid);
   const [daysOpen, setDaysOpen] = useState(false);
@@ -27,6 +28,7 @@ export default function HoursCard({ entries }: { entries: Entry[] }) {
   const [startTime, setStartTime] = useState("");
   const [error, setError] = useState("");
   const [armedDiscard, setArmedDiscard] = useState(false);
+  const [clocking, setClocking] = useState(false);
 
   // The running time ticks once a minute, and again when the tab comes back.
   useEffect(() => {
@@ -45,6 +47,12 @@ export default function HoursCard({ entries }: { entries: Entry[] }) {
   const weekCapacity = availableDaysIn(thisWeekStart, weekEnd(thisWeekStart), a) * a.hoursPerDay * 60;
   const todayMinutes = sumMinutes(entries.filter((e) => e.date === todayStr()));
   const required = goal.hours === null ? null : Math.round(goal.hours * 60);
+  // While "Show my hours" is on (Settings > Privacy), the summary other people read follows your totals.
+  const sharing = s.me?.hoursVisible === true;
+  useEffect(() => {
+    if (!sharing || !goal.ready) return;
+    publishHours(s.uid, spent, required).catch(() => {});
+  }, [sharing, goal.ready, s.uid, spent, required]);
   const pct = required ? Math.min(100, Math.round((spent / required) * 100)) : 0;
   const left = required === null ? 0 : required - spent;
   const projection = required === null ? null : projectFinish(left, todayStr(), todayMinutes, a);
@@ -70,10 +78,23 @@ export default function HoursCard({ entries }: { entries: Entry[] }) {
     setError("");
   }
 
+  /**
+   * Clocking out saves the shift straight away; no write-up is needed. The hours are kept as a private entry that you can
+   * open later (Edit) to add what you did, the skills and photos.
+   */
   function clockOut() {
-    if (!clock) return;
-    // The sheet opens with the clock-out time filled in; both times can still be changed there before saving.
-    s.openEntryWithHours({ date: clock.date, clockIn: clock.time, clockOut: nowStr(), fromClock: true });
+    if (!clock || clocking) return;
+    const out = nowStr();
+    if (out === clock.time) { setError("You clocked in this minute. Wait a moment, or use Discard."); return; }
+    setClocking(true);
+    run(async () => {
+      await addEntry(s.uid, {
+        date: clock.date, time: clock.time, clockIn: clock.time, clockOut: out,
+        title: "Hours logged", description: "", skills: [], visibility: "private", groupIds: [], videoUrl: "",
+      }, []);
+      await discardClock(s.uid);
+      s.notify(`Clocked out · ${formatHM(spanMinutes(clock.time, out))} logged`);
+    }).finally(() => setClocking(false));
   }
 
   function startEditingStart() {
@@ -90,6 +111,8 @@ export default function HoursCard({ entries }: { entries: Entry[] }) {
     if (new Date(`${startDate}T${startTime}`).getTime() > Date.now()) { setError("The start time cannot be in the future."); return; }
     run(async () => { await editClockStart(s.uid, startDate, startTime); setEditingStart(false); });
   }
+
+  if (loading || !goal.ready) return <HoursSkeleton />;
 
   return (
     <section className="hours" aria-label="Hours">
@@ -162,7 +185,7 @@ export default function HoursCard({ entries }: { entries: Entry[] }) {
               </form>
             ) : (
               <div className="clock-actions">
-                <button type="button" className="btn primary" onClick={clockOut}>Clock out</button>
+                <button type="button" className="btn primary" disabled={clocking} onClick={clockOut}>Clock out</button>
                 <button type="button" className="btn" onClick={startEditingStart}>Edit start</button>
                 <button type="button" className={`btn${armedDiscard ? " danger" : ""}`}
                   onClick={() => { if (!armedDiscard) { setArmedDiscard(true); return; } setArmedDiscard(false); run(() => discardClock(s.uid)); }}

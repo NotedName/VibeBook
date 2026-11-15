@@ -167,15 +167,21 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // Hours: private documents that follow you to every device. Only you can read or write them.
+    // Hours: private documents that follow you to every device. Only you can read or write them, except 'shared'.
     //  - goal:   { requiredHours, workDays, daysOff, daysOn, hoursPerDay }: the hours your school or company requires
     //            (1 to 10000, may have decimals; absent when no goal is set) and which days you can work. workDays are
     //            weekday numbers 0 to 6; daysOff and daysOn are dates that differ from the usual week (400 at most each);
     //  - clock:  { date, time }: the moment you clocked in, present only while the clock is running;
-    //  - report: the lines printed at the top of exported Word and PDF reports (names, school), each up to 120 characters.
+    //  - report: the lines printed at the top of exported Word and PDF reports (names, school), each up to 120 characters;
+    //  - shared: { minutes, requiredMinutes }: the total you have logged and the total required, which anyone signed in can read
+    //            only while "hoursVisible" is on on your profile (Settings > Privacy). The app keeps it in step and deletes it when
+    //            the setting is turned off.
     // The hours worked are on the entries themselves (clockIn, clockOut, minutes).
     match /users/{uid}/hours/{docId} {
-      allow read, delete: if isOwner(uid);
+      allow read: if isOwner(uid)
+        || (docId == 'shared' && signedIn()
+            && get(/databases/$(database)/documents/profiles/$(uid)).data.get('hoursVisible', false) == true);
+      allow delete: if isOwner(uid);
       allow create, update: if isOwner(uid) && (
         (docId == 'goal'
           && request.resource.data.keys().hasOnly(['requiredHours', 'workDays', 'daysOff', 'daysOn', 'hoursPerDay'])
@@ -201,6 +207,13 @@ service cloud.firestore {
           && request.resource.data.get('department', '') is string && request.resource.data.get('department', '').size() <= 120
           && request.resource.data.get('program', '') is string && request.resource.data.get('program', '').size() <= 120
           && request.resource.data.get('schoolYear', '') is string && request.resource.data.get('schoolYear', '').size() <= 120)
+        || (docId == 'shared'
+          && request.resource.data.keys().hasOnly(['minutes', 'requiredMinutes'])
+          && request.resource.data.minutes is number
+          && request.resource.data.minutes >= 0 && request.resource.data.minutes <= 1000000
+          && request.resource.data.get('requiredMinutes', 1) is number
+          && request.resource.data.get('requiredMinutes', 1) > 0
+          && request.resource.data.get('requiredMinutes', 1) <= 600000)
       );
     }
 
@@ -426,7 +439,8 @@ service cloud.firestore {
         && request.resource.data.bio.size() <= 300
         && request.resource.data.avatar.size() <= 120000
         && request.resource.data.coverPhoto.size() <= 120000
-        && request.resource.data.get('friendsVisible', true) is bool;
+        && request.resource.data.get('friendsVisible', true) is bool
+        && request.resource.data.get('hoursVisible', false) is bool;
       allow delete: if signedIn() && request.auth.uid == uid;
     }
 
@@ -647,10 +661,23 @@ service cloud.firestore {
         allow read: if inPair(pid);
         allow create: if inPair(pid)
           && friendsInPair(pid)
-          && request.resource.data.keys().hasOnly(['from', 'text', 'createdAt'])
+          && request.resource.data.keys().hasOnly(['from', 'text', 'createdAt', 'image', 'gif'])
           && request.resource.data.from == request.auth.uid
           && request.resource.data.text is string
-          && request.resource.data.text.size() > 0 && request.resource.data.text.size() <= 2000
+          && request.resource.data.text.size() <= 2000
+          // a message needs some text, a picture or a GIF
+          && (request.resource.data.text.size() > 0 || 'image' in request.resource.data || 'gif' in request.resource.data)
+          // a picture is a small JPEG data URL (keep the size in step with IMAGE_MAX_CHARS in src/messages.ts)
+          && (!('image' in request.resource.data)
+              || (request.resource.data.image is string
+                  && request.resource.data.image.size() > 11
+                  && request.resource.data.image.size() <= 300000
+                  && request.resource.data.image[0:11] == 'data:image/'))
+          // GIFs may only be loaded from Giphy or Tenor over https (keep in step with src/stickers.ts)
+          && (!('gif' in request.resource.data)
+              || (request.resource.data.gif is string
+                  && request.resource.data.gif.size() <= 300
+                  && request.resource.data.gif.matches('^https://(media[0-9]*\\.giphy\\.com|i\\.giphy\\.com|media[0-9]*\\.tenor\\.com|c\\.tenor\\.com)/.*')))
           && request.resource.data.createdAt == request.time;
       }
     }

@@ -102,3 +102,47 @@ export function LinesSkeleton({ label = "Loading" }: { label?: string }) {
 
 /** A short bar for a name that has not arrived yet. */
 export const NameSkeleton = () => <Bar w="7em" />;
+
+/** Stand-in for the hours card (own or someone else's). */
+export function HoursSkeleton() {
+  return (
+    <Region label="Loading hours">
+      <section className="hours" aria-hidden="true">
+        <Bar w="38%" h={26} />
+        <Bar w="55%" h={10} />
+        <span className="sk" style={{ height: 10, borderRadius: 999 }} />
+      </section>
+    </Region>
+  );
+}
+
+/** A picture-shaped block, for a photo that is still being prepared. */
+export function BlockSkeleton({ label = "Loading", ratio = "4 / 3" }: { label?: string; ratio?: string }) {
+  return (
+    <Region label={label}>
+      <span className="sk" aria-hidden="true" style={{ width: "100%", aspectRatio: ratio, borderRadius: 12 }} />
+    </Region>
+  );
+}
+
+/** Stand-in for a few form fields that are still loading. */
+export function FieldsSkeleton({ count = 3, label = "Loading" }: { count?: number; label?: string }) {
+  return (
+    <Region label={label}>
+      <div className="sk-stack" aria-hidden="true">
+        {Array.from({ length: count }, (_, i) => <span key={i} className="sk" style={{ height: 40, borderRadius: 12 }} />)}
+      </div>
+    </Region>
+  );
+}
+
+/** Stand-in for a row of small thumbnails (photos on their way). */
+export function ThumbsSkeleton({ count }: { count: number }) {
+  return (
+    <Region label="Loading photos">
+      <div className="thumbs" aria-hidden="true">
+        {Array.from({ length: count }, (_, i) => <span key={i} className="sk" style={{ width: 88, height: 88, borderRadius: 16 }} />)}
+      </div>
+    </Region>
+  );
+}

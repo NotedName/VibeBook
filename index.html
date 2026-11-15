@@ -25,7 +25,11 @@
         var mode = localStorage.getItem("vibebook-theme");
         var amoled = localStorage.getItem("vibebook-amoled") === "on";
         var size = localStorage.getItem("vibebook-text-size");
-        var light = mode === "light" || (mode !== "dark" && window.matchMedia("(prefers-color-scheme: light)").matches);
+        // In the Android app the WebView can answer "light" on its first frame and correct itself a moment later, which showed a light
+        // splash that then flipped to dark. There, the last answer it settled on (saved by src/theme.ts) is used until it has settled.
+        var sysLight = window.matchMedia("(prefers-color-scheme: light)").matches;
+        if ("__TAURI_INTERNALS__" in window) sysLight = localStorage.getItem("vibebook-system-light") === "1";
+        var light = mode === "light" || (mode !== "dark" && sysLight);
         root.setAttribute("data-theme", light ? "light" : "dark");
         if (amoled) root.setAttribute("data-amoled", "on");
         if (size !== null && /^[0-4]$/.test(size)) root.setAttribute("data-text-size", size);

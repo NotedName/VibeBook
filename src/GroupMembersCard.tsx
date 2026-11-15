@@ -1,3 +1,4 @@
+import { RowsSkeleton } from "./Skeleton";
 import { useGroup, useGroupMembers, withRoles } from "./groups";
 import { useProfile } from "./session";
 import { personHash } from "./profiles";
@@ -25,7 +26,7 @@ export default function GroupMembersCard({ gid }: { gid: string }) {
     <section className="side-card side-members">
       <h2>Members {list && <span>{list.length}</span>}</h2>
       {error && <p className="error note">{error}</p>}
-      {!list && !error && <p className="hint">Loading…</p>}
+      {!list && !error && <RowsSkeleton />}
       {list && group && <RoleTiers members={list} ownerUid={group.ownerUid} list="tier-list" render={(m) => <Row key={m.uid} uid={m.uid} />} />}
     </section>
   );

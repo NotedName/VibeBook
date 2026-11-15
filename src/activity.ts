@@ -79,26 +79,34 @@ export async function syncActivity(uid: string): Promise<void> {
 
 /** Newest first: your account's log merged with this device's copy. */
 export function useActivity(uid: string): Activity[] {
+  return useActivityState(uid).items;
+}
+
+/** Same as useActivity, plus `ready`: false until the account's log has been read for the first time. */
+export function useActivityState(uid: string): { items: Activity[]; ready: boolean } {
   const local = useSyncExternalStore(
     (l) => { listeners.add(l); return () => { listeners.delete(l); }; },
     () => items(uid),
   );
   const [cloud, setCloud] = useState<Activity[]>([]);
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
     setCloud([]);
+    setReady(false);
     return onSnapshot(
       query(collection(db, "users", uid, "activity"), orderBy("at", "desc"), limit(ACTIVITY_SHOWN)),
-      (snap) => setCloud(snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Activity)),
-      () => { /* offline or not allowed: the copy on this device is still shown */ },
+      (snap) => { setCloud(snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Activity)); setReady(true); },
+      () => { setReady(true); /* offline or not allowed: the copy on this device is still shown */ },
     );
   }, [uid]);
 
-  return useMemo(() => {
+  const mergedItems = useMemo(() => {
     // When the account has more than we read, older items from this device are left out so every device shows the same list.
     const cutoff = cloud.length >= ACTIVITY_SHOWN ? cloud[cloud.length - 1].at : 0;
     const byId = new Map<string, Activity>();
     [...local, ...cloud].forEach((a) => { if (a.at >= cutoff) byId.set(a.id, a); });
     return [...byId.values()].sort((a, b) => b.at - a.at).slice(0, ACTIVITY_SHOWN);
   }, [local, cloud]);
+  return { items: mergedItems, ready };
 }

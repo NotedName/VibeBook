@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent as RPointerEvent, type ReactNode } from "react";
-import { ago, markRead, noteHref, useNoteItems, useNotes, type NoteItem } from "./notifications";
+import { ago, markRead, noteHref, removeNotes, useNoteItems, useNotesState, type NoteItem } from "./notifications";
 import { useProfile, useSession } from "./session";
 import { usePreferences } from "./preferences";
 import type { GroupAlert } from "./groupAlerts";
 import Avatar from "./Avatar";
-import { BellIcon, CheckIcon, CloseIcon, GroupsIcon } from "./icons";
+import { BellIcon, CheckIcon, CloseIcon, GroupsIcon, TrashIcon } from "./icons";
 import { useScrollLock } from "./scrollLock";
+import { RowsSkeleton } from "./Skeleton";
 
 const nameOf = (p: { displayName: string } | null | undefined) => p?.displayName || "Someone";
 
@@ -148,12 +149,19 @@ function GroupAlertRow({ alert, onOpen, onRead }: { alert: GroupAlert; onOpen: (
   );
 }
 
-function NotificationsSheet({ items, alerts, unreadIds, onOpen, onOpenGroup, onClose }: {
-  items: NoteItem[]; alerts: GroupAlert[]; unreadIds: string[]; onOpen: (item: NoteItem) => void; onOpenGroup: (gid: string) => void; onClose: () => void;
+function NotificationsSheet({ items, loading, alerts, unreadIds, onOpen, onOpenGroup, onClose }: {
+  items: NoteItem[]; loading: boolean; alerts: GroupAlert[]; unreadIds: string[]; onOpen: (item: NoteItem) => void; onOpenGroup: (gid: string) => void; onClose: () => void;
 }) {
   const [busy, setBusy] = useState(false);
+  // Clear all deletes them for good, so the first press only arms the button (it disarms itself after a few seconds)
+  const [armed, setArmed] = useState(false);
   const s = useSession();
   useScrollLock();
+  useEffect(() => {
+    if (!armed) return;
+    const t = setTimeout(() => setArmed(false), 3500);
+    return () => clearTimeout(t);
+  }, [armed]);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     document.addEventListener("keydown", onKey);
@@ -165,6 +173,16 @@ function NotificationsSheet({ items, alerts, unreadIds, onOpen, onOpenGroup, onC
     alerts.forEach((a) => s.markGroupSeen(a.gid));
     try { await markRead(s.uid, unreadIds); }
     catch (err) { console.error("Mark all as read failed", err); s.notify("Could not mark them as read"); }
+    finally { setBusy(false); }
+  }
+
+  async function clearAll() {
+    if (!armed) { setArmed(true); return; }
+    setArmed(false);
+    setBusy(true);
+    alerts.forEach((a) => s.markGroupSeen(a.gid)); // new-post alerts have nothing to delete; seeing them is what clears them
+    try { await removeNotes(s.uid, items.flatMap((it) => it.notes.map((n) => n.id))); }
+    catch (err) { console.error("Clear notifications failed", err); s.notify("Could not clear your notifications"); }
     finally { setBusy(false); }
   }
 
@@ -181,12 +199,21 @@ function NotificationsSheet({ items, alerts, unreadIds, onOpen, onOpenGroup, onC
           <button type="button" className="icon-btn close" aria-label="Close" onClick={onClose}><CloseIcon /></button>
         </div>
         <div className="sheet-body notes-body">
-          {(unreadIds.length > 0 || alerts.length > 0) && (
-            <button type="button" className="btn small notes-readall" disabled={busy} onClick={markAll}>
-              <CheckIcon /> Mark all as read
-            </button>
+          {(items.length > 0 || alerts.length > 0) && (
+            <div className="notes-tools">
+              {(unreadIds.length > 0 || alerts.length > 0) && (
+                <button type="button" className="btn small notes-readall" disabled={busy} onClick={markAll}>
+                  <CheckIcon /> Mark all as read
+                </button>
+              )}
+              <button type="button" className={`btn small notes-clear${armed ? " danger" : ""}`} disabled={busy} onClick={clearAll}>
+                <TrashIcon /> {armed ? "Tap again to clear all" : "Clear all"}
+              </button>
+            </div>
           )}
-          {items.length === 0 && alerts.length === 0
+          {loading && items.length === 0 && alerts.length === 0
+            ? <RowsSkeleton />
+            : items.length === 0 && alerts.length === 0
             ? <p className="hint notes-empty">You are all caught up. Requests, likes, comments and reposts show up here.</p>
             : (
               <ul className="notes">
@@ -203,7 +230,7 @@ function NotificationsSheet({ items, alerts, unreadIds, onOpen, onOpenGroup, onC
 /** Bell in the top bar with a count of what you have not seen, opening the list of notifications. */
 export default function NotificationBell() {
   const s = useSession();
-  const all = useNotes(s.uid);
+  const { notes: all, ready: notesReady } = useNotesState(s.uid);
   const prefs = usePreferences();
   const [open, setOpen] = useState(false);
 
@@ -234,7 +261,7 @@ export default function NotificationBell() {
         <BellIcon />
         {count > 0 && <i className="badge bell-badge">{count > 99 ? "99+" : count}</i>}
       </button>
-      {open && <NotificationsSheet items={items} alerts={s.groupAlerts} unreadIds={unreadIds} onOpen={opened} onOpenGroup={openedGroup} onClose={() => setOpen(false)} />}
+      {open && <NotificationsSheet items={items} loading={!notesReady} alerts={s.groupAlerts} unreadIds={unreadIds} onOpen={opened} onOpenGroup={openedGroup} onClose={() => setOpen(false)} />}
     </>
   );
 }

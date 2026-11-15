@@ -63,3 +63,29 @@ export async function coverBanner(file: File, width = 900, maxChars = 100_000): 
   if (out.length > maxChars) throw new Error("Cover photo is too detailed to store");
   return out;
 }
+
+/**
+ * Shrinks a picture for a chat message: at most 1280px on the long side, as a JPEG that fits in a message document
+ * (IMAGE_MAX_CHARS in messages.ts). Tries smaller sizes and lower quality until it fits.
+ */
+export async function chatPhoto(file: File, maxChars = 250_000): Promise<string> {
+  if (!file.type.startsWith("image/")) throw new Error(`${file.name} is not a picture`);
+  const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
+  try {
+    for (const side of [1280, 1024, 800, 640, 480]) {
+      const scale = Math.min(1, side / Math.max(bitmap.width, bitmap.height));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+      canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+      const ctx = canvas.getContext("2d")!;
+      ctx.fillStyle = "#ffffff"; // pictures with see-through parts (PNG) become white instead of black
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+      for (let q = 0.82; q >= 0.45; q -= 0.12) {
+        const url = canvas.toDataURL("image/jpeg", q);
+        if (url.length <= maxChars) return url;
+      }
+    }
+  } finally { bitmap.close(); }
+  throw new Error(`${file.name} is too detailed to send`);
+}

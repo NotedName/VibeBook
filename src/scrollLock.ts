@@ -17,7 +17,9 @@ export function lockScroll(): () => void {
     const s = body.style;
     saved = { overflow: s.overflow, paddingRight: s.paddingRight, position: s.position, top: s.top, left: s.left, right: s.right, width: s.width };
     scrollY = window.scrollY || document.documentElement.scrollTop || 0;
-    const gap = window.innerWidth - document.documentElement.clientWidth;
+    // With `scrollbar-gutter: stable` the gutter stays reserved while locked, so there is nothing to make up for.
+    const stable = (getComputedStyle(document.documentElement) as CSSStyleDeclaration & { scrollbarGutter?: string }).scrollbarGutter?.includes("stable");
+    const gap = stable ? 0 : window.innerWidth - document.documentElement.clientWidth;
     s.overflow = "hidden";
     s.position = "fixed";
     s.top = `-${scrollY}px`;

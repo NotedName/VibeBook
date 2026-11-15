@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from "react";
+import { isNativeApp } from "./platform";
 
 /**
  * Appearance settings: colour mode, AMOLED black and text size. Saved on this device and applied as attributes on <html>
@@ -15,7 +16,15 @@ type Appearance = { mode: ThemeMode; amoled: boolean; textSize: number };
 const MODE_KEY = "vibebook-theme";
 const AMOLED_KEY = "vibebook-amoled";
 const SIZE_KEY = "vibebook-text-size";
+const SYSTEM_LIGHT_KEY = "vibebook-system-light"; // the device's last settled answer, read by index.html before first paint
 const lightQuery = window.matchMedia("(prefers-color-scheme: light)");
+// In the Android app the WebView may say "light" for its first moment and then correct itself. Until it settles (a change event, or a
+// short wait with no change), the last answer it settled on is used, so "System" does not flash light and then flip to dark.
+let settled = !isNativeApp;
+function systemLight(): boolean {
+  if (!settled) return read(SYSTEM_LIGHT_KEY) === "1";
+  return lightQuery.matches;
+}
 
 function read(key: string): string | null {
   try { return localStorage.getItem(key); } catch { return null; }
@@ -36,7 +45,7 @@ function load(): Appearance {
 
 /** What is actually on screen: "system" follows the device. */
 export function resolveTheme(mode: ThemeMode): "light" | "dark" {
-  return mode === "system" ? (lightQuery.matches ? "light" : "dark") : mode;
+  return mode === "system" ? (systemLight() ? "light" : "dark") : mode;
 }
 
 let state = load();
@@ -62,11 +71,16 @@ function update(change: Partial<Appearance>) {
 }
 
 // "System" has to follow the device when it flips between light and dark while the app is open.
-lightQuery.addEventListener("change", () => {
+function settle() {
+  settled = true;
+  write(SYSTEM_LIGHT_KEY, lightQuery.matches ? "1" : "0");
   if (state.mode !== "system") return;
   apply();
   listeners.forEach((l) => l());
-});
+}
+lightQuery.addEventListener("change", settle);
+if (!settled) window.setTimeout(() => { if (!settled) settle(); }, 1200);
+else write(SYSTEM_LIGHT_KEY, lightQuery.matches ? "1" : "0");
 apply();
 
 function subscribe(listener: () => void) {

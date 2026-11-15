@@ -6,12 +6,15 @@
       <stop offset="1" stop-color="#ffa15a" />
     </linearGradient>
   </defs>
-  <!-- Same book mark as public/favicon.svg, on the app's dark colour and kept inside the middle of the canvas so Android's round or rounded-square crop never cuts it. -->
+  <!-- The same mark as the one inside the web app (src/Logo.tsx): the open book with its page lines, the curve under it and the three rays.
+       It sits on the app's dark colour and stays inside the middle ~60% of the canvas, so Android's round or rounded-square crop never cuts it. -->
   <rect width="1024" height="1024" fill="#1e1c23" />
-  <g transform="translate(512 512) scale(11) translate(-32 -28.5)" fill="none" stroke="#b58be3" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+  <g transform="translate(512 512) scale(10) translate(-32 -31)" fill="none" stroke="#b58be3" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round">
     <path d="M32 18C26 14 16 13 8 15v34c8-2 18-1 24 3" />
     <path d="M32 18c6-4 16-5 24-3v34c-8-2-18-1-24 3" />
     <path d="M32 18v34" />
+    <path d="M7 54c9-2 18-1 25 3 7-4 16-5 25-3" />
+    <path d="M14 24h12M14 30h12M14 36h8M38 24h12M38 30h12M38 36h8" />
     <path d="M32 11V5M22 13l-3-5M42 13l3-5" stroke="url(#g)" />
   </g>
 </svg>

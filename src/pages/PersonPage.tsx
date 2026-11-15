@@ -5,6 +5,7 @@ import { useSharedEntries } from "../feed";
 import { newestFirst } from "../entries";
 import { dateDir, useSortedEntries, useSortMode } from "../sorting";
 import SortMenu from "../SortMenu";
+import SharedHoursCard from "../SharedHoursCard";
 import { useRepostedEntries } from "../reposts";
 import { useTeasedEntries } from "../teasers";
 import ProfileHeader from "../ProfileHeader";
@@ -65,6 +66,7 @@ export default function PersonPage({ uid }: { uid: string }) {
             <UsersIcon />{mutual.length} mutual friend{mutual.length === 1 ? "" : "s"}
           </button>
         )}
+        <SharedHoursCard uid={uid} visible={p.hoursVisible === true} />
         {rel === "incoming" && <p className="hint pad-b">{p.displayName} sent you a friend request.</p>}
       </ProfileHeader>
       <ProfileTabs tab={tab} onChange={setTab}>

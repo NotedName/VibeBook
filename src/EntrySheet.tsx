@@ -1,17 +1,16 @@
+import { ThumbsSkeleton } from "./Skeleton";
 import { defaultVisibility } from "./preferences";
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { addEntry, DESC_MAX, loadPhotos, MAX_PHOTOS, SKILL_MAX, SKILL_WORDS_MAX, SKILLS_INPUT_MAX, SKILLS_MAX, TITLE_MAX, updateEntry, type Entry, type Photo } from "./entries";
 import { nowStr, todayStr } from "./report";
 import { formatHM, spanMinutes } from "./weeks";
 import { discardClock } from "./hours";
-import { CameraIcon, ClockIcon, CloseIcon, EditIcon, GlobeIcon, ImageIcon, LockIcon, SmileIcon, UsersIcon } from "./icons";
+import { CameraIcon, ClockIcon, CloseIcon, EditIcon, GlobeIcon, ImageIcon, LockIcon, UsersIcon } from "./icons";
 import { useSession } from "./session";
 import { VISIBILITY, type Visibility } from "./types";
 import { chosenVisibility } from "./entryPrivacy";
 import { parseVideo, VIDEO_URL_MAX } from "./video";
 import PhotoEditor from "./PhotoEditor";
-import EmojiPicker from "./EmojiPicker";
-import { insertEmoji } from "./emoji";
 import { canAutoFocus } from "./focus";
 import { useScrollLock } from "./scrollLock";
 
@@ -56,16 +55,9 @@ export default function EntrySheet({ uid, entry, prefill, defaultGroupId, onClos
   const [error, setError] = useState("");
   const titleRef = useRef<HTMLInputElement>(null);
   const descRef = useRef<HTMLTextAreaElement>(null);
-  // emoji go into whichever of the two text fields was used last
-  const lastField = useRef<"title" | "description">("title");
-  const [emojiOpen, setEmojiOpen] = useState(false);
   const skillList = skills.split(",").map((x) => x.trim()).filter(Boolean);
   const skillsOver = skillList.length > SKILLS_MAX
     || skillList.some((x) => x.length > SKILL_MAX || x.split(/\s+/).length > SKILL_WORDS_MAX);
-  function addEmoji(e: string) {
-    if (lastField.current === "title") insertEmoji(titleRef.current, title, e, setTitle, TITLE_MAX);
-    else insertEmoji(descRef.current, description, e, setDescription, DESC_MAX);
-  }
 
   // Load once per entry. Depending on the entry object itself would refetch (and undo
   // photo removals) whenever a live snapshot hands us a fresh copy.
@@ -149,6 +141,7 @@ export default function EntrySheet({ uid, entry, prefill, defaultGroupId, onClos
           </div>
           <p className="hint">{total}/{MAX_PHOTOS} photos{!photosReady && " · loading saved photos…"}{files.length > 0 && " · tap the pencil on a new photo to crop or adjust it"}</p>
 
+          {!photosReady && entry && entry.photoCount > 0 && <ThumbsSkeleton count={Math.min(entry.photoCount, MAX_PHOTOS)} />}
           {(saved.length > 0 || previews.length > 0) && (
             <div className="thumbs">
               {saved.map((p) => (
@@ -190,7 +183,7 @@ export default function EntrySheet({ uid, entry, prefill, defaultGroupId, onClos
             </p>
           </fieldset>
           <label>Activity
-            <input ref={titleRef} value={title} onChange={(e) => setTitle(e.target.value)} required onFocus={() => { lastField.current = "title"; }}
+            <input ref={titleRef} value={title} onChange={(e) => setTitle(e.target.value)} required
               maxLength={TITLE_MAX} placeholder="e.g. Set up a new PC in the engineering office" />
           </label>
           <label>Skills acquired <small className={skillsOver ? "count-warn" : "count"}>{skillList.length}/{SKILLS_MAX} skills</small>
@@ -204,14 +197,8 @@ export default function EntrySheet({ uid, entry, prefill, defaultGroupId, onClos
           </label>
           <label>Description <small className={description.length > DESC_MAX * 0.9 ? "count-warn" : "count"}>{description.length}/{DESC_MAX}</small>
             <textarea ref={descRef} rows={5} value={description} onChange={(e) => setDescription(e.target.value)} required maxLength={DESC_MAX}
-              onFocus={() => { lastField.current = "description"; }}
               placeholder="What happened, what was the problem, how did you solve it?" />
           </label>
-          <div className="emoji-field">
-            <button type="button" className={`btn small${emojiOpen ? " on" : ""}`} aria-expanded={emojiOpen}
-              onClick={() => setEmojiOpen(!emojiOpen)}><SmileIcon /> Emoji</button>
-            {emojiOpen && <div className="media-picker"><EmojiPicker onPick={addEmoji} /></div>}
-          </div>
 
           <fieldset className="vis-pick" disabled={!!privateGroup}>
             <legend>Who can see this</legend>

@@ -47,6 +47,22 @@ export function useSortMode(key: string): [SortMode, (m: SortMode) => void] {
   return [mode, set];
 }
 
+/** How a list of your own entries is grouped: under week headings (each with its total hours) and day headings, or under day headings only. */
+export type Grouping = "weeks" | "days";
+
+/** The chosen grouping, remembered on this device. */
+export function useGrouping(key: string): [Grouping, (g: Grouping) => void] {
+  const storeKey = `vibebook.group.${key}`;
+  const [grouping, setGrouping] = useState<Grouping>(() => {
+    try { return localStorage.getItem(storeKey) === "days" ? "days" : "weeks"; } catch { return "weeks"; }
+  });
+  const set = useCallback((g: Grouping) => {
+    setGrouping(g);
+    try { localStorage.setItem(storeKey, g); } catch { /* not remembered, still works */ }
+  }, [storeKey]);
+  return [grouping, set];
+}
+
 /** When each reaction and comment on an entry happened (ms since 1970). */
 export type Engagement = { up: number[]; down: number[]; comments: number[] };
 const NONE: Engagement = { up: [], down: [], comments: [] };

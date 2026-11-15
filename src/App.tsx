@@ -1,3 +1,4 @@
+import { FeedSkeleton, ProfileSkeleton } from "./Skeleton";
 import { useCallback, useEffect, useState } from "react";
 import { onAuthStateChanged, type User } from "firebase/auth";
 import { auth } from "./firebase";
@@ -28,7 +29,7 @@ export default function App() {
   }, [user]);
 
   // Until auth answers, the splash screen from index.html is showing; this line is only a fallback.
-  if (user === undefined) return <p className="center">Loading…</p>;
+  if (user === undefined) return <div className="page"><main className="logbook"><ProfileSkeleton /><FeedSkeleton /></main></div>;
   if (!user) {
     // A share link shows the post read-only; the visitor has to sign in for anything more.
     const post = parsePostHash(hash);

@@ -1,3 +1,4 @@
+import { RowsSkeleton } from "../Skeleton";
 import { useEffect, useState } from "react";
 import { searchProfiles } from "../profiles";
 import { useSession } from "../session";
@@ -52,6 +53,7 @@ export default function PeoplePage() {
           <h2>Results {searching && <span>searching…</span>}</h2>
           {error && <p className="error note">{error}</p>}
           {!searching && !error && results.length === 0 && <p className="note">No one found. Try the start of a first or last name, or an @username.</p>}
+          {searching && results.length === 0 && !error && <RowsSkeleton />}
           <ul className="people">{results.map((id) => <PersonRow key={id} uid={id} />)}</ul>
         </section>
       ) : (

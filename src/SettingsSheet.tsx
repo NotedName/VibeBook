@@ -1,15 +1,16 @@
 import { useEffect, useState, type CSSProperties } from "react";
 import { TEXT_SIZES, useAppearance, type ThemeMode } from "./theme";
 import { PHOTO_QUALITY, usePreferences } from "./preferences";
-import { ACTIVITY_SHOWN, useActivity } from "./activity";
+import { ACTIVITY_SHOWN, useActivityState } from "./activity";
 import { ago } from "./notifications";
 import { useProfile, useSession } from "./session";
-import { personHash, setFriendsVisible } from "./profiles";
+import { personHash, setFriendsVisible, setHoursVisible } from "./profiles";
 import { VISIBILITY } from "./types";
 import { BrandName } from "./Logo";
 import { TermsContent } from "./Terms";
 import { CloseIcon, GlobeIcon, LockIcon, MoonIcon, MonitorIcon, SunIcon, UsersIcon } from "./icons";
 import { useScrollLock } from "./scrollLock";
+import { RowsSkeleton } from "./Skeleton";
 
 const CATEGORIES = ["Appearance", "Media", "Entries", "Notifications", "Privacy", "Accessibility", "Activity", "About"] as const;
 type Category = (typeof CATEGORIES)[number];
@@ -127,12 +128,16 @@ function Notifications() {
 function Privacy() {
   const { me, uid, notify } = useSession();
   const shown = me?.friendsVisible !== false;
+  const hoursShown = me?.hoursVisible === true;
   return (
     <>
       <Switch label="Show my friends to other people"
         hint={shown ? "Anyone signed in can open the Friends button on your profile and see your friends." : "Your friends list is hidden. Other people see that it is private; you still see it."}
         checked={shown} onChange={(on) => { setFriendsVisible(uid, on).catch(() => notify("Could not save that. Try again.")); }} />
-      <p className="hint">This only affects the list of your friends. Your entries still follow the visibility you pick on each one.</p>
+      <Switch label="Show my hours to other people"
+        hint={hoursShown ? "Anyone signed in can see how many hours you have logged, and how many you need, on your profile. Your entries and times stay private." : "Off. Other people cannot see your hours."}
+        checked={hoursShown} onChange={(on) => { setHoursVisible(uid, on).catch(() => notify("Could not save that. Try again.")); }} />
+      <p className="hint">The friends switch only affects the list of your friends, and the hours switch only your total. Your entries still follow the visibility you pick on each one.</p>
     </>
   );
 }
@@ -172,8 +177,9 @@ function Person({ uid }: { uid: string }) {
 
 function ActivityLog({ onNavigate }: { onNavigate: () => void }) {
   const { uid } = useSession();
-  const items = useActivity(uid);
+  const { items, ready } = useActivityState(uid);
 
+  if (!ready && items.length === 0) return <RowsSkeleton />;
   if (items.length === 0) return <p className="hint notes-empty">Nothing yet. What you do in VibeBook, such as entries, comments, reactions and friends, is listed here.</p>;
   return (
     <>

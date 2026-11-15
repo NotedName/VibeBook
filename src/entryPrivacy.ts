@@ -29,16 +29,30 @@ export async function privateGroupIds(gids: string[]): Promise<string[]> {
 export const chosenVisibility = (e: { visibility?: Visibility; lockedVisibility?: Visibility }): Visibility =>
   e.lockedVisibility ?? e.visibility ?? "private";
 
+/** Whether this person's profile is private (Settings > Privacy) or deactivated, so their entries stay out of other people's "For you" feed. Read fresh from the server. */
+export async function profileIsPrivate(uid: string): Promise<boolean> {
+  const snap = await getDoc(doc(db, "profiles", uid));
+  return snap.exists() && (snap.data().privateProfile === true || snap.data().deactivated === true);
+}
+
+/**
+ * `discoverable` marks an entry that may show in other people's "For you" feed: stored as public, and its owner's
+ * profile is not private. firestore.rules lets the feed's collection group query read only entries with it set.
+ */
+export const isDiscoverable = (storedVisibility: Visibility | undefined, privateProfile: boolean) =>
+  storedVisibility === "public" && !privateProfile;
+
 /**
  * The visibility fields to store. `isNew` documents are written with set(), which cannot use deleteField(), so
  * fields that should vanish are simply left out there.
  */
-export function visibilityFields(chosen: Visibility, inPrivateGroup: boolean, isNew: boolean): Record<string, unknown> {
+export function visibilityFields(chosen: Visibility, inPrivateGroup: boolean, isNew: boolean, privateProfile: boolean): Record<string, unknown> {
+  const discoverable = isDiscoverable(inPrivateGroup ? "private" : chosen, privateProfile);
   if (inPrivateGroup) {
-    if (chosen === "private") return isNew ? { visibility: "private" } : { visibility: "private", lockedVisibility: deleteField() };
-    return { visibility: "private", lockedVisibility: chosen };
+    if (chosen === "private") return isNew ? { visibility: "private", discoverable } : { visibility: "private", lockedVisibility: deleteField(), discoverable };
+    return { visibility: "private", lockedVisibility: chosen, discoverable };
   }
-  return isNew ? { visibility: chosen } : { visibility: chosen, lockedVisibility: deleteField() };
+  return isNew ? { visibility: chosen, discoverable } : { visibility: chosen, lockedVisibility: deleteField(), discoverable };
 }
 
 /** Adds the teaser (or removes it) to a batch. */
@@ -52,10 +66,13 @@ export function teaserOp(batch: WriteBatch, uid: string, entryId: string, date: 
  * leaving a group, so it also covers an admin switching a group between public and private after entries were shared:
  *  - entries in a private group get locked (and a teaser);
  *  - locked entries that are no longer in any private group get their chosen visibility back;
- *  - teasers with no matching locked, unarchived entry are removed.
+ *  - teasers with no matching locked, unarchived entry are removed;
+ *  - public entries get `discoverable` set to match the profile (public profile: on, private profile: off), which
+ *    also fills it in for entries written before it existed.
  * It only writes what differs, so most runs write nothing.
  */
 export async function syncEntryPrivacy(uid: string): Promise<void> {
+  const privateProfile = await profileIsPrivate(uid);
   const mine = await getDocs(query(collection(db, "groupMembers"), where("uid", "==", uid)));
   const groupDocs = await Promise.all(mine.docs.map((m) => getDoc(doc(db, "groups", m.data().groupId as string)).catch(() => null)));
   const priv = new Set(groupDocs.flatMap((g) => (g && g.exists() && g.data().privacy === "private" ? [g.id] : [])));
@@ -78,7 +95,7 @@ export async function syncEntryPrivacy(uid: string): Promise<void> {
   inPrivate.forEach((e, id) => {
     const privIds = ((e.groupIds as string[] | undefined) ?? []).filter((g) => priv.has(g));
     if ((e.visibility ?? "private") !== "private") {
-      ops.push((b) => b.update(e.ref, { visibility: "private", lockedVisibility: e.visibility }));
+      ops.push((b) => b.update(e.ref, { visibility: "private", lockedVisibility: e.visibility, discoverable: false }));
     }
     if (e.archived === true) return;
     wanted.add(id);
@@ -90,7 +107,15 @@ export async function syncEntryPrivacy(uid: string): Promise<void> {
 
   locked.docs.forEach((d) => {
     if (inPrivate.has(d.id)) return;
-    ops.push((b) => b.update(d.ref, { visibility: d.data().lockedVisibility, lockedVisibility: deleteField() }));
+    ops.push((b) => b.update(d.ref, {
+      visibility: d.data().lockedVisibility, lockedVisibility: deleteField(), discoverable: isDiscoverable(d.data().lockedVisibility, privateProfile),
+    }));
+  });
+
+  const open = await getDocs(query(entriesOf(uid), where("visibility", "==", "public")));
+  open.docs.forEach((d) => {
+    if (inPrivate.has(d.id)) return; // being locked above
+    if (d.data().discoverable !== !privateProfile) ops.push((b) => b.update(d.ref, { discoverable: !privateProfile }));
   });
 
   haveTeaser.forEach((_, id) => { if (!wanted.has(id)) ops.push((b) => b.delete(teaserRef(uid, id))); });

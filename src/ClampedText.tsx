@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef, useState } from "react";
+import { Linkified } from "./links";
 
 /** A paragraph that shows only its first few lines when it is long, with a Show more / Show less button. */
 export default function ClampedText({ text, lines = 6, className = "" }: { text: string; lines?: number; className?: string }) {
@@ -19,7 +20,7 @@ export default function ClampedText({ text, lines = 6, className = "" }: { text:
 
   return (
     <div className="clamped">
-      <p ref={ref} className={`${className}${open ? "" : " is-clamped"}`} style={open ? undefined : { WebkitLineClamp: lines }}>{text}</p>
+      <p ref={ref} className={`${className}${open ? "" : " is-clamped"}`} style={open ? undefined : { WebkitLineClamp: lines }}><Linkified text={text} /></p>
       {(clipped || open) && (
         <button type="button" className="show-more" aria-expanded={open} onClick={() => setOpen(!open)}>
           {open ? "Show less" : "Show more"}

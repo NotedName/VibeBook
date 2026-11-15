@@ -6,12 +6,15 @@ import {
 import { db } from "./firebase";
 import type { FriendRequest, Relation } from "./types";
 import { dropNote, pushNote } from "./notifications";
+import { takeTurn } from "./rateLimit";
 
 export const pairId = (a: string, b: string) => (a < b ? `${a}_${b}` : `${b}_${a}`);
 
-export const sendRequest = (me: string, them: string) =>
-  setDoc(doc(db, "friendRequests", `${me}_${them}`), { from: me, to: them, createdAt: serverTimestamp() })
+export const sendRequest = (me: string, them: string) => {
+  try { takeTurn("request"); } catch (err) { return Promise.reject(err); }
+  return setDoc(doc(db, "friendRequests", `${me}_${them}`), { from: me, to: them, createdAt: serverTimestamp() })
     .then(() => { logActivity(me, "Sent a friend request to", { who: them }); return pushNote(them, me, "friend_request", "friend_request"); });
+};
 
 export const declineRequest = (me: string, from: string) =>
   deleteDoc(doc(db, "friendRequests", `${from}_${me}`)).then(() => { logActivity(me, "Declined a friend request from", { who: from }); return dropNote(me, from, "friend_request"); });
@@ -33,9 +36,10 @@ export async function acceptRequest(me: string, from: string, alsoDeleteOutgoing
   batch.delete(doc(db, "friendRequests", `${from}_${me}`));
   if (alsoDeleteOutgoing) batch.delete(doc(db, "friendRequests", `${me}_${from}`));
   await batch.commit();
-  logActivity(me, "Became friends with", { who: from });
-  await dropNote(me, from, "friend_request");
-  await pushNote(from, me, "friend_accept", "friend_accept");
+  // The friendship is made once the batch commits. The activity entry and the two notifications are extras: they run in the
+  // background so a slow or refused notification can never turn a successful accept into an error message.
+  try { logActivity(me, "Became friends with", { who: from }); } catch { /* the friendship stands */ }
+  void Promise.allSettled([dropNote(me, from, "friend_request"), pushNote(from, me, "friend_accept", "friend_accept")]);
 }
 
 export type SocialState = {

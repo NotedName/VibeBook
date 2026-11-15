@@ -2,8 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { onSnapshot, orderBy, query } from "firebase/firestore";
 import { entriesRef, newestFirst, stampOf, type Entry } from "../entries";
 import { useRepostedEntries } from "../reposts";
-import { allDescriptions, copyText, dailyReport, longDay, todayStr, weeklyReport } from "../report";
-import { earliestDay, weekRange } from "../weeks";
+import { earliestDay } from "../weeks";
 import HoursCard from "../HoursCard";
 import ReportSheet from "../ReportSheet";
 import { inRange, NO_RANGE, rangeActive, RangeSummary } from "../DateRangeFilter";
@@ -17,19 +16,16 @@ import Avatar from "../Avatar";
 import EntryList from "../EntryList";
 import { FeedSkeleton } from "../Skeleton";
 import PersonPage from "./PersonPage";
-import { CopyIcon, DownloadIcon, EyeIcon } from "../icons";
+import { DownloadIcon, EyeIcon } from "../icons";
 import FriendsSheet from "../FriendsSheet";
 
 function Logbook({ onViewAs }: { onViewAs: () => void }) {
   const s = useSession();
   const [entries, setEntries] = useState<Entry[] | null>(null);
   const [loadError, setLoadError] = useState("");
-  const [reportDate, setReportDate] = useState(todayStr());
-  const [reportWeek, setReportWeek] = useState(todayStr());
   const [friendsOpen, setFriendsOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [range, setRange] = useState(NO_RANGE);
-  const [reportKind, setReportKind] = useState<"day" | "week">("day");
 
   useEffect(
     () => onSnapshot(
@@ -63,26 +59,6 @@ function Logbook({ onViewAs }: { onViewAs: () => void }) {
     return [["Entries", list.length], ["Days", days.size], ["Skills", skills.size], ["Friends", s.friends.size]] as const;
   }, [list, s.friends]);
 
-  async function copy(text: string, ok: string) {
-    if (await copyText(text)) s.notify(ok);
-    else s.manualCopy(text);
-  }
-  function copyReport() {
-    const text = dailyReport(hoursList, reportDate);
-    if (!text) return s.notify(`No entries on ${longDay(reportDate)}`);
-    copy(text, "Daily report copied");
-  }
-  function copyWeekly() {
-    const text = weeklyReport(hoursList, reportWeek, earliestDay(hoursList));
-    if (!text) return s.notify(`No entries in the week of ${longDay(reportWeek)}`);
-    copy(text, "Weekly report copied");
-  }
-  function copyDescriptions() {
-    const text = allDescriptions(hoursList);
-    if (!text) return s.notify("No descriptions to copy yet");
-    copy(text, "Descriptions copied");
-  }
-
   if (!s.me) return null;
   return (
     <>
@@ -98,29 +74,7 @@ function Logbook({ onViewAs }: { onViewAs: () => void }) {
         <HoursCard entries={hoursList} loading={entries === null} />
 
         <div className="report">
-          <div className="report-tabs" role="group" aria-label="Report type">
-            <button type="button" className={reportKind === "day" ? "on" : ""} aria-pressed={reportKind === "day"} onClick={() => setReportKind("day")}>Daily</button>
-            <button type="button" className={reportKind === "week" ? "on" : ""} aria-pressed={reportKind === "week"} onClick={() => setReportKind("week")}>Weekly</button>
-          </div>
-          {reportKind === "day" ? (
-            <label className="report-date">Report for
-              <input type="date" value={reportDate} onChange={(e) => setReportDate(e.target.value || todayStr())} />
-            </label>
-          ) : (
-            <>
-              <label className="report-date">Week of
-                <input type="date" value={reportWeek} onChange={(e) => setReportWeek(e.target.value || todayStr())} />
-              </label>
-              <small className="report-range">{weekRange(reportWeek)}</small>
-            </>
-          )}
-          <div className="report-row">
-            <button type="button" className="btn primary" onClick={reportKind === "day" ? copyReport : copyWeekly}>
-              <CopyIcon /> {reportKind === "day" ? "Copy for Daily Report" : "Copy for Weekly Report"}
-            </button>
-            <button type="button" className="btn" onClick={copyDescriptions}><CopyIcon /> Copy descriptions</button>
-          </div>
-          <button type="button" className="btn" onClick={() => setExportOpen(true)}><DownloadIcon /> Export as Word or PDF</button>
+          <button type="button" className="btn primary" onClick={() => setExportOpen(true)}><DownloadIcon /> Export Portfolio</button>
         </div>
       </ProfileHeader>
 

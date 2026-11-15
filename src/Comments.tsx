@@ -8,6 +8,7 @@ import { SendIcon, SmileIcon } from "./icons";
 import MediaPicker, { MediaPreview } from "./MediaPicker";
 import { NO_MEDIA, type Media } from "./stickers";
 import { insertEmoji } from "./emoji";
+import { RateLimitError } from "./rateLimit";
 import { LinesSkeleton } from "./Skeleton";
 
 /**
@@ -31,7 +32,7 @@ export default function Comments({ ownerUid, entryId: entry, photoId, title }: {
     ownerUid,
     like: (c, liked) => { setCommentLike(ownerUid, entryId, c.id, uid, liked, title === undefined ? undefined : { authorUid: c.authorUid, title }).catch(() => notify("Could not save your like")); },
     reply: (parent, reply, media) =>
-      addComment(ownerUid, entryId, uid, reply, parent.id, media, title === undefined ? undefined : { title, parentAuthorUid: parent.authorUid }).then(() => true, () => { notify("Could not post your reply"); return false; }),
+      addComment(ownerUid, entryId, uid, reply, parent.id, media, title === undefined ? undefined : { title, parentAuthorUid: parent.authorUid }).then(() => true, (err) => { notify(err instanceof RateLimitError ? err.message : "Could not post your reply"); return false; }),
     remove: (c, hasReplies) => {
       removeComment(ownerUid, entryId, c.id, hasReplies)
         .then(() => logActivity(uid, `Deleted a comment${title ? ` on “${title}”` : ""}`), () => notify("Could not delete comment"));
@@ -49,8 +50,8 @@ export default function Comments({ ownerUid, entryId: entry, photoId, title }: {
       setMedia(NO_MEDIA);
       setPicking(false);
       setRevealAll((n) => n + 1);
-    } catch {
-      notify("Could not post your comment");
+    } catch (err) {
+      notify(err instanceof RateLimitError ? err.message : "Could not post your comment");
     } finally {
       setBusy(false);
     }

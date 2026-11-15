@@ -12,3 +12,30 @@ keystore.properties
 *.jks
 *.keystore
 .idea
+
+# Environment files and keys
+.env.*
+!.env.example
+functions/.env
+functions/.env.*
+functions/.secret.local
+.runtimeconfig.json
+
+# Service accounts and certificates
+service-account*.json
+serviceAccountKey*.json
+*-adminsdk-*.json
+*.pem
+*.key
+*.p12
+*.p8
+*.mobileprovision
+
+# Firebase caches and logs (they can hold emails and project details)
+.firebase/
+firebase-debug.log*
+firebase-debug.*.log
+ui-debug.log
+
+# Editor workspaces (personal paths and history)
+.idea/

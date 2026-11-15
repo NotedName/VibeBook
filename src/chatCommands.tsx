@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 import {
-  archiveChat, blockPerson, deleteChatForMe, markRead, muteChat, MUTE_FOREVER, setReadReceipts, unblockPerson, type ChatPrefs,
+  archiveChat, blockPerson, deleteChatForMe, markRead, muteChat, MUTE_FOREVER, restrictPerson, setReadReceipts, unblockPerson, unrestrictPerson, type ChatPrefs,
 } from "./messages";
 import { usePreferences } from "./preferences";
 import { useSession } from "./session";
@@ -26,7 +26,7 @@ export function muteLabel(until: number, now = Date.now()): string {
   return `Muted until ${d.toLocaleDateString("en-US", { month: "short", day: "numeric" })}, ${time}`;
 }
 
-type Pending = "delete" | "block" | null;
+type Pending = "delete" | "block" | "restrict" | null;
 
 /**
  * Everything you can do to a chat from the ⋯ menu or the chat info panel: mark read, mute for a while, archive, delete it for
@@ -56,6 +56,8 @@ export function useChatCommands(other: string, name: string, prefs: ChatPrefs, o
     }, fail(on ? "archive this chat" : "unarchive this chat")),
     askDelete: () => setPending("delete"),
     askBlock: () => setPending("block"),
+    askRestrict: () => setPending("restrict"),
+    unrestrict: () => unrestrictPerson(s.uid, other).then(() => s.notify(`Unrestricted ${name}`), fail("unrestrict")),
     unblock: () => unblockPerson(s.uid, other).then(() => s.notify(`Unblocked ${name}`), fail("unblock")),
     receipts: (on: boolean) => setReadReceipts(s.uid, other, on).catch(fail("change read receipts")),
   };
@@ -75,6 +77,15 @@ export function useChatCommands(other: string, name: string, prefs: ChatPrefs, o
         blockPerson(s.uid, other).then(() => s.notify(`Blocked ${name}`), fail("block this person"));
       }}>
       <p>You and {name} will not be able to send each other messages. You stay friends, and you can unblock {name} any time from this chat.</p>
+    </ConfirmDialog>
+  ) : pending === "restrict" ? (
+    <ConfirmDialog title={`Restrict ${name}?`} confirmLabel="Restrict" onCancel={() => setPending(null)}
+      onConfirm={() => {
+        setPending(null); onConfirmed?.();
+        restrictPerson(s.uid, other).then(() => s.notify(`Restricted ${name}. Their chat moved to message requests.`), fail("restrict this person"));
+      }}>
+      <p>{name}'s chat moves to your message requests, you get no notifications from it, and {name} cannot see when you have read their messages.</p>
+      <p>{name} can still message you and is not told you restricted them. You can unrestrict {name} any time.</p>
     </ConfirmDialog>
   ) : null;
 

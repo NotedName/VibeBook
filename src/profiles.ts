@@ -1,11 +1,12 @@
 import { logActivity } from "./activity";
 import {
-  collection, deleteDoc, doc, getDoc, getDocs, limit, query, runTransaction, serverTimestamp, updateDoc, where,
+  collection, deleteDoc, deleteField, doc, getDoc, getDocs, limit, query, runTransaction, serverTimestamp, updateDoc, where,
 } from "firebase/firestore";
 import { db } from "./firebase";
 import { isAudience, type Audience, type CoverId, type Profile } from "./types";
 import { clip } from "./text";
 import { syncSchedule } from "./hours";
+import { syncEntryPrivacy } from "./entryPrivacy";
 
 export const NAME_MAX = 60;
 export const HEADLINE_MAX = 80;
@@ -111,16 +112,26 @@ function toProfile(uid: string, d: Stored): Profile {
     friendsAudience: isAudience(d.friendsAudience) ? d.friendsAudience : d.friendsVisible === false ? "private" : "everyone",
     hoursAudience: isAudience(d.hoursAudience) ? d.hoursAudience : d.hoursVisible === true ? "everyone" : "private",
     scheduleAudience: isAudience(d.scheduleAudience) ? d.scheduleAudience : "private",
+    privateProfile: d.privateProfile === true,
+    deactivated: d.deactivated === true,
   };
 }
 export { toProfile };
+
+/** What other people see of a deactivated account: no name, photo or details. The uid stays, so chats and friendships keep pointing at it. */
+export function maskIfDeactivated(p: Profile): Profile {
+  return !p.deactivated ? p : {
+    ...p, displayName: "Deactivated account", username: "", headline: "", workplace: "", bio: "", avatar: "", coverPhoto: "",
+    friendsAudience: "private", hoursAudience: "private", scheduleAudience: "private", privateProfile: true,
+  };
+}
 
 const cache = new Map<string, Promise<Profile | null>>();
 
 export function fetchProfile(uid: string): Promise<Profile | null> {
   let p = cache.get(uid);
   if (!p) {
-    p = getDoc(doc(db, "profiles", uid)).then((s) => (s.exists() ? toProfile(uid, s.data() as Stored) : null));
+    p = getDoc(doc(db, "profiles", uid)).then((s) => (s.exists() ? maskIfDeactivated(toProfile(uid, s.data() as Stored)) : null));
     p.catch(() => cache.delete(uid));
     cache.set(uid, p);
   }
@@ -138,7 +149,7 @@ export function nameKeys(name: string): string[] {
   return [...keys];
 }
 
-export async function saveProfile(uid: string, p: Omit<Profile, "uid">): Promise<Profile> {
+export async function saveProfile(uid: string, p: Omit<Profile, "uid" | "deactivated">): Promise<Profile> {
   const clean = {
     displayName: clip(p.displayName.trim(), NAME_MAX),
     username: normalizeUsername(p.username ?? ""),
@@ -151,6 +162,7 @@ export async function saveProfile(uid: string, p: Omit<Profile, "uid">): Promise
     friendsAudience: p.friendsAudience,
     hoursAudience: p.hoursAudience,
     scheduleAudience: p.scheduleAudience,
+    privateProfile: p.privateProfile,
   };
   if (clean.username) {
     const problem = usernameProblem(clean.username);
@@ -175,11 +187,11 @@ export async function saveProfile(uid: string, p: Omit<Profile, "uid">): Promise
       nameLower: clean.displayName.toLowerCase(),
       nameKeys: nameKeys(`${clean.displayName} ${clean.username}`),
       updatedAt: serverTimestamp(),
-    });
+    }, { merge: true }); // merge: keeps fields this form does not own (deactivated)
   });
   clearPendingUsername(uid);
   refCache.clear(); // a changed username means old links no longer point here
-  const saved: Profile = { uid, ...clean };
+  const saved: Profile = { uid, ...clean, deactivated: false };
   primeProfile(saved);
   logActivity(uid, "Updated your profile");
   return saved;
@@ -218,6 +230,18 @@ export async function setScheduleAudience(uid: string, audience: Audience): Prom
   logActivity(uid, `Showed your schedule to ${AUDIENCE_WORDS[audience]}`);
 }
 
+/**
+ * Settings > Privacy: a private profile shows entries, hours, schedule and friends only to friends (firestore.rules
+ * enforces it). Entries carry a `discoverable` flag for the "For you" feed, so they are brought in step right away.
+ */
+export async function setPrivateProfile(uid: string, on: boolean): Promise<void> {
+  await updateDoc(doc(db, "profiles", uid), { privateProfile: on });
+  const cached = await fetchProfile(uid).catch(() => null);
+  if (cached) primeProfile({ ...cached, privateProfile: on });
+  await syncEntryPrivacy(uid);
+  logActivity(uid, on ? "Made your profile private" : "Made your profile public");
+}
+
 /** Finds people whose name or username starts with every word typed ("@" in front is ignored). */
 export async function searchProfiles(text: string, selfUid: string): Promise<Profile[]> {
   const tokens = text.toLowerCase().split(/\s+/).map((t) => t.replace(/^@/, "")).filter(Boolean);
@@ -228,8 +252,29 @@ export async function searchProfiles(text: string, selfUid: string): Promise<Pro
   snap.docs.forEach((d) => {
     if (d.id === selfUid) return;
     const p = toProfile(d.id, d.data() as Stored);
+    if (p.deactivated) return; // deactivated accounts cannot be found
     const words = [...p.displayName.toLowerCase().split(/\s+/), p.username];
     if (tokens.every((t) => words.some((w) => w.startsWith(t)))) { primeProfile(p); out.push(p); }
   });
   return out.sort((a, b) => a.displayName.localeCompare(b.displayName));
+}
+
+/**
+ * Profile > Deactivate account: hides you from everyone else but keeps the account, your data and your uid (the uid is yours
+ * for good, so chats, friendships and entries keep pointing at it). Your public entries leave the "For you" feed. Signing in
+ * again offers to reactivate. The caller signs out afterwards.
+ */
+export async function deactivateAccount(uid: string): Promise<void> {
+  await updateDoc(doc(db, "profiles", uid), { deactivated: true, deactivatedAt: serverTimestamp() });
+  cache.delete(uid);
+  await syncEntryPrivacy(uid).catch(() => {});
+  logActivity(uid, "Deactivated your account");
+}
+
+/** Brings a deactivated account back exactly as it was. */
+export async function reactivateAccount(uid: string): Promise<void> {
+  await updateDoc(doc(db, "profiles", uid), { deactivated: false, deactivatedAt: deleteField() });
+  cache.delete(uid);
+  await syncEntryPrivacy(uid).catch(() => {});
+  logActivity(uid, "Reactivated your account");
 }

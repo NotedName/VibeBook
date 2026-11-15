@@ -1,4 +1,5 @@
 import { initializeApp } from "firebase/app";
+import { initializeAppCheck, ReCaptchaV3Provider } from "firebase/app-check";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
@@ -14,6 +15,16 @@ const app = initializeApp({
   projectId: env("VITE_FIREBASE_PROJECT_ID"),
   appId: env("VITE_FIREBASE_APP_ID"),
 });
+
+// App Check proves that a request comes from the real VibeBook page and not from a script. It is off until a reCAPTCHA v3 site
+// key is set as VITE_APPCHECK_SITE_KEY in .env (see SECURITY.md). Even then it only blocks anything once "Enforce" is switched
+// on for Firestore in the Firebase console, so it is safe to ship before that.
+const appCheckKey = import.meta.env.VITE_APPCHECK_SITE_KEY as string | undefined;
+if (appCheckKey) {
+  // While developing (npm run dev), Firebase prints a debug token in the console to register under App Check > Apps.
+  if (import.meta.env.DEV) (self as unknown as { FIREBASE_APPCHECK_DEBUG_TOKEN: boolean }).FIREBASE_APPCHECK_DEBUG_TOKEN = true;
+  initializeAppCheck(app, { provider: new ReCaptchaV3Provider(appCheckKey), isTokenAutoRefreshEnabled: true });
+}
 
 export const auth = getAuth(app);
 export const db = getFirestore(app);

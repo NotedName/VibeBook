@@ -10,6 +10,7 @@ import { useProfile, useSession } from "./session";
 import { personHash } from "./profiles";
 import Avatar from "./Avatar";
 import { coverBanner, squareAvatar } from "./image";
+import { DropHint, useImageDrop } from "./imageDrop";
 import PhotoEditor from "./PhotoEditor";
 import { CameraIcon, CloseIcon, ImageIcon } from "./icons";
 import { GroupAvatar } from "./GroupRow";
@@ -93,6 +94,10 @@ function Details({ group, onDirty }: { group: Group; onDirty: (dirty: boolean) =
   useEffect(() => { onDirty(changed); return () => onDirty(false); }, [changed, onDirty]);
 
   function pick(kind: "avatar" | "cover") { picking.current = kind; input.current?.click(); }
+  // A picture dragged onto the group picture or the cover opens the same editor as choosing one (computers only).
+  const notPicture = () => notify("Drop a picture file.");
+  const avatarDrop = useImageDrop((f) => setEditing({ kind: "avatar", file: f[0] }), { disabled: busy, onRejected: notPicture });
+  const coverDrop = useImageDrop((f) => setEditing({ kind: "cover", file: f[0] }), { disabled: busy, onRejected: notPicture });
   function onFile(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     e.target.value = "";
@@ -128,7 +133,8 @@ function Details({ group, onDirty }: { group: Group; onDirty: (dirty: boolean) =
     <form className="manage-details" onSubmit={submit}>
       <div className="manage-photos">
         <input ref={input} type="file" accept="image/*" hidden onChange={onFile} />
-        <div className="manage-photo-row">
+        <div className={`manage-photo-row drop-zone${avatarDrop.over ? " drop-over one" : ""}`} {...avatarDrop.bind}>
+          {avatarDrop.over && <DropHint label="Drop picture" />}
           <GroupAvatar name={name || group.name} photo={avatar} size="lg" />
           <div className="manage-photo-actions">
             <b>Group picture</b>
@@ -138,7 +144,8 @@ function Details({ group, onDirty }: { group: Group; onDirty: (dirty: boolean) =
             </div>
           </div>
         </div>
-        <div className="manage-photo-cover">
+        <div className={`manage-photo-cover drop-zone${coverDrop.over ? " drop-over one" : ""}`} {...coverDrop.bind}>
+          {coverDrop.over && <DropHint label="Drop cover photo" />}
           <div className="cover-preview c-amethyst">{cover && <img src={cover} alt="" />}</div>
           <div className="manage-photo-actions">
             <b>Cover photo</b>

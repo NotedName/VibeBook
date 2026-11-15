@@ -13,7 +13,14 @@ export type Availability = {
   startTime?: string; endTime?: string; breakMinutes?: number;
   /** when the break starts, "HH:MM". With breakMinutes it is the planned break: taken out of the shift automatically (see hours.ts) */
   breakAt?: string;
+  /** named holidays. Each date counts as unavailable (see isAvailable); they are kept so the calendar can show what they are */
+  holidays?: Holiday[];
 };
+
+/** A day off with a name ("Labour Day"). */
+export type Holiday = { date: string; name: string };
+export const HOLIDAY_NAME_MAX = 60;
+export const HOLIDAYS_MAX = 200;
 
 /** The planned break of a day: when it starts and how long it lasts. */
 export type BreakPlan = { at: string; minutes: number };
@@ -22,6 +29,9 @@ export const planOf = (a: Availability): BreakPlan | null => (a.breakAt && a.bre
 export const DEFAULT_AVAILABILITY: Availability = { workDays: [1, 2, 3, 4, 5], daysOff: [], daysOn: [], hoursPerDay: 8 };
 
 const isDate = (x: unknown): x is string => typeof x === "string" && /^\d{4}-\d{2}-\d{2}$/.test(x);
+/** Today, "YYYY-MM-DD" in local time. A date you changed only matters until it has passed; after that the day goes back to what the usual week says. */
+const today = () => new Date().toLocaleDateString("en-CA");
+const upcoming = (d: string) => d >= today();
 
 const pad = (n: number) => String(n).padStart(2, "0");
 export const isTime = (x: unknown): x is string => typeof x === "string" && /^([01]\d|2[0-3]):[0-5]\d$/.test(x);
@@ -49,8 +59,14 @@ export function normalizeAvailability(raw: Record<string, unknown> | undefined):
   const timed = isTime(raw.startTime) && isTime(raw.endTime) && typeof raw.breakMinutes === "number" && raw.breakMinutes >= 0 && raw.breakMinutes <= 1440;
   return {
     workDays: days ?? DEFAULT_AVAILABILITY.workDays,
-    daysOff: Array.isArray(raw.daysOff) ? raw.daysOff.filter(isDate) : [],
-    daysOn: Array.isArray(raw.daysOn) ? raw.daysOn.filter(isDate) : [],
+    daysOff: Array.isArray(raw.daysOff) ? raw.daysOff.filter((d) => isDate(d) && upcoming(d)) : [],
+    daysOn: Array.isArray(raw.daysOn) ? raw.daysOn.filter((d) => isDate(d) && upcoming(d)) : [],
+    holidays: Array.isArray(raw.holidays)
+      ? raw.holidays.flatMap((h): Holiday[] => {
+        const r = h as Partial<Holiday> | null;
+        return r && isDate(r.date) && upcoming(r.date) && typeof r.name === "string" ? [{ date: r.date, name: r.name.slice(0, HOLIDAY_NAME_MAX) }] : [];
+      }).slice(0, HOLIDAYS_MAX)
+      : [],
     hoursPerDay: hpd,
     ...(timed ? { startTime: raw.startTime as string, endTime: raw.endTime as string, breakMinutes: raw.breakMinutes as number } : {}),
     ...(timed && isTime(raw.breakAt) ? { breakAt: raw.breakAt } : {}),
@@ -58,10 +74,24 @@ export function normalizeAvailability(raw: Record<string, unknown> | undefined):
 }
 
 export function isAvailable(date: string, a: Availability): boolean {
-  if (a.daysOff.includes(date)) return false;
-  if (a.daysOn.includes(date)) return true;
+  // Changes for a day that has passed no longer apply: it is back to the usual week.
+  if (upcoming(date)) {
+    if (a.daysOff.includes(date) || a.holidays?.some((h) => h.date === date)) return false;
+    if (a.daysOn.includes(date)) return true;
+  }
   return a.workDays.includes(dayOfWeek(date));
 }
+
+export const holidayOn = (date: string, a: Availability): Holiday | undefined => (upcoming(date) ? a.holidays?.find((h) => h.date === date) : undefined);
+
+/** Makes `date` a holiday called `name` (replacing any holiday on that date). */
+export function addHolidays(a: Availability, dates: string[], name: string): Availability {
+  const taken = new Set(dates);
+  const label = name.trim().slice(0, HOLIDAY_NAME_MAX);
+  const kept = (a.holidays ?? []).filter((h) => !taken.has(h.date));
+  return { ...a, holidays: [...kept, ...dates.filter(upcoming).map((date) => ({ date, name: label }))].slice(0, HOLIDAYS_MAX) };
+}
+export const removeHoliday = (a: Availability, date: string): Availability => ({ ...a, holidays: (a.holidays ?? []).filter((h) => h.date !== date) });
 
 /** How many days from `from` to `to` (both included) are available. */
 export const availableDaysIn = (from: string, to: string, a: Availability): number =>
@@ -80,11 +110,14 @@ export function toggleDate(date: string, a: Availability): Availability {
 /** Drops exceptions that the usual week already covers (after the usual days changed), de-duplicated and sorted. */
 export function cleanExceptions(a: Availability): Availability {
   const usual = new Set(a.workDays);
+  const holidays = (a.holidays ?? []).filter((h) => upcoming(h.date)).sort((x, y) => x.date.localeCompare(y.date));
   return {
     ...a,
     workDays: [...usual].sort((x, y) => x - y),
-    daysOff: [...new Set(a.daysOff)].filter((d) => usual.has(dayOfWeek(d))).sort(),
-    daysOn: [...new Set(a.daysOn)].filter((d) => !usual.has(dayOfWeek(d))).sort(),
+    // holidays are days off too (so the shared schedule shows them); dates that have passed are dropped
+    daysOff: [...new Set([...a.daysOff, ...holidays.map((h) => h.date)])].filter((d) => upcoming(d) && usual.has(dayOfWeek(d))).sort(),
+    daysOn: [...new Set(a.daysOn)].filter((d) => upcoming(d) && !usual.has(dayOfWeek(d))).sort(),
+    holidays,
   };
 }
 

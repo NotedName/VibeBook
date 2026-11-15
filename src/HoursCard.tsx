@@ -119,7 +119,9 @@ export default function HoursCard({ entries, loading = false }: { entries: Entry
           <button type="button" className="btn small" title="Edit required hours and available days" onClick={() => setDaysOpen(true)}>
             <EditIcon /><span className="lbl">Edit</span>
           </button>
-          <button type="button" className="icon-btn" aria-label="Logged hours" title="Logged hours" onClick={() => setLogOpen(true)}><ListIcon /></button>
+          <button type="button" className="btn small" title="View logged hours" onClick={() => setLogOpen(true)}>
+            <ListIcon /><span className="lbl">Logged hours</span>
+          </button>
         </div>
       </div>
 

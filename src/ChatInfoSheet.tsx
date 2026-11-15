@@ -4,7 +4,7 @@ import { usePreferences } from "./preferences";
 import { useScrollLock } from "./scrollLock";
 import { useSession } from "./session";
 import {
-  calledBy, DEFAULT_EMOJI, isUnread, NICK_MAX, setChatEmoji, setNickname, type ChatSettings, type Message,
+  calledBy, DEFAULT_EMOJI, isUnread, NICK_MAX, setChatEmoji, setNickname, type ChatSettings, type Message, type Pin,
 } from "./messages";
 import { muteLabel, useChatCommands } from "./chatCommands";
 import Avatar from "./Avatar";
@@ -12,7 +12,7 @@ import EmojiPicker from "./EmojiPicker";
 import MuteChoices from "./MuteChoices";
 import type { Profile } from "./types";
 import {
-  ArchiveIcon, ArrowLeftIcon, BellIcon, BellOffIcon, BlockIcon, ChevronRightIcon, CloseIcon, EditIcon, ImageIcon, ReceiptsIcon,
+  ArchiveIcon, ArrowLeftIcon, BellIcon, BellOffIcon, BlockIcon, ChevronRightIcon, CloseIcon, EditIcon, ImageIcon, PinIcon, ReceiptsIcon, RestrictIcon,
   SearchIcon, SmileIcon, TrashIcon, UnarchiveIcon, UserIcon,
 } from "./icons";
 
@@ -24,21 +24,28 @@ type Props = {
   /** the messages loaded so far (photos and GIFs are listed from these) */
   messages: Message[];
   hasMore: boolean;
+  /** messages either of you pinned, newest pin first */
+  pins: Pin[];
+  /** pins can be removed (nothing can be written in a blocked chat or a request) */
+  canUnpin: boolean;
+  onUnpin: (id: string) => void;
+  /** close this panel and scroll the chat to that message */
+  onJump: (id: string) => void;
   onLoadOlder: () => void;
   onPhoto: (src: string) => void;
   onSearch: () => void;
   onClose: () => void;
 };
 
-type View = "main" | "emoji" | "nicknames" | "media" | "mute";
-const TITLE: Record<View, string> = { main: "Chat info", emoji: "Emoji", nicknames: "Nicknames", media: "Photos & GIFs", mute: "Mute notifications" };
+type View = "main" | "emoji" | "nicknames" | "media" | "pins" | "mute";
+const TITLE: Record<View, string> = { main: "Chat info", emoji: "Emoji", nicknames: "Nicknames", media: "Photos & GIFs", pins: "Pinned messages", mute: "Mute notifications" };
 
 /**
  * What opens when you tap the person at the top of a conversation, like the info panel in Messenger: who they are, quick
  * buttons (Profile, Mute, Search) and this chat's settings: the quick emoji, nicknames, photos and GIFs shared here, read
  * receipts, mute, archive, block and delete. The emoji and nicknames are shared with the other person; the rest is yours.
  */
-export default function ChatInfoSheet({ uid, profile, friend, settings, messages, hasMore, onLoadOlder, onPhoto, onSearch, onClose }: Props) {
+export default function ChatInfoSheet({ uid, profile, friend, settings, messages, hasMore, pins, canUnpin, onUnpin, onJump, onLoadOlder, onPhoto, onSearch, onClose }: Props) {
   const s = useSession();
   const prefs = usePreferences();
   const [view, setView] = useState<View>("main");
@@ -48,6 +55,7 @@ export default function ChatInfoSheet({ uid, profile, friend, settings, messages
   const mine = s.chats.prefsOf(uid);
   const muted = chat?.muted ?? false;
   const blocked = s.chats.blocked.has(uid);
+  const restricted = s.chats.restricted.has(uid);
   const archived = s.chats.archived.some((c) => c.other === uid);
   const unread = chat ? isUnread(chat, s.uid) : false;
   const cmd = useChatCommands(uid, name, mine, onClose);
@@ -82,7 +90,7 @@ export default function ChatInfoSheet({ uid, profile, friend, settings, messages
                 <b>{name}</b>
                 {name !== realName && <span>{realName}</span>}
                 {profile?.username && <span>@{profile.username}</span>}
-                <small>{blocked ? "Blocked" : friend ? "Friends on VibeBook" : "Not friends yet"}</small>
+                <small>{blocked ? "Blocked" : restricted ? "Restricted" : friend ? "Friends on VibeBook" : "Not friends yet"}</small>
               </div>
 
               <div className="chat-info-actions">
@@ -97,6 +105,15 @@ export default function ChatInfoSheet({ uid, profile, friend, settings, messages
                   <i><SearchIcon /></i>Search
                 </button>
               </div>
+
+              <section className="chat-info-section" aria-label="Messages">
+                <h3>Messages</h3>
+                <button type="button" className="action-row" onClick={() => setView("pins")}>
+                  <i><PinIcon /></i>
+                  <span>Pinned messages<small>{pins.length > 0 ? `${pins.length} pinned in this chat` : "Press and hold a message, then choose Pin"}</small></span>
+                  <ChevronRightIcon />
+                </button>
+              </section>
 
               <section className="chat-info-section" aria-label="Customize chat">
                 <h3>Customize chat</h3>
@@ -150,6 +167,10 @@ export default function ChatInfoSheet({ uid, profile, friend, settings, messages
                 <button type="button" className="action-row" onClick={() => void cmd.archive(!archived)}>
                   <i>{archived ? <UnarchiveIcon /> : <ArchiveIcon />}</i>{archived ? "Unarchive chat" : "Archive chat"}
                 </button>
+                <button type="button" className="action-row" onClick={() => (restricted ? void cmd.unrestrict() : cmd.askRestrict())}>
+                  <i><RestrictIcon /></i>
+                  <span>{restricted ? `Unrestrict ${name}` : `Restrict ${name}`}<small>{restricted ? "Their messages go to your chats again" : "Their messages go to message requests, and they will not know"}</small></span>
+                </button>
                 <button type="button" className="action-row" onClick={() => (blocked ? void cmd.unblock() : cmd.askBlock())}>
                   <i><BlockIcon /></i>
                   <span>{blocked ? `Unblock ${name}` : `Block ${name}`}<small>{blocked ? "You can message each other again" : "Neither of you can send messages"}</small></span>
@@ -164,6 +185,7 @@ export default function ChatInfoSheet({ uid, profile, friend, settings, messages
 
           {view === "emoji" && <EmojiView uid={uid} current={settings.emoji} friend={friend} onDone={back} />}
           {view === "nicknames" && <NicknamesView uid={uid} profile={profile} realName={realName} settings={settings} friend={friend} />}
+          {view === "pins" && <PinsView pins={pins} me={s.uid} name={name} canUnpin={canUnpin} onUnpin={onUnpin} onJump={onJump} />}
           {view === "media" && <MediaView media={media} hasMore={hasMore} onLoadOlder={onLoadOlder} onPhoto={onPhoto} />}
           {view === "mute" && (
             <MuteChoices prefs={mine} muted={muted}
@@ -193,7 +215,7 @@ function EmojiView({ uid, current, friend, onDone }: { uid: string; current: str
         <span aria-hidden="true">{current}</span>
         <small>The button beside the message box sends this</small>
       </div>
-      {friend ? <EmojiPicker onPick={pick} /> : <p className="hint">You can change the emoji once you are friends.</p>}
+      {friend ? <EmojiPicker onPick={pick} /> : <p className="hint">You can change the emoji once this chat is open (you are friends, or they accepted your message request).</p>}
       {current !== DEFAULT_EMOJI && friend && (
         <button type="button" className="btn" onClick={() => pick(DEFAULT_EMOJI)}>Reset to {DEFAULT_EMOJI}</button>
       )}
@@ -209,7 +231,7 @@ function NicknamesView({ uid, profile, realName, settings, friend }: {
   const meName = s.me?.displayName || "You";
   return (
     <div className="action-list nick-list">
-      <p className="hint action-hint">{friend ? "Nicknames show in this chat for both of you." : "You can set nicknames once you are friends."}</p>
+      <p className="hint action-hint">{friend ? "Nicknames show in this chat for both of you." : "You can set nicknames once this chat is open (you are friends, or they accepted your message request)."}</p>
       <NicknameRow who={uid} profile={profile} realName={realName} current={settings.nick[uid] ?? ""} enabled={friend} />
       <NicknameRow who={s.uid} profile={s.me} realName={`${meName} (you)`} current={settings.nick[s.uid] ?? ""} enabled={friend} other={uid} />
     </div>
@@ -286,5 +308,29 @@ function MediaView({ media, hasMore, onLoadOlder, onPhoto }: { media: Message[];
       )}
       {hasMore && <button type="button" className="btn" onClick={onLoadOlder}>Look through older messages</button>}
     </div>
+  );
+}
+
+/** Every pinned message of this chat, newest pin first. "Show in chat" closes this panel and scrolls to it; either of you can unpin. */
+function PinsView({ pins, me, name, canUnpin, onUnpin, onJump }: {
+  pins: Pin[]; me: string; name: string; canUnpin: boolean; onUnpin: (id: string) => void; onJump: (id: string) => void;
+}) {
+  if (pins.length === 0) {
+    return <p className="note">Nothing is pinned yet. Press and hold a message (or tap its ⋯ button on a computer) and choose Pin. Either of you can pin and unpin, and you both see the pins here.</p>;
+  }
+  const when = (ms: number) => (ms ? new Date(ms).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "");
+  return (
+    <ul className="pin-list">
+      {pins.map((p) => (
+        <li key={p.id} className="pin-item">
+          <div className="pin-meta"><b>{p.from === me ? "You" : name}</b>{p.at > 0 && <span>{when(p.at)}</span>}</div>
+          <p className="pin-text">{p.text || "Message"}</p>
+          <div className="pin-actions">
+            <button type="button" className="btn small" onClick={() => onJump(p.id)}>Show in chat</button>
+            {canUnpin && <button type="button" className="btn small" onClick={() => onUnpin(p.id)}>Unpin</button>}
+          </div>
+        </li>
+      ))}
+    </ul>
   );
 }

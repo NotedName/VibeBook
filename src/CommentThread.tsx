@@ -9,6 +9,7 @@ import { CommentIcon, MoreIcon, SendIcon, SmileIcon, ThumbUpIcon, TrashIcon } fr
 import MediaPicker, { MediaPreview } from "./MediaPicker";
 import { NO_MEDIA, type Media } from "./stickers";
 import { insertEmoji } from "./emoji";
+import { Linkified } from "./links";
 
 const stamp = (t: Timestamp | null) =>
   t ? t.toDate().toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "Sending…";
@@ -151,7 +152,7 @@ function CommentNode({ node, depth, actions, replyTo, setReplyTo }: NodeProps) {
           </>
         )}
       </div>
-      {!c.deleted && c.text && <p className="comment-text">{c.text}</p>}
+      {!c.deleted && c.text && <p className="comment-text"><Linkified text={c.text} /></p>}
       {!c.deleted && c.sticker && <p className="comment-sticker" role="img" aria-label={`Sticker ${c.sticker}`}>{c.sticker}</p>}
       {!c.deleted && c.gif && <img className="comment-gif" src={c.gif} alt="GIF" loading="lazy" referrerPolicy="no-referrer" />}
 

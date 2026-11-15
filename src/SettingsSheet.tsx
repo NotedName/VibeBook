@@ -4,15 +4,16 @@ import { PHOTO_QUALITY, resetPreferences, usePreferences } from "./preferences";
 import { ACTIVITY_SHOWN, useActivityState } from "./activity";
 import { ago } from "./notifications";
 import { useProfile, useSession } from "./session";
-import { personHash, setFriendsAudience, setHoursAudience, setScheduleAudience } from "./profiles";
+import { personHash, setFriendsAudience, setHoursAudience, setPrivateProfile, setScheduleAudience } from "./profiles";
 import { AUDIENCES, VISIBILITY, type Audience } from "./types";
 import { BrandName } from "./Logo";
 import { TermsContent } from "./Terms";
 import { CloseIcon, GlobeIcon, LockIcon, MoonIcon, MonitorIcon, SunIcon, UsersIcon } from "./icons";
 import { useScrollLock } from "./scrollLock";
 import { RowsSkeleton } from "./Skeleton";
+import SecuritySettings from "./SecuritySettings";
 
-const CATEGORIES = ["Appearance", "Media", "Notifications", "Privacy", "Accessibility", "Activity", "About"] as const;
+const CATEGORIES = ["Appearance", "Media", "Notifications", "Privacy", "Security", "Accessibility", "Activity", "About"] as const;
 type Category = (typeof CATEGORIES)[number];
 
 type Option<T extends string | number> = { id: T; label: string; icon?: React.ReactNode };
@@ -155,6 +156,9 @@ function Privacy() {
   if (!me) return null;
   return (
     <>
+      <Switch label="Private profile" checked={me.privateProfile}
+        hint="Only friends see your entries, hours, schedule and friends. Everyone else sees your name and photo and can send a friend request."
+        onChange={(on) => save(setPrivateProfile(uid, on))} />
       <Choice name="default-visibility" legend="Who can see new entries" value={p.visibility} onChange={p.setVisibility}
         options={VISIBILITY.map((v) => ({ id: v.id, label: v.label, icon: VIS_ICON[v.id] }))}
         hint={`${VISIBILITY.find((v) => v.id === p.visibility)!.hint} Change one entry from its ⋯ menu.`} />
@@ -250,6 +254,7 @@ export default function SettingsSheet({ onClose }: { onClose: () => void }) {
           {category === "Media" && <Media />}
           {category === "Notifications" && <Notifications />}
           {category === "Privacy" && <Privacy />}
+          {category === "Security" && <SecuritySettings />}
           {category === "Accessibility" && <Accessibility />}
           {category === "Activity" && <ActivityLog onNavigate={onClose} />}
           {category === "About" && <About />}

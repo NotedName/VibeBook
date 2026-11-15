@@ -45,7 +45,7 @@ function dayLines(list: Entry[]): string[] {
   return out;
 }
 
-/** Text for the "Copy for Daily Report" button: one day, oldest entry first. */
+/** Text for one day, oldest entry first. */
 export function dailyReport(entries: Entry[], date: string): string {
   const list = entries.filter((e) => e.date === date).sort(byTime);
   if (!list.length) return "";
@@ -55,7 +55,7 @@ export function dailyReport(entries: Entry[], date: string): string {
 }
 
 /**
- * Text for the "Copy for Weekly Report" button: the Sunday to Saturday week that contains `date`, one heading per day
+ * Text for one week: the Sunday to Saturday week that contains `date`, one heading per day
  * with entries, oldest first, and the hours for the day and the week. `origin` (the first day of the logbook) is Week 1.
  */
 export function weeklyReport(entries: Entry[], date: string, origin: string): string {
@@ -64,21 +64,46 @@ export function weeklyReport(entries: Entry[], date: string, origin: string): st
   if (!list.length) return "";
   const total = sumMinutes(list);
   const out = [`Weekly Report: Week ${weekNumber(start, origin || start)} (${weekRange(start)})`, ...(total > 0 ? [`Total hours: ${formatHM(total)}`] : []), ""];
+  return [...out, ...daySections(list)].join("\n").trim();
+}
+
+/** One heading per day (with that day's hours) and the day's numbered entries under it. `list` is oldest first. */
+function daySections(list: Entry[]): string[] {
   const days = new Map<string, Entry[]>();
   list.forEach((e) => days.set(e.date, [...(days.get(e.date) ?? []), e]));
+  const out: string[] = [];
   days.forEach((dayList, day) => {
     const m = sumMinutes(dayList);
     out.push(`${longDay(day)}${m > 0 ? ` (${formatHM(m)})` : ""}`, ...dayLines(dayList));
   });
-  return out.join("\n").trim();
+  return out;
+}
+
+/** Any stretch of days, from `from` to `to`: one heading per day with entries, oldest first, and the hours for each day and in all. */
+function periodReport(entries: Entry[], from: string, to: string): string {
+  const list = entries.filter((e) => e.date >= from && e.date <= to).sort(byTime);
+  if (!list.length) return "";
+  const total = sumMinutes(list);
+  const out = [`Report: ${longDay(from)} to ${longDay(to)}`, ...(total > 0 ? [`Total hours: ${formatHM(total)}`] : []), ""];
+  return [...out, ...daySections(list)].join("\n").trim();
 }
 
 /**
- * Text for the "Copy descriptions" button: one heading per week and per day, oldest first, with that day's
+ * Text for the export sheet's "Copy text": a day, the week that contains it, or a date range (`kind`), or only the
+ * descriptions of those days. `origin` (the first day of the logbook) is Week 1.
+ */
+export function exportText(entries: Entry[], kind: "daily" | "weekly" | "period", from: string, to: string, origin: string, descriptionsOnly: boolean): string {
+  if (descriptionsOnly) return allDescriptions(entries.filter((e) => e.date >= from && e.date <= to), origin);
+  if (kind === "daily") return dailyReport(entries, from);
+  if (kind === "weekly") return weeklyReport(entries, from, origin);
+  return periodReport(entries, from, to);
+}
+
+/**
+ * Descriptions only: one heading per week and per day, oldest first, with that day's
  * descriptions under it in the order they were logged.
  */
-export function allDescriptions(entries: Entry[]): string {
-  const origin = earliestDay(entries);
+export function allDescriptions(entries: Entry[], origin = earliestDay(entries)): string {
   const weeks = new Map<string, Map<string, string[]>>();
   [...entries].sort(byTime).filter((e) => e.description).forEach((e) => {
     const wk = weekStart(e.date);

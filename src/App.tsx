@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { onAuthStateChanged, type User } from "firebase/auth";
 import { auth } from "./firebase";
 import AuthForm from "./AuthForm";
+import AuthAction, { readActionLink } from "./AuthAction";
 import VerifyEmail from "./VerifyEmail";
 import Shell from "./Shell";
 import PublicPost from "./PublicPost";
@@ -13,6 +14,7 @@ export default function App() {
   const [user, setUser] = useState<User | null | undefined>(undefined);
   const [, setVerifiedTick] = useState(0);
   const [hash, setHash] = useState(() => location.hash);
+  const [action, setAction] = useState(readActionLink);
   const [authMode, setAuthMode] = useState<"signin" | "signup" | null>(null);
   useEffect(() => onAuthStateChanged(auth, setUser), []);
   useEffect(() => {
@@ -25,8 +27,16 @@ export default function App() {
   // The splash stays until there is something real behind it. Signed-in people see the logbook, so Shell
   // hides it once their profile has loaded; every other screen (sign in, verify email) can show right away.
   useEffect(() => {
-    if (user !== undefined && !(user && user.emailVerified)) hideSplash();
-  }, [user]);
+    if (action || (user !== undefined && !(user && user.emailVerified))) hideSplash();
+  }, [user, action]);
+  // An emailed link (reset password, confirm email) has been handled: drop its code from the address bar.
+  const actionDone = useCallback(() => {
+    history.replaceState(null, "", `/${location.hash}`);
+    setAction(null);
+    onVerified();
+  }, [onVerified]);
+
+  if (action) return <AuthAction link={action} onDone={actionDone} />;
 
   // Until auth answers, the splash screen from index.html is showing; this line is only a fallback.
   if (user === undefined) return <div className="page"><main className="logbook"><ProfileSkeleton /><FeedSkeleton /></main></div>;

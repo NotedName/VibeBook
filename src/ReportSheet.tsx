@@ -1,25 +1,26 @@
 import { FieldsSkeleton } from "./Skeleton";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { loadPhotos, type Entry } from "./entries";
-import { todayStr } from "./report";
+import { copyText, exportText, todayStr } from "./report";
 import { buildReport, entriesInRange, EMPTY_DETAILS, reportRange, type ReportDetails, type ReportImage, type ReportKind } from "./reportDocs";
 import { toReportImage } from "./reportImages";
 import { saveReportDetails, useReportDetails } from "./hours";
 import { downloadFile } from "./download";
-import { formatHM, sumMinutes, weekRange } from "./weeks";
+import { earliestDay, formatHM, sumMinutes, weekRange } from "./weeks";
 import { useSession } from "./session";
-import { CloseIcon, DownloadIcon } from "./icons";
+import { CloseIcon, CopyIcon, DownloadIcon } from "./icons";
 import { useScrollLock } from "./scrollLock";
 import FormError from "./FormError";
 
-type Format = "docx" | "pdf";
+type Format = "docx" | "pdf" | "text";
 const FORMATS: { id: Format; label: string; mime: string; kind: string }[] = [
   { id: "docx", label: "Word (.docx)", mime: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", kind: "Word document" },
   { id: "pdf", label: "PDF", mime: "application/pdf", kind: "PDF" },
+  { id: "text", label: "Copy text", mime: "text/plain", kind: "Text" },
 ];
 const KINDS: { id: ReportKind; label: string }[] = [
-  { id: "daily", label: "Daily" },
-  { id: "weekly", label: "Weekly" },
+  { id: "daily", label: "Day" },
+  { id: "weekly", label: "Week" },
   { id: "period", label: "Date range" },
 ];
 /** A report longer than this is almost certainly a mistake in the dates, and would be huge with photos. */
@@ -43,7 +44,10 @@ type Props = {
   onClose: () => void;
 };
 
-/** Export a daily, weekly or date-range report as a Word or PDF file in the layout of the school's OJT report. */
+/**
+ * Export Portfolio: one place to pick a day, a week or a date range of your logbook and get it as a Word or PDF file in
+ * the layout of the school's OJT report, or as text to copy (everything, or just the descriptions).
+ */
 export default function ReportSheet({ entries, initialRange, onClose }: Props) {
   const s = useSession();
   const stored = useReportDetails(s.uid);
@@ -55,6 +59,7 @@ export default function ReportSheet({ entries, initialRange, onClose }: Props) {
   const [format, setFormat] = useState<Format>("docx");
   const [withPhotos, setWithPhotos] = useState(true);
   const [showHours, setShowHours] = useState(false);
+  const [descriptionsOnly, setDescriptionsOnly] = useState(false);
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
 
@@ -82,10 +87,21 @@ export default function ReportSheet({ entries, initialRange, onClose }: Props) {
     setDetails((d) => ({ ...(d ?? EMPTY_DETAILS), [key]: value }));
   }
 
+  const copying = format === "text";
+
   async function submit(e: FormEvent) {
     e.preventDefault();
-    if (rangeProblem || inRange.length === 0 || !details) return;
+    if (rangeProblem || inRange.length === 0) return;
     setError("");
+    if (copying) {
+      const text = exportText(entries, kind, range.from, range.to, earliestDay(entries), descriptionsOnly);
+      if (!text) { setError("There are no descriptions in these dates."); return; }
+      if (await copyText(text)) s.notify(descriptionsOnly ? "Descriptions copied" : "Report copied");
+      else s.manualCopy(text);
+      onClose();
+      return;
+    }
+    if (!details) return;
     try {
       const photos = new Map<string, ReportImage[]>();
       if (withPhotos) {
@@ -118,15 +134,15 @@ export default function ReportSheet({ entries, initialRange, onClose }: Props) {
 
   return (
     <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && !busy && onClose()}>
-      <form className="sheet" role="dialog" aria-modal="true" aria-label="Export report" onSubmit={submit}>
+      <form className="sheet" role="dialog" aria-modal="true" aria-label="Export Portfolio" onSubmit={submit}>
         <div className="sheet-head">
-          <h2>Export report</h2>
+          <h2>Export Portfolio</h2>
           <button type="button" className="icon-btn close" aria-label="Close" disabled={!!busy} onClick={onClose}><CloseIcon /></button>
         </div>
 
         <div className="sheet-body">
           <fieldset className="setting">
-            <legend>Report for</legend>
+            <legend>Export</legend>
             <div className="seg">
               {KINDS.map((k) => (
                 <label key={k.id} className={kind === k.id ? "on" : ""}>
@@ -151,12 +167,12 @@ export default function ReportSheet({ entries, initialRange, onClose }: Props) {
             {rangeProblem
               || (inRange.length === 0
                 ? "No entries in these dates."
-                : `${inRange.length} ${inRange.length === 1 ? "entry" : "entries"} · ${formatHM(sumMinutes(inRange))} logged${withPhotos && photoTotal > 0 ? ` · ${photoTotal} ${photoTotal === 1 ? "photo" : "photos"}` : ""}`)}
+                : `${inRange.length} ${inRange.length === 1 ? "entry" : "entries"} · ${formatHM(sumMinutes(inRange))} logged${withPhotos && !copying && photoTotal > 0 ? ` · ${photoTotal} ${photoTotal === 1 ? "photo" : "photos"}` : ""}`)}
           </p>
 
           <fieldset className="setting">
             <legend>File type</legend>
-            <div className="seg two">
+            <div className="seg">
               {FORMATS.map((f) => (
                 <label key={f.id} className={format === f.id ? "on" : ""}>
                   <input type="radio" name="format" checked={format === f.id} onChange={() => setFormat(f.id)} />{f.label}
@@ -165,33 +181,43 @@ export default function ReportSheet({ entries, initialRange, onClose }: Props) {
             </div>
           </fieldset>
 
-          <label className="switch-row">
-            <span>Include photos<small>Pictures sit beside the descriptions. Many photos make a bigger file.</small></span>
-            <input type="checkbox" role="switch" checked={withPhotos} onChange={(e) => setWithPhotos(e.target.checked)} />
-            <i className="switch" aria-hidden="true" />
-          </label>
-          <label className="switch-row">
-            <span>Show hours worked<small>Adds an Hours column and a total.</small></span>
-            <input type="checkbox" role="switch" checked={showHours} onChange={(e) => setShowHours(e.target.checked)} />
-            <i className="switch" aria-hidden="true" />
-          </label>
+          {copying ? (
+            <label className="switch-row">
+              <span>Descriptions only<small>Copies just what you wrote, a heading for each week and day.</small></span>
+              <input type="checkbox" role="switch" checked={descriptionsOnly} onChange={(e) => setDescriptionsOnly(e.target.checked)} />
+              <i className="switch" aria-hidden="true" />
+            </label>
+          ) : (
+            <>
+              <label className="switch-row">
+                <span>Include photos<small>Pictures sit beside the descriptions. Many photos make a bigger file.</small></span>
+                <input type="checkbox" role="switch" checked={withPhotos} onChange={(e) => setWithPhotos(e.target.checked)} />
+                <i className="switch" aria-hidden="true" />
+              </label>
+              <label className="switch-row">
+                <span>Show hours worked<small>Adds an Hours column and a total.</small></span>
+                <input type="checkbox" role="switch" checked={showHours} onChange={(e) => setShowHours(e.target.checked)} />
+                <i className="switch" aria-hidden="true" />
+              </label>
+            </>
+          )}
 
-          <fieldset className="setting report-details">
+          {!copying && <fieldset className="setting report-details">
             <legend>Printed at the top (remembered for next time)</legend>
             {details === null ? <FieldsSkeleton count={FIELDS.length} label="Loading report details" /> : FIELDS.map((f) => (
               <label key={f.key}>{f.label}
                 <input value={details[f.key]} maxLength={120} placeholder={f.placeholder} onChange={(e) => setDetail(f.key, e.target.value)} />
               </label>
             ))}
-          </fieldset>
+          </fieldset>}
 
           {error && <FormError>{error}</FormError>}
         </div>
 
         <div className="sheet-actions">
           <button type="button" className="btn" disabled={!!busy} onClick={onClose}>Cancel</button>
-          <button type="submit" className="btn primary" disabled={!!busy || !!rangeProblem || inRange.length === 0 || details === null}>
-            {busy || <><DownloadIcon /> Download</>}
+          <button type="submit" className="btn primary" disabled={!!busy || !!rangeProblem || inRange.length === 0 || (!copying && details === null)}>
+            {busy || (copying ? <><CopyIcon /> Copy</> : <><DownloadIcon /> Download</>)}
           </button>
         </div>
       </form>

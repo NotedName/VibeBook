@@ -120,6 +120,7 @@ export default function PublicPost({ uid, id, onAuth }: Props) {
                 ))}
               </div>
             )}
+            {entry.gif && <img className="post-gif" src={entry.gif} alt={`GIF on ${entry.title}`} loading="lazy" referrerPolicy="no-referrer" />}
             {entry.videoUrl && <VideoPlayer url={entry.videoUrl} title={entry.title} />}
 
             <div className="post-actions">

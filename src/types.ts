@@ -41,6 +41,16 @@ export type Profile = {
   hoursAudience: Audience;
   /** Who can see which days this person works. Defaults to only me. Settings > Privacy. */
   scheduleAudience: Audience;
+  /**
+   * Private profile (Settings > Privacy): only friends see this person's entries, hours, schedule and friends list.
+   * Everyone else sees their name, photo and username, and can send a friend request. Defaults to off.
+   */
+  privateProfile: boolean;
+  /**
+   * Account deactivated (Profile > Deactivate account). The account and its uid stay; other people see a blank
+   * "Deactivated account" instead of the profile, and signing in again offers to reactivate it.
+   */
+  deactivated: boolean;
 };
 
 export type FriendRequest = { id: string; from: string; to: string };

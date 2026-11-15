@@ -6,9 +6,11 @@ import {
 import { db } from "./firebase";
 import { compressImage } from "./image";
 import { groupPostRef } from "./groups";
-import { chosenVisibility, privateGroupIds, teaserOp, teaserRef, visibilityFields } from "./entryPrivacy";
+import { chosenVisibility, privateGroupIds, profileIsPrivate, teaserOp, teaserRef, visibilityFields } from "./entryPrivacy";
 import type { Visibility } from "./types";
 import { spanMinutes } from "./weeks";
+import { takeTurn } from "./rateLimit";
+import { isGifUrl } from "./stickers";
 
 export const MAX_PHOTOS = 8;
 /** Longest text an entry can hold. Longer descriptions show a few lines with a Show more button. */
@@ -61,6 +63,8 @@ export type EntryInput = {
   groupIds: string[];
   /** https link to a YouTube or Vimeo video, or a direct .mp4/.webm file. "" when none. */
   videoUrl: string;
+  /** A moving GIF shown on the post, loaded from Giphy or Tenor like the GIFs in messages (see isGifUrl in stickers.ts). "" or left out when none. */
+  gif?: string;
 };
 
 export type Entry = Omit<EntryInput, "visibility" | "videoUrl"> & {
@@ -71,6 +75,8 @@ export type Entry = Omit<EntryInput, "visibility" | "videoUrl"> & {
   visibility?: Visibility;
   /** The visibility chosen by the author while the entry sits in a private group; restored when it leaves. */
   lockedVisibility?: Visibility;
+  /** Stored public and its owner's profile is not private: the entry may show in other people's "For you" feed. See entryPrivacy.ts. */
+  discoverable?: boolean;
   /**
    * Only on placeholder cards: this is a post in a private group that the viewer is not in, with its content left out.
    * Never stored. Shown as "Join the group to see this post".
@@ -108,20 +114,33 @@ function hoursFields(input: EntryInput, isNew: boolean): Record<string, unknown>
   return isNew ? {} : { clockIn: deleteField(), clockOut: deleteField(), minutes: deleteField() };
 }
 
-/** The input without its optional hours fields, so no undefined value reaches Firestore. */
-const withoutHours = ({ clockIn: _a, clockOut: _b, minutes: _c, ...rest }: EntryInput) => rest;
+/** The input without its optional hours and GIF fields, so no undefined value reaches Firestore. */
+const withoutHours = ({ clockIn: _a, clockOut: _b, minutes: _c, gif: _d, ...rest }: EntryInput) => rest;
+
+/** The GIF field to store. A new document is written with set(), which cannot use deleteField(), so it is left out there. */
+function gifFields(input: EntryInput, isNew: boolean): Record<string, unknown> {
+  if (input.gif) return { gif: input.gif };
+  return isNew ? {} : { gif: deleteField() };
+}
+
+/** What is wrong with an entry's GIF, or "" when there is none or it is fine. */
+const gifProblem = (input: Pick<EntryInput, "gif">) => (input.gif && !isGifUrl(input.gif) ? "That GIF link is not supported. Pick a GIF from Giphy or Tenor." : "");
 
 export async function addEntry(uid: string, input: EntryInput, files: File[]): Promise<void> {
   if (files.length > MAX_PHOTOS) throw new Error(`Maximum ${MAX_PHOTOS} photos per entry`);
-  const problem = entryTextProblem(input);
+  const problem = entryTextProblem(input) || gifProblem(input);
   if (problem) throw new Error(problem);
+  takeTurn("entry");
   const photos = await Promise.all(files.map(compressImage));
 
   const entryRef = doc(entriesRef(uid));
   const priv = await privateGroupIds(input.groupIds);
+  const privateProfile = await profileIsPrivate(uid);
   const batch = writeBatch(db);
-  batch.set(entryRef, { ...withoutHours(input), ...hoursFields(input, true), ...visibilityFields(input.visibility, priv.length > 0, true), photoCount: photos.length, createdAt: serverTimestamp() });
+  batch.set(entryRef, { ...withoutHours(input), ...hoursFields(input, true), ...gifFields(input, true), ...visibilityFields(input.visibility, priv.length > 0, true, privateProfile), photoCount: photos.length, createdAt: serverTimestamp() });
   teaserOp(batch, uid, entryRef.id, input.date, input.time, priv);
+  // The rules accept a new entry only together with this stamp, and refuse the stamp when the last one is under 5 seconds old.
+  batch.set(doc(db, "rate", uid), { entryAt: serverTimestamp() }, { merge: true });
   photos.forEach((data, order) => batch.set(doc(collection(entryRef, "photos")), { data, order }));
   input.groupIds.forEach((gid) => batch.set(groupPostRef(gid, uid, entryRef.id), groupPost(uid, entryRef.id, input)));
   await batch.commit();
@@ -145,19 +164,21 @@ export async function updateEntry(
   newFiles: File[],
 ): Promise<void> {
   if (keep.length + newFiles.length > MAX_PHOTOS) throw new Error(`Maximum ${MAX_PHOTOS} photos per entry`);
-  const problem = entryTextProblem(input);
+  const problem = entryTextProblem(input) || gifProblem(input);
   if (problem) throw new Error(problem);
   const added = await Promise.all(newFiles.map(compressImage));
 
   const entryRef = doc(entriesRef(uid), entry.id);
   const extras = (await Promise.all(removeIds.map((id) => photoExtras(doc(collection(entryRef, "photos"), id))))).flat();
   const priv = await privateGroupIds(input.groupIds);
+  const privateProfile = await profileIsPrivate(uid);
   const batch = writeBatch(db);
   extras.forEach((r) => batch.delete(r));
   batch.update(entryRef, {
     ...withoutHours(input),
     ...hoursFields(input, false),
-    ...visibilityFields(input.visibility, priv.length > 0, false),
+    ...gifFields(input, false),
+    ...visibilityFields(input.visibility, priv.length > 0, false, privateProfile),
     photoCount: keep.length + added.length,
     updatedAt: serverTimestamp(),
   });
@@ -223,14 +244,16 @@ export async function setEntryArchived(uid: string, entry: Entry, archived: bool
 /** Changes who can see an existing entry, without touching anything else. */
 export async function setEntryVisibility(uid: string, entry: Entry, visibility: Visibility): Promise<void> {
   const priv = await privateGroupIds(entry.groupIds ?? []);
-  await updateDoc(doc(entriesRef(uid), entry.id), visibilityFields(visibility, priv.length > 0, false));
+  const privateProfile = await profileIsPrivate(uid);
+  await updateDoc(doc(entriesRef(uid), entry.id), visibilityFields(visibility, priv.length > 0, false, privateProfile));
 }
 
 /** Changes which groups an existing entry is shared to, without touching anything else. */
 export async function setEntryGroups(uid: string, entry: Entry, groupIds: string[]): Promise<void> {
   const priv = await privateGroupIds(groupIds);
+  const privateProfile = await profileIsPrivate(uid);
   const batch = writeBatch(db);
-  batch.update(doc(entriesRef(uid), entry.id), { groupIds, ...visibilityFields(chosenVisibility(entry), priv.length > 0, false) });
+  batch.update(doc(entriesRef(uid), entry.id), { groupIds, ...visibilityFields(chosenVisibility(entry), priv.length > 0, false, privateProfile) });
   teaserOp(batch, uid, entry.id, entry.date, entry.time, priv, entry.archived === true);
   groupIds.forEach((gid) => batch.set(groupPostRef(gid, uid, entry.id), { ownerUid: uid, entryId: entry.id, date: entry.date, time: entry.time }));
   (entry.groupIds ?? []).filter((gid) => !groupIds.includes(gid))

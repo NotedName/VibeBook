@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import E2eePrompt from "../E2eePrompt";
 import { isUnread } from "../messages";
 import { fetchProfile } from "../profiles";
 import { useProfile, useSession } from "../session";
@@ -7,7 +8,7 @@ import { useMessagingFrame } from "../msgFrame";
 import Avatar from "../Avatar";
 import ChatRow, { nameOf, threadHash } from "../ChatRow";
 import Highlight from "../Highlight";
-import { SearchIcon } from "../icons";
+import { ChevronRightIcon, MailIcon, SearchIcon } from "../icons";
 import { RowsSkeleton } from "../Skeleton";
 
 /** Profiles of these people as they load (each is fetched once and cached), so the list can be searched by name. */
@@ -94,6 +95,19 @@ export default function MessagesPage() {
       </div>
 
       <div className="inbox-scroll">
+        <E2eePrompt />
+        {s.chats.requests.length > 0 && !needle && (
+          <section className="people-section">
+            <ul className="people chat-list">
+              <li><a className="chat-row request-link" href="#/message-requests">
+                <i className="request-ico"><MailIcon /></i>
+                <span className="chat-row-text"><b>Message requests</b><span>From people who are not your friends, and people you restricted</span></span>
+                <span className="chat-row-meta"><span className="badge-count">{s.chats.requests.length}</span></span>
+                <ChevronRightIcon />
+              </a></li>
+            </ul>
+          </section>
+        )}
         {error && <p className="error note" role="alert">{error}</p>}
         {!ready && <section className="people-section"><RowsSkeleton /></section>}
         {ready && chats.length > 0 && (

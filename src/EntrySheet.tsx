@@ -9,8 +9,12 @@ import { useSession } from "./session";
 import { chosenVisibility } from "./entryPrivacy";
 import { parseVideo, VIDEO_URL_MAX } from "./video";
 import PhotoEditor from "./PhotoEditor";
+import { GifTab } from "./MediaPicker";
+import { isGifFile } from "./image";
+import { LinkNotice } from "./links";
 import { canAutoFocus } from "./focus";
 import { useScrollLock } from "./scrollLock";
+import { DropHint, useImageDrop } from "./imageDrop";
 
 const VIDEO_ERROR = "That video link is not supported. Use an https link to YouTube or Vimeo, or a direct .mp4 or .webm file.";
 
@@ -33,6 +37,8 @@ export default function EntrySheet({ uid, entry, defaultGroupId, onClose, onSave
   const [skills, setSkills] = useState(entry?.skills.join(", ") ?? "");
   const [description, setDescription] = useState(entry?.description ?? "");
   const [videoUrl, setVideoUrl] = useState(entry?.videoUrl ?? "");
+  const [gif, setGif] = useState(entry?.gif ?? ""); // a Giphy/Tenor GIF link shown on the post
+  const [gifOpen, setGifOpen] = useState(false);
   // Who can see an entry is set in Settings (new entries) and with the entry's ... menu (existing ones), not in this form.
   const visibility = entry ? chosenVisibility(entry) : defaultVisibility();
   // Groups are chosen with Share on the post, not here. A new entry started inside a group goes to that group,
@@ -80,11 +86,19 @@ export default function EntrySheet({ uid, entry, defaultGroupId, onClose, onSave
 
   const total = saved.length + files.length;
 
+  function addPicked(picked: File[]) {
+    const room = Math.max(0, MAX_PHOTOS - saved.length - files.length);
+    if (room === 0) { s.notify(`An entry holds up to ${MAX_PHOTOS} photos.`); return; }
+    if (picked.length > room) s.notify(`Only ${MAX_PHOTOS} photos fit. The first ${room} were added.`);
+    setFiles((prev) => [...prev, ...picked.slice(0, room)]);
+  }
   function addFiles(e: ChangeEvent<HTMLInputElement>) {
     const picked = Array.from(e.target.files ?? []);
     e.target.value = ""; // allow picking the same file again
-    setFiles((prev) => [...prev, ...picked].slice(0, Math.max(0, MAX_PHOTOS - saved.length)));
+    addPicked(picked);
   }
+  // Pictures can also be dragged anywhere onto the form (computers only).
+  const { over, bind } = useImageDrop(addPicked, { disabled: busy || !photosReady, onRejected: () => s.notify("Only pictures can be added to an entry.") });
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -96,7 +110,7 @@ export default function EntrySheet({ uid, entry, defaultGroupId, onClose, onSave
     setBusy(true);
     const input = {
       date, time, clockIn: entry?.clockIn ?? "", clockOut: entry?.clockOut ?? "", ...(entry?.breakMinutes ? { breakMinutes: entry.breakMinutes } : {}), title: title.trim(), description: description.trim(), visibility, groupIds,
-      videoUrl: videoUrl.trim(),
+      videoUrl: videoUrl.trim(), gif,
       skills: skills.split(",").map((s) => s.trim()).filter(Boolean),
     };
     try {
@@ -111,8 +125,9 @@ export default function EntrySheet({ uid, entry, defaultGroupId, onClose, onSave
 
   return (
     <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <form className="sheet entry-sheet" role="dialog" aria-modal="true"
-        aria-label={entry ? "Edit entry" : "New entry"} onSubmit={submit}>
+      <form className={`sheet entry-sheet${over ? " drop-over" : ""}`} role="dialog" aria-modal="true"
+        aria-label={entry ? "Edit entry" : "New entry"} onSubmit={submit} {...bind}>
+        {over && <DropHint />}
         <div className="sheet-head">
           <h2>{entry ? "Edit entry" : "New entry"}</h2>
           <button type="button" className="icon-btn close" aria-label="Close" onClick={onClose}><CloseIcon /></button>
@@ -133,7 +148,21 @@ export default function EntrySheet({ uid, entry, defaultGroupId, onClose, onSave
                 disabled={total >= MAX_PHOTOS} />
             </label>
           </div>
-          <p className="hint">{total}/{MAX_PHOTOS} photos{!photosReady && " · loading saved photos…"}{files.length > 0 && " · tap the pencil to edit a new photo"}</p>
+          <p className="hint">{total}/{MAX_PHOTOS} photos{!photosReady && " · loading saved photos…"}{files.length > 0 && " · tap the pencil to edit a new photo"}<span className="drop-tip"> · or drag photos here</span></p>
+          <div className="entry-gif-pick" onKeyDown={(e) => { if (e.key === "Enter" && (e.target as HTMLElement).tagName === "INPUT") e.preventDefault(); }}>
+            {gif ? (
+              <div className="thumb entry-gif-thumb">
+                <img src={gif} alt="Selected GIF" referrerPolicy="no-referrer" />
+                <button type="button" aria-label="Remove GIF" onClick={() => setGif("")}>×</button>
+              </div>
+            ) : (
+              <button type="button" className={`btn${gifOpen ? " on" : ""}`} aria-expanded={gifOpen} onClick={() => setGifOpen(!gifOpen)}>
+                <ImageIcon /> {gifOpen ? "Close GIFs" : "Add a GIF"}
+              </button>
+            )}
+            {!gif && gifOpen && <GifTab onPick={(m) => { setGif(m.gif); setGifOpen(false); }} />}
+            <p className="hint">A moving GIF from Giphy or Tenor. You can also choose a small .gif file as a photo and it keeps moving.</p>
+          </div>
 
           {!photosReady && entry && entry.photoCount > 0 && <ThumbsSkeleton count={Math.min(entry.photoCount, MAX_PHOTOS)} />}
           {(saved.length > 0 || previews.length > 0) && (
@@ -150,7 +179,7 @@ export default function EntrySheet({ uid, entry, defaultGroupId, onClose, onSave
                   <img src={src} alt="" />
                   <button type="button" aria-label="Remove photo"
                     onClick={() => setFiles(files.filter((_, j) => j !== i))}>×</button>
-                  <button type="button" className="thumb-edit" aria-label="Edit photo" onClick={() => setEditing(i)}><EditIcon /></button>
+                  {!isGifFile(files[i]) && <button type="button" className="thumb-edit" aria-label="Edit photo" onClick={() => setEditing(i)}><EditIcon /></button>}
                 </div>
               ))}
             </div>
@@ -172,21 +201,23 @@ export default function EntrySheet({ uid, entry, defaultGroupId, onClose, onSave
             <input ref={titleRef} value={title} onChange={(e) => setTitle(e.target.value)} required
               maxLength={TITLE_MAX} placeholder="e.g. Set up a new PC in the engineering office" />
           </label>
-          <label>Skills acquired <small className={skillsOver ? "count-warn" : "count"}>{skillList.length}/{SKILLS_MAX} skills</small>
+          <LinkNotice text={title} where="activity" />
+          <label><span className="lbl-head">Skills acquired <small className={skillsOver ? "count-warn" : "count"}>{skillList.length}/{SKILLS_MAX} skills</small></span>
             <input value={skills} onChange={(e) => setSkills(e.target.value)} maxLength={SKILLS_INPUT_MAX}
               placeholder="e.g. Networking, Excel, Teamwork" />
             <small className={skillsOver ? "count-warn" : "count"}>Separate with commas. Up to {SKILL_WORDS_MAX} words and {SKILL_MAX} letters each.</small>
           </label>
-          <label>Video link <small>(optional)</small>
+          <label><span className="lbl-head">Video link <small>(optional)</small></span>
             <input type="url" inputMode="url" value={videoUrl} onChange={(e) => setVideoUrl(e.target.value)}
               maxLength={VIDEO_URL_MAX} placeholder="e.g. https://youtu.be/abc123" aria-invalid={error === VIDEO_ERROR || undefined} />
           </label>
           {error === VIDEO_ERROR && <FormError>{error}</FormError>}
-          <label>Description <small className={description.length > DESC_MAX * 0.9 ? "count-warn" : "count"}>{description.length}/{DESC_MAX}</small>
+          <label><span className="lbl-head">Description <small className={description.length > DESC_MAX * 0.9 ? "count-warn" : "count"}>{description.length}/{DESC_MAX}</small></span>
             <textarea ref={descRef} rows={5} value={description} onChange={(e) => setDescription(e.target.value)} required maxLength={DESC_MAX}
               spellCheck lang="en" autoCapitalize="sentences" data-gramm="true"
               placeholder="What happened, what was the problem, how did you solve it?" />
           </label>
+          <LinkNotice text={description} where="description" />
           </div>
           </div>
 

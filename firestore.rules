@@ -27,11 +27,23 @@ service cloud.firestore {
         && isFriend(request.auth.uid, get(path).data.via)
         && isFriend(get(path).data.via, owner);
     }
+    // Private profile (Settings > Privacy, "privateProfile"): only friends see the owner's entries, hours, schedule,
+    // friends list, reposts and private-group teasers. Everyone else still sees the profile document itself.
+    function profileLocked(uid) {
+      let path = /databases/$(database)/documents/profiles/$(uid);
+      return exists(path) && get(path).data.get('privateProfile', false) == true;
+    }
+    // A deactivated account (Profile > Deactivate account) shows nothing to anyone else, friends included.
+    function profileDeactivated(uid) {
+      let path = /databases/$(database)/documents/profiles/$(uid);
+      return exists(path) && get(path).data.get('deactivated', false) == true;
+    }
+    function mayOpen(uid) { return !profileDeactivated(uid) && (isFriend(request.auth.uid, uid) || !profileLocked(uid)); }
     function canSee(owner, audience) {
       return isOwner(owner) || (signedIn() && (
-        audience == 'everyone'
-        || (audience == 'friends' && isFriend(request.auth.uid, owner))
-        || (audience == 'fof' && (isFriend(request.auth.uid, owner) || reachOk(owner)))));
+        (audience == 'everyone' && mayOpen(owner))
+        || (audience == 'friends' && isFriend(request.auth.uid, owner) && !profileDeactivated(owner))
+        || (audience == 'fof' && !profileDeactivated(owner) && (isFriend(request.auth.uid, owner) || (!profileLocked(owner) && reachOk(owner))))));
     }
 
     // Membership is one document per person and group, named "<groupId>_<uid>".
@@ -64,7 +76,7 @@ service cloud.firestore {
     // For photos and comments, which hang off an entry: can the signed-in person see the entry?
     function entryReadable(uid, entryId) {
       let e = get(/databases/$(database)/documents/users/$(uid)/entries/$(entryId)).data;
-      return e.get('visibility', 'private') == 'public'
+      return (e.get('visibility', 'private') == 'public' && mayOpen(uid))
         || (e.get('visibility', 'private') == 'friends' && isFriend(request.auth.uid, uid))
         || sharedWithMyGroup(e);
     }
@@ -74,7 +86,8 @@ service cloud.firestore {
     // photos, comments and reactions. They cannot list entries, so nothing can be browsed, and
     // they cannot write anything.
     function entryIsPublic(uid, entryId) {
-      return get(/databases/$(database)/documents/users/$(uid)/entries/$(entryId)).data.get('visibility', 'private') == 'public';
+      return get(/databases/$(database)/documents/users/$(uid)/entries/$(entryId)).data.get('visibility', 'private') == 'public'
+        && !profileLocked(uid);
     }
 
     // A repost puts someone else's public entry in your own logbook (and optionally in groups you
@@ -82,7 +95,7 @@ service cloud.firestore {
     // signed in can read the pointers (the entry itself is still checked by its own rules), only
     // you can write yours, and only public entries of other people can be reposted.
     match /users/{uid}/reposts/{repostId} {
-      allow read: if signedIn();
+      allow read: if signedIn() && (isOwner(uid) || mayOpen(uid));
       allow create: if isOwner(uid)
         && request.resource.data.keys().hasOnly(['ownerUid', 'entryId', 'date', 'time', 'groupIds', 'createdAt'])
         && request.resource.data.ownerUid is string
@@ -104,7 +117,7 @@ service cloud.firestore {
     // "join the group to see this post" instead of showing it. It holds only the entry id, the date and the
     // private group ids, never the entry's text or photos. Any signed-in person can read them; only you write them.
     match /users/{uid}/teasers/{entryId} {
-      allow read: if signedIn();
+      allow read: if signedIn() && (isOwner(uid) || mayOpen(uid));
       allow create, update: if isOwner(uid)
         && request.resource.data.keys().hasOnly(['entryId', 'groupIds', 'date', 'time'])
         && request.resource.data.entryId == entryId
@@ -219,7 +232,8 @@ service cloud.firestore {
       allow delete: if isOwner(uid);
       allow create, update: if isOwner(uid) && (
         (docId == 'goal'
-          && request.resource.data.keys().hasOnly(['requiredHours', 'workDays', 'daysOff', 'daysOn', 'hoursPerDay', 'startTime', 'endTime', 'breakMinutes', 'breakAt'])
+          && request.resource.data.keys().hasOnly(['requiredHours', 'workDays', 'daysOff', 'daysOn', 'holidays', 'hoursPerDay', 'startTime', 'endTime', 'breakMinutes', 'breakAt'])
+          && request.resource.data.get('holidays', []) is list && request.resource.data.get('holidays', []).size() <= 200
           && request.resource.data.get('breakAt', '00:00') is string && request.resource.data.get('breakAt', '00:00').matches('^([01][0-9]|2[0-3]):[0-5][0-9]$')
           && request.resource.data.get('requiredHours', 1) is number
           && request.resource.data.get('requiredHours', 1) > 0
@@ -291,15 +305,53 @@ service cloud.firestore {
         && d.get('skills', []).size() <= 15;
     }
 
+    // "discoverable" puts an entry in other people's "For you" feed (see the collection group rule below). The app
+    // sets it only on public entries of a public profile; here it can never be set on an entry that is not public.
+    function discoverOk(d) {
+      return d.get('discoverable', false) != true || d.get('visibility', 'private') == 'public';
+    }
+
+    // The "For you" feed: a collection group query over every person's entries, limited to the ones marked discoverable
+    // (public entries of public profiles). The query has to include where('discoverable', '==', true) and a limit of 100
+    // or less. Nothing else can be listed this way.
+    match /{path=**}/entries/{entryId} {
+      allow list: if signedIn() && resource.data.discoverable == true && request.query.limit <= 100;
+    }
+
+    // An entry's GIF is a link to Giphy or Tenor over https, the same hosts as in messages and comments (keep in step with src/stickers.ts).
+    function entryGifOk(d) {
+      return d.get('gif', '') is string
+        && d.get('gif', '').size() <= 300
+        && (d.get('gif', '') == ''
+            || d.get('gif', '').matches('^https://(media[0-9]*\\.giphy\\.com|i\\.giphy\\.com|media[0-9]*\\.tenor\\.com|c\\.tenor\\.com)/.*'));
+    }
+
+    // Rate limit. "rate/{uid}" holds when a person last created an entry. The app writes it in the same batch as the entry
+    // (addEntry in src/entries.ts), and a new entry is refused unless that write is in the batch: getAfter reads the document as
+    // it will be once the batch lands. The rate document itself refuses a stamp less than 5 seconds after the last one, and a
+    // refused write fails the whole batch. Only the owner can write it, nobody can read or delete it.
+    match /rate/{uid} {
+      allow create: if isOwner(uid)
+        && request.resource.data.keys().hasOnly(['entryAt'])
+        && request.resource.data.entryAt == request.time;
+      allow update: if isOwner(uid)
+        && request.resource.data.keys().hasOnly(['entryAt'])
+        && request.resource.data.entryAt == request.time
+        && resource.data.entryAt + duration.value(5, 's') <= request.time;
+    }
+
     match /users/{uid}/entries/{entryId} {
       allow read, delete: if isOwner(uid);
-      allow create: if isOwner(uid) && entryTextOk(request.resource.data);
+      allow create: if isOwner(uid) && entryTextOk(request.resource.data) && entryGifOk(request.resource.data) && discoverOk(request.resource.data)
+        && getAfter(/databases/$(database)/documents/rate/$(uid)).data.entryAt == request.time;
       allow update: if isOwner(uid)
         && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['title', 'description', 'skills'])
-            || entryTextOk(request.resource.data));
-      allow get: if resource.data.get('visibility', 'private') == 'public';
+            || entryTextOk(request.resource.data))
+        && entryGifOk(request.resource.data)
+        && discoverOk(request.resource.data);
+      allow get: if resource.data.get('visibility', 'private') == 'public' && !profileLocked(uid);
       allow read: if signedIn() && (
-        resource.data.visibility == 'public' ||
+        (resource.data.visibility == 'public' && mayOpen(uid)) ||
         (resource.data.visibility == 'friends' && isFriend(request.auth.uid, uid)) ||
         sharedWithMyGroup(resource.data)
       );
@@ -501,7 +553,10 @@ service cloud.firestore {
         && request.resource.data.coverPhoto.size() <= 120000
         && request.resource.data.get('friendsAudience', 'everyone') in ['private', 'friends', 'fof', 'everyone']
         && request.resource.data.get('hoursAudience', 'private') in ['private', 'friends', 'fof', 'everyone']
-        && request.resource.data.get('scheduleAudience', 'private') in ['private', 'friends', 'fof', 'everyone'];
+        && request.resource.data.get('scheduleAudience', 'private') in ['private', 'friends', 'fof', 'everyone']
+        && request.resource.data.get('privateProfile', false) is bool
+        && request.resource.data.get('deactivated', false) is bool
+        && (!('deactivatedAt' in request.resource.data) || request.resource.data.deactivatedAt is timestamp);
       allow delete: if signedIn() && request.auth.uid == uid;
     }
 
@@ -690,13 +745,23 @@ service cloud.firestore {
       allow delete: if signedIn() && request.auth.uid in resource.data.members;
     }
 
-    // Direct messages. One conversation per pair of friends, named like their friendship ("<uidA>_<uidB>", ids sorted).
-    // Only the two people can read it, and only while they are friends can either write to it. Messages cannot be
-    // edited or deleted. "seen" holds when each person last read the conversation, and you can only change your own.
+    // Direct messages. One conversation per pair of people, named like a friendship ("<uidA>_<uidB>", ids sorted).
+    // Only the two people can read it. Friends can write freely; anyone else starts with a message request (see chatOpen).
+    // A message can only be changed by its author: edited (new "enc" and "editedAt") or unsent ("unsent": true with "enc" emptied).
+    // Nobody can delete a message. "seen" holds when each person last read the conversation, and you can only change your own.
     function inPair(pid) { return signedIn() && request.auth.uid in pid.split('_'); }
     function friendsInPair(pid) { return exists(/databases/$(database)/documents/friendships/$(pid)); }
     // The other person in a conversation, and whether either of you blocked the other (a block stops new messages both ways).
     function otherInPair(pid) { return pid.split('_')[0] == request.auth.uid ? pid.split('_')[1] : pid.split('_')[0]; }
+    // Chats with people who are not (or no longer) your friends are message requests: the person who starts one may send a
+    // single message, and the other person opens the chat by accepting ("accepted": true on the conversation). Friends, chats
+    // that existed before requests, and accepted chats are open for both. Used for new messages and for the preview.
+    function chatOpen(pid) {
+      return friendsInPair(pid)
+        || !exists(/databases/$(database)/documents/conversations/$(pid))
+        || get(/databases/$(database)/documents/conversations/$(pid)).data.get('startedBy', '') == ''
+        || get(/databases/$(database)/documents/conversations/$(pid)).data.get('accepted', false) == true;
+    }
     function blockedInPair(pid) {
       return exists(/databases/$(database)/documents/users/$(request.auth.uid)/blocked/$(otherInPair(pid)))
         || exists(/databases/$(database)/documents/users/$(otherInPair(pid))/blocked/$(request.auth.uid));
@@ -706,49 +771,102 @@ service cloud.firestore {
       // Judged on the document's own members (not its name) so the inbox query (members array-contains you) is allowed.
       allow read: if signedIn() && request.auth.uid in resource.data.members;
       allow create: if inPair(pid)
-        && friendsInPair(pid)
         && !blockedInPair(pid)
-        && request.resource.data.keys().hasOnly(['members', 'lastText', 'lastFrom', 'updatedAt', 'seen'])
+        && request.resource.data.keys().hasOnly(['members', 'lastText', 'lastEnc', 'lastFrom', 'updatedAt', 'seen', 'startedBy', 'accepted'])
+        && request.resource.data.get('startedBy', request.auth.uid) == request.auth.uid
+        && (!('accepted' in request.resource.data) || (request.resource.data.accepted == true && friendsInPair(pid)))
         && request.resource.data.members.size() == 2
         && request.resource.data.members[0] < request.resource.data.members[1]
         && pid == request.resource.data.members[0] + '_' + request.resource.data.members[1]
         && request.resource.data.lastFrom == request.auth.uid
-        && request.resource.data.lastText is string && request.resource.data.lastText.size() <= 120
+        && request.resource.data.lastText == ''
+        && request.resource.data.lastEnc is string && request.resource.data.lastEnc.size() > 0 && request.resource.data.lastEnc.size() <= 1000
         && request.resource.data.updatedAt == request.time
         && request.resource.data.seen.keys().hasOnly([request.auth.uid]);
       allow update: if inPair(pid)
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastText', 'lastFrom', 'updatedAt', 'seen'])
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastText', 'lastEnc', 'lastFrom', 'updatedAt', 'seen', 'accepted'])
+        // accepting a request: only the person who did not start it, and only to say yes
+        && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['accepted'])
+            || (request.resource.data.accepted == true
+                && resource.data.get('startedBy', '') != ''
+                && resource.data.startedBy != request.auth.uid))
         && request.resource.data.seen.diff(resource.data.seen).affectedKeys().hasOnly([request.auth.uid])
-        && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['lastText', 'lastFrom', 'updatedAt'])
-            || (friendsInPair(pid)
+        && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['lastText', 'lastEnc', 'lastFrom', 'updatedAt'])
+            || ((friendsInPair(pid) || resource.data.get('startedBy', '') == '' || resource.data.get('accepted', false) == true)
                 && !blockedInPair(pid)
                 && request.resource.data.lastFrom == request.auth.uid
-                && request.resource.data.lastText is string && request.resource.data.lastText.size() <= 120
-                && request.resource.data.updatedAt == request.time));
+                && request.resource.data.lastText == ''
+                && request.resource.data.lastEnc is string && request.resource.data.lastEnc.size() > 0 && request.resource.data.lastEnc.size() <= 1000
+                && request.resource.data.updatedAt == request.time)
+            // editing or unsending your own newest message rewrites the preview and nothing else (the time does not move, so
+            // the other person does not get a new unread mark)
+            || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastEnc'])
+                && resource.data.lastFrom == request.auth.uid
+                && !blockedInPair(pid)
+                && request.resource.data.lastEnc is string && request.resource.data.lastEnc.size() > 0 && request.resource.data.lastEnc.size() <= 1000));
 
       match /messages/{messageId} {
         allow read: if inPair(pid);
         allow create: if inPair(pid)
-          && friendsInPair(pid)
+          && chatOpen(pid)
           && !blockedInPair(pid)
-          && request.resource.data.keys().hasOnly(['from', 'text', 'createdAt', 'image', 'gif'])
+          // Messages are end-to-end encrypted (src/e2ee.ts): the server only ever gets "enc", which holds the text, picture and GIF.
+          // Plain text, images and GIF links are no longer accepted. The size covers the 300,000-character picture limit in src/messages.ts.
+          && request.resource.data.keys().hasOnly(['from', 'createdAt', 'enc'])
           && request.resource.data.from == request.auth.uid
-          && request.resource.data.text is string
-          && request.resource.data.text.size() <= 2000
-          // a message needs some text, a picture or a GIF
-          && (request.resource.data.text.size() > 0 || 'image' in request.resource.data || 'gif' in request.resource.data)
-          // a picture is a small JPEG data URL (keep the size in step with IMAGE_MAX_CHARS in src/messages.ts)
-          && (!('image' in request.resource.data)
-              || (request.resource.data.image is string
-                  && request.resource.data.image.size() > 11
-                  && request.resource.data.image.size() <= 300000
-                  && request.resource.data.image[0:11] == 'data:image/'))
-          // GIFs may only be loaded from Giphy or Tenor over https (keep in step with src/stickers.ts)
-          && (!('gif' in request.resource.data)
-              || (request.resource.data.gif is string
-                  && request.resource.data.gif.size() <= 300
-                  && request.resource.data.gif.matches('^https://(media[0-9]*\\.giphy\\.com|i\\.giphy\\.com|media[0-9]*\\.tenor\\.com|c\\.tenor\\.com)/.*')))
+          && request.resource.data.enc is string
+          && request.resource.data.enc.size() > 0
+          && request.resource.data.enc.size() <= 450000
           && request.resource.data.createdAt == request.time;
+        // Edit or unsend: only the author, only these fields, and never a message that was already unsent. The plain text, image
+        // and gif that messages from before encryption have can only be removed (an edit or an unsend clears them), never changed.
+        allow update: if inPair(pid)
+          && !blockedInPair(pid)
+          && resource.data.from == request.auth.uid
+          && !resource.data.get('unsent', false)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['enc', 'editedAt', 'unsent', 'text', 'image', 'gif'])
+          && request.resource.data.enc is string
+          && request.resource.data.enc.size() <= 450000
+          && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['editedAt'])
+              || request.resource.data.editedAt == request.time)
+          && !('text' in request.resource.data) && !('image' in request.resource.data) && !('gif' in request.resource.data)
+          && (request.resource.data.get('unsent', false) == true
+              ? request.resource.data.enc == ''
+              : (request.resource.data.enc.size() > 0
+                  && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['unsent'])
+                  && request.resource.data.editedAt == request.time));
+      }
+
+      // Reactions: one per person per message, named "<messageId>_<uid>". The emoji is encrypted like the message ("enc").
+      // You can only add, change or remove your own; either of you can read them.
+      match /reactions/{reactionId} {
+        allow read: if inPair(pid);
+        allow create, update: if inPair(pid)
+          && chatOpen(pid)
+          && !blockedInPair(pid)
+          && request.resource.data.keys().hasOnly(['mid', 'by', 'enc', 'at'])
+          && request.resource.data.mid is string
+          && request.resource.data.by == request.auth.uid
+          && reactionId == request.resource.data.mid + '_' + request.auth.uid
+          && request.resource.data.enc is string
+          && request.resource.data.enc.size() > 0 && request.resource.data.enc.size() <= 600
+          && request.resource.data.at == request.time;
+        allow delete: if inPair(pid) && reactionId.split('_')[1] == request.auth.uid;
+      }
+
+      // Pinned messages, named after the message. Either of you can pin or unpin. "enc" is a short encrypted copy of the message
+      // (its words, who wrote it, when), so the list of pins shows without loading the chat.
+      match /pins/{pinId} {
+        allow read: if inPair(pid);
+        allow create, update: if inPair(pid)
+          && chatOpen(pid)
+          && !blockedInPair(pid)
+          && request.resource.data.keys().hasOnly(['by', 'at', 'enc'])
+          && request.resource.data.by == request.auth.uid
+          && request.resource.data.enc is string
+          && request.resource.data.enc.size() > 0 && request.resource.data.enc.size() <= 3000
+          && request.resource.data.at == request.time;
+        allow delete: if inPair(pid);
       }
 
       // The quick emoji and nicknames both people see ("settings/shared"). Either friend can change them. The nicknames are
@@ -756,7 +874,7 @@ service cloud.firestore {
       match /settings/{settingsId} {
         allow read: if inPair(pid);
         allow create, update: if inPair(pid)
-          && friendsInPair(pid)
+          && chatOpen(pid)
           && settingsId == 'shared'
           && request.resource.data.keys().hasOnly(['emoji', 'nick'])
           && (!('emoji' in request.resource.data)
@@ -770,6 +888,25 @@ service cloud.firestore {
                   && request.resource.data.nick.get(pid.split('_')[1], '') is string
                   && request.resource.data.nick.get(pid.split('_')[1], '').size() <= 40));
       }
+    }
+
+    // Reports of a message. Messages are end-to-end encrypted, so the report holds only what the reporter chose to send: the words
+    // of the message, whether it had a photo or GIF, a reason and a few details. Anyone signed in can report a message from a
+    // conversation they are in, about the other person. Nobody can read, change or delete a report from the app: the people
+    // who run VibeBook read them in the Firebase console.
+    match /messageReports/{reportId} {
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['reporter', 'reported', 'conversation', 'messageId', 'reason', 'excerpt', 'image', 'gif', 'details', 'createdAt'])
+        && request.resource.data.reporter == request.auth.uid
+        && request.resource.data.conversation is string
+        && inPair(request.resource.data.conversation)
+        && request.resource.data.reported == otherInPair(request.resource.data.conversation)
+        && request.resource.data.messageId is string && request.resource.data.messageId.size() <= 40
+        && request.resource.data.reason in ['Spam', 'Harassment or bullying', 'Inappropriate content', 'Scam or fraud', 'Something else']
+        && request.resource.data.excerpt is string && request.resource.data.excerpt.size() <= 500
+        && request.resource.data.image is bool && request.resource.data.gif is bool
+        && request.resource.data.details is string && request.resource.data.details.size() <= 300
+        && request.resource.data.createdAt == request.time;
     }
 
     // Your own say over a chat, at users/{you}/chatPrefs/{otherUid}: when you archived it, muted it until, deleted it ("clearedAt"),
@@ -786,13 +923,53 @@ service cloud.firestore {
         && (!('receipts' in request.resource.data) || request.resource.data.receipts is bool);
     }
 
-    // People you blocked: users/{you}/blocked/{theirUid}. Only you can see or change the list. While either of you has
-    // blocked the other, neither can add a message to their conversation (see blockedInPair above).
+    // People you blocked: users/{you}/blocked/{theirUid}. Only you can see or change the list. The person you blocked can
+    // read just their own entry (a single get, never the list), so their chat can say they were blocked. While either of you
+    // has blocked the other, neither can add a message to their conversation (see blockedInPair above).
     match /users/{uid}/blocked/{otherId} {
+      allow get: if isOwner(uid) || (signedIn() && request.auth.uid == otherId);
+      allow list, delete: if isOwner(uid);
+      allow create: if isOwner(uid)
+        && otherId != uid
+        && request.resource.data.keys().hasOnly(['createdAt'])
+        && request.resource.data.createdAt == request.time;
+    }
+
+    // People you restricted: users/{you}/restricted/{theirUid}. Only you can see or change the list, and the other person is
+    // never told. The app moves their chat to your message requests and stops reporting what you read to them.
+    match /users/{uid}/restricted/{otherId} {
       allow read, delete: if isOwner(uid);
       allow create: if isOwner(uid)
         && otherId != uid
         && request.resource.data.keys().hasOnly(['createdAt'])
+        && request.resource.data.createdAt == request.time;
+    }
+
+    // End-to-end encryption keys (src/e2ee.ts).
+    // Your public key, publicKeys/{you}: anyone signed in can read it (that is how they encrypt a message to you); only you can write it.
+    // It is 65 bytes (an uncompressed P-256 point), 88 characters in base64.
+    match /publicKeys/{uid} {
+      allow read: if signedIn();
+      allow create, update: if isOwner(uid)
+        && request.resource.data.keys().hasOnly(['key', 'createdAt'])
+        && request.resource.data.key is string
+        && request.resource.data.key.size() == 88
+        && request.resource.data.createdAt == request.time;
+    }
+
+    // Your private key, encrypted with your passphrase, at users/{you}/keyBackup/main. It is useless without the passphrase, and
+    // only you can read or write it. It is what a new browser or device opens to get your key.
+    match /users/{uid}/keyBackup/{backupId} {
+      allow read: if isOwner(uid);
+      allow create, update: if isOwner(uid)
+        && backupId == 'main'
+        && request.resource.data.keys().hasOnly(['v', 'iters', 'salt', 'iv', 'ct', 'createdAt'])
+        && request.resource.data.v == 1
+        && request.resource.data.iters is int
+        && request.resource.data.iters >= 100000
+        && request.resource.data.salt is string && request.resource.data.salt.size() <= 64
+        && request.resource.data.iv is string && request.resource.data.iv.size() <= 64
+        && request.resource.data.ct is string && request.resource.data.ct.size() <= 400
         && request.resource.data.createdAt == request.time;
     }
   }

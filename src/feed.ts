@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { collection, limit, onSnapshot, orderBy, query, where } from "firebase/firestore";
 import { db } from "./firebase";
 import { newestFirst, type Entry } from "./entries";
+import { fetchProfile } from "./profiles";
 
 export type Source = { uid: string; friend: boolean };
 
@@ -51,4 +52,22 @@ export function useSharedEntries(sources: Source[], max = 60, dir: "asc" | "desc
     [byQuery, max, dir],
   );
   return { entries, loading: keys.length > 0 && loaded.size < keys.length, error };
+}
+
+/**
+ * Which of these people have a private profile. Only their friends can read their entries, so a follower who is not a
+ * friend must not query them. null while the profiles are loading.
+ */
+export function useLockedProfiles(uids: string[]): Set<string> | null {
+  const key = [...uids].sort().join(",");
+  const [locked, setLocked] = useState<{ key: string; ids: Set<string> } | null>(null);
+  useEffect(() => {
+    let live = true;
+    Promise.all((key ? key.split(",") : []).map(async (uid) => ((await fetchProfile(uid))?.privateProfile ? uid : null)))
+      .then((ids) => live && setLocked({ key, ids: new Set(ids.filter((x): x is string => x !== null)) }))
+      // If a profile cannot be read, nobody is treated as private; a private one then fails its query and the feed shows its error.
+      .catch(() => live && setLocked({ key, ids: new Set() }));
+    return () => { live = false; };
+  }, [key]);
+  return locked && locked.key === key ? locked.ids : null;
 }

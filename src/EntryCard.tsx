@@ -7,6 +7,7 @@ import { VISIBILITY, type Visibility } from "./types";
 import { chosenVisibility } from "./entryPrivacy";
 import Avatar from "./Avatar";
 import ClampedText from "./ClampedText";
+import { Linkified } from "./links";
 import { ArchiveIcon, CheckIcon, CommentIcon, CopyIcon, DownloadIcon, EditIcon, GlobeIcon, GroupsIcon, LockIcon, MoreIcon, RepostIcon, ShareIcon, TrashIcon, UnarchiveIcon, UsersIcon } from "./icons";
 import GroupShareSheet from "./GroupShareSheet";
 import ShareSheet from "./ShareSheet";
@@ -239,7 +240,7 @@ function FullEntryCard({ entry, onEdit, inGroup, single = false }: Props) {
 
       <div className="post-body">
         <h2 className="post-title">{single ? entry.title : <a href={`#/p/${encodeURIComponent(ownerUid)}/${encodeURIComponent(entry.id)}`}>{entry.title}</a>}</h2>
-        {entry.description && (single ? <p className="post-desc">{entry.description}</p> : <ClampedText className="post-desc" text={entry.description} />)}
+        {entry.description && (single ? <p className="post-desc"><Linkified text={entry.description} /></p> : <ClampedText className="post-desc" text={entry.description} />)}
         <SkillChips skills={entry.skills} />
       </div>
 
@@ -255,6 +256,7 @@ function FullEntryCard({ entry, onEdit, inGroup, single = false }: Props) {
         </div>
       )}
 
+      {entry.gif && <img className="post-gif" src={entry.gif} alt={`GIF on ${entry.title}`} loading="lazy" referrerPolicy="no-referrer" />}
       {entry.videoUrl && <VideoPlayer url={entry.videoUrl} title={entry.title} />}
 
       <div className="post-actions">

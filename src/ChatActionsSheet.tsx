@@ -6,7 +6,7 @@ import { useScrollLock } from "./scrollLock";
 import { useChatCommands } from "./chatCommands";
 import MuteChoices from "./MuteChoices";
 import type { Profile } from "./types";
-import { ArchiveIcon, ArrowLeftIcon, BellIcon, BellOffIcon, BlockIcon, CheckIcon, CloseIcon, TrashIcon, UnarchiveIcon, UserIcon } from "./icons";
+import { ArchiveIcon, ArrowLeftIcon, BellIcon, BellOffIcon, BlockIcon, CheckIcon, CloseIcon, RestrictIcon, TrashIcon, UnarchiveIcon, UserIcon } from "./icons";
 
 type Props = { other: string; profile: Profile | null | undefined; name: string; onClose: () => void };
 
@@ -20,6 +20,7 @@ export default function ChatActionsSheet({ other, profile, name, onClose }: Prop
   const prefs = s.chats.prefsOf(other);
   const muted = chat?.muted ?? false;
   const blocked = s.chats.blocked.has(other);
+  const restricted = s.chats.restricted.has(other);
   const unread = chat ? isUnread(chat, s.uid) : false;
   const archived = s.chats.archived.some((c) => c.other === other);
   const cmd = useChatCommands(other, name, prefs, onClose);
@@ -65,6 +66,9 @@ export default function ChatActionsSheet({ other, profile, name, onClose }: Prop
               <a role="menuitem" className="action-row" href={personHash(other, profile)} onClick={onClose}>
                 <i><UserIcon /></i>View profile
               </a>
+              <button type="button" role="menuitem" className="action-row" onClick={() => (restricted ? run(cmd.unrestrict)() : cmd.askRestrict())}>
+                <i><RestrictIcon /></i>{restricted ? "Unrestrict" : "Restrict"}
+              </button>
               <button type="button" role="menuitem" className="action-row" onClick={() => (blocked ? run(cmd.unblock)() : cmd.askBlock())}>
                 <i><BlockIcon /></i>{blocked ? "Unblock" : "Block"}
               </button>

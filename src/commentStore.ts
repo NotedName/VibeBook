@@ -7,6 +7,7 @@ import {
 import { db } from "./firebase";
 import { NO_MEDIA, type Media } from "./stickers";
 import { dropNote, pushNote } from "./notifications";
+import { takeTurn } from "./rateLimit";
 
 export const COMMENT_MAX = 500;
 /** Levels of replies shown: a top-level comment is level 1. Comments on the last level cannot be replied to. */
@@ -53,6 +54,7 @@ export type CommentNote = { title: string; parentAuthorUid?: string };
 export async function addComment(
   ownerUid: string, entryId: string, authorUid: string, text: string, parentId = "", media: Media = NO_MEDIA, note?: CommentNote,
 ) {
+  takeTurn("comment");
   const ref = await addDoc(commentsRef(ownerUid, entryId), {
     authorUid, text, sticker: media.sticker, gif: media.gif, createdAt: serverTimestamp(), parentId, likes: [],
   });

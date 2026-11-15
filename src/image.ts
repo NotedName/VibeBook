@@ -3,7 +3,23 @@ import { nativeImage } from "./native";
 
 const MAX_CHARS = 900_000; // Firestore documents are capped at 1 MiB
 
+/** Read a file as a data URL, unchanged. */
+const readDataUrl = (file: File) => new Promise<string>((resolve, reject) => {
+  const r = new FileReader();
+  r.onload = () => resolve(String(r.result));
+  r.onerror = () => reject(new Error(`Could not read ${file.name}`));
+  r.readAsDataURL(file);
+});
+
+export const isGifFile = (file: File) => file.type === "image/gif" || /\.gif$/i.test(file.name);
+
 export async function compressImage(file: File): Promise<string> {
+  // A GIF is kept exactly as it is, because drawing it on a canvas would keep only its first frame and it would stop moving.
+  if (isGifFile(file)) {
+    const url = await readDataUrl(file);
+    if (url.length > MAX_CHARS) throw new Error(`${file.name} is too big to keep moving (the limit is about 650 KB). Use a smaller GIF, or pick one from Giphy or Tenor instead.`);
+    return url.startsWith("data:image/gif") ? url : url.replace(/^data:[^;,]*/, "data:image/gif");
+  }
   const wanted = photoQuality();
   const fromRust = await nativeImage(file, "photo", wanted.side, wanted.quality, MAX_CHARS);
   if (fromRust) return fromRust;

@@ -9,8 +9,9 @@ import UsernameField from "./UsernameField";
 import { CopyIcon, EyeIcon, EyeOffIcon, GroupsIcon, NoteIcon } from "./icons";
 import { BrandName } from "./Logo";
 import { TermsDialog } from "./Terms";
+import ForgotPasswordForm from "./ForgotPasswordForm";
+import { MIN_PASSWORD, STRENGTH_LABEL, strength } from "./password";
 
-const MIN_PASSWORD = 8;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 type Field = "name" | "email" | "password" | "confirm" | "terms";
@@ -19,15 +20,6 @@ type Field = "name" | "email" | "password" | "confirm" | "terms";
 const FX_CHIPS: [string, string][] = [
   ["React", "c1"], ["Writing", "c2"], ["Figma", "c3"], ["Public speaking", "c4"], ["SQL", "c5"], ["Photography", "c6"],
 ];
-
-/** 0 = too short, 1 = weak, 2 = okay, 3 = strong. */
-function strength(pw: string): 0 | 1 | 2 | 3 {
-  if (pw.length < MIN_PASSWORD) return 0;
-  const kinds = [/[a-z]/, /[A-Z]/, /\d/, /[^A-Za-z0-9]/].filter((r) => r.test(pw)).length;
-  if (pw.length >= 12 && kinds >= 3) return 3;
-  return kinds >= 3 || pw.length >= 12 ? 2 : 1;
-}
-const STRENGTH_LABEL = ["Use at least 8 characters", "Weak", "Okay", "Strong"] as const;
 
 type Props = { initialMode?: "signin" | "signup"; onBack?: () => void };
 
@@ -44,6 +36,7 @@ export default function AuthForm({ initialMode = "signin", onBack }: Props) {
   const [busy, setBusy] = useState(false);
   const [agreed, setAgreed] = useState(false);
   const [showTerms, setShowTerms] = useState(false);
+  const [forgot, setForgot] = useState(false);
   const [touched, setTouched] = useState<Partial<Record<Field, boolean>>>({});
   const [submitted, setSubmitted] = useState(false);
   const [online, setOnline] = useState(() => navigator.onLine);
@@ -139,6 +132,7 @@ export default function AuthForm({ initialMode = "signin", onBack }: Props) {
       </section>
 
       <div className="auth-panel">
+        {forgot ? <ForgotPasswordForm initialEmail={email} onBack={() => setForgot(false)} /> : <>
         <div className="auth-tabs" role="tablist" aria-label="Sign in or create an account">
           <button type="button" role="tab" aria-selected={!signup} className={!signup ? "on" : ""} onClick={() => switchMode("signin")}>Sign in</button>
           <button type="button" role="tab" aria-selected={signup} className={signup ? "on" : ""} onClick={() => switchMode("signup")}>Create account</button>
@@ -180,6 +174,7 @@ export default function AuthForm({ initialMode = "signin", onBack }: Props) {
             </span>
             {fieldError("password", shown("password"))}
           </label>
+          {!signup && <button type="button" className="link inline forgot-link" onClick={() => setForgot(true)}>Forgot password?</button>}
           {signup && (
             <>
               {password && (
@@ -215,6 +210,7 @@ export default function AuthForm({ initialMode = "signin", onBack }: Props) {
           {signup && <p className="hint">We will email you a link to confirm your address. Your username is reserved once you confirm.</p>}
         </form>
         {onBack && <button type="button" className="btn" onClick={onBack}>← Back to the post</button>}
+        </>}
       </div>
       {showTerms && <TermsDialog onClose={() => setShowTerms(false)} />}
     </main>

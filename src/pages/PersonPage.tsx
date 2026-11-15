@@ -23,11 +23,14 @@ export default function PersonPage({ uid }: { uid: string }) {
   const s = useSession();
   const p = useProfile(uid);
   const friend = s.friends.has(uid);
-  const sources = useMemo(() => [{ uid, friend }], [uid, friend]);
+  // A private profile shows its entries, hours, schedule and friends only to friends. Your own profile seen "as someone
+  // else" counts as a stranger's. Nothing is queried for it, since firestore.rules would refuse.
+  const hidden = p?.privateProfile === true && !friend;
+  const sources = useMemo(() => (p === undefined || hidden ? [] : [{ uid, friend }]), [uid, friend, p, hidden]);
   const [mode, setMode] = useSortMode("person");
   const dir = dateDir(mode);
   const { entries: original, loading, error } = useSharedEntries(sources, 100, dir);
-  const who = useMemo(() => [uid], [uid]);
+  const who = useMemo(() => (p === undefined || hidden ? [] : [uid]), [uid, p, hidden]);
   // Posts in private groups: the real entry for people in the group, a "join the group to see this" placeholder for
   // everyone else. Your own profile seen "as someone else" shows placeholders too.
   const none = useMemo(() => new Set<string>(), []);
@@ -42,7 +45,7 @@ export default function PersonPage({ uid }: { uid: string }) {
   const rel = s.relationOf(uid);
   const [friendsOpen, setFriendsOpen] = useState<"all" | "mutual" | null>(null);
   const canSeeFriends = useCanSee(uid, p ? p.friendsAudience : "private");
-  const { mutual } = useMutualFriends(uid, s.friends, uid !== s.uid && canSeeFriends === true);
+  const { mutual } = useMutualFriends(uid, s.friends, uid !== s.uid && canSeeFriends === true && !hidden);
 
   if (p === undefined) return <><ProfileSkeleton /><FeedSkeleton /></>;
   if (p === null) {
@@ -56,28 +59,36 @@ export default function PersonPage({ uid }: { uid: string }) {
   }
   return (
     <>
-      <ProfileHeader profile={p}>
+      <ProfileHeader profile={hidden ? { ...p, headline: "", workplace: "", bio: "" } : p}>
         <div className="profile-actions">
           <RelationButtons uid={uid} />
-          <button type="button" className="btn" onClick={() => setFriendsOpen("all")}
-            title={canSeeFriends === false && uid !== s.uid ? "Friends list is private" : undefined}>
-            {canSeeFriends === false && uid !== s.uid ? <LockIcon /> : <UsersIcon />} Friends
-          </button>
+          {!hidden && (
+            <button type="button" className="btn" onClick={() => setFriendsOpen("all")}
+              title={canSeeFriends === false && uid !== s.uid ? "Friends list is private" : undefined}>
+              {canSeeFriends === false && uid !== s.uid ? <LockIcon /> : <UsersIcon />} Friends
+            </button>
+          )}
         </div>
         {mutual && mutual.length > 0 && (
           <button type="button" className="mutual-link" onClick={() => setFriendsOpen("mutual")}>
             <UsersIcon />{mutual.length} mutual friend{mutual.length === 1 ? "" : "s"}
           </button>
         )}
-        <SharedHoursCard uid={uid} audience={p.hoursAudience} />
-        <SharedScheduleCard uid={uid} audience={p.scheduleAudience} />
+        {!hidden && <SharedHoursCard uid={uid} audience={p.hoursAudience} />}
+        {!hidden && <SharedScheduleCard uid={uid} audience={p.scheduleAudience} />}
         {rel === "incoming" && <p className="hint pad-b">{p.displayName} sent you a friend request.</p>}
       </ProfileHeader>
-      <ProfileTabs tab={tab} onChange={setTab}>
+      {hidden && (
+        <div className="empty">
+          <h2><LockIcon /> This profile is private</h2>
+          <p>{uid === s.uid ? "This is what people who are not your friends see." : `Become friends with ${p.displayName} to see their entries, hours and schedule.`}</p>
+        </div>
+      )}
+      {!hidden && <ProfileTabs tab={tab} onChange={setTab}>
         {entries.length > 1 && <SortMenu mode={mode} onChange={setMode} />}
-      </ProfileTabs>
+      </ProfileTabs>}
       {friendsOpen && <FriendsSheet uid={uid} initialView={friendsOpen} onClose={() => setFriendsOpen(null)} />}
-      <div className="feed">
+      {!hidden && <div className="feed">
         {error && <p className="error note" role="alert">{error}</p>}
         {loading && entries.length === 0 && <FeedSkeleton />}
         {tab === "reposts" && entries.length === 0 && (
@@ -93,7 +104,7 @@ export default function PersonPage({ uid }: { uid: string }) {
           </div>
         )}
         <EntryList entries={entries} dayHeadings={mode.kind === "newest" || mode.kind === "oldest"} />
-      </div>
+      </div>}
     </>
   );
 }

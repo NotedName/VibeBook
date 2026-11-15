@@ -1,10 +1,15 @@
 import {
-  useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ClipboardEvent, type KeyboardEvent,
+  useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ClipboardEvent, type KeyboardEvent, type TouchEvent,
 } from "react";
 import {
-  calledBy, failureReason, isUnread, markRead, MESSAGE_MAX, PAGE, SEARCH_WINDOW, sendMessage, unblockPerson, useChatSettings, useMessages,
-  type Message, type Outgoing,
+  acceptChat, blockPerson, calledBy, deleteChatForMe, editMessage, failureReason, isUnread, markRead, MESSAGE_MAX, PAGE, PIN_MAX, pinMessage,
+  replyRefOf, SEARCH_WINDOW, sendMessage, setReaction, snippetOf, unblockPerson, unpinMessage, unrestrictPerson, unsendMessage, useBlockedBy, useChatExtras, useChatSettings, useMessages,
+  type Message, type Outgoing, type Reaction,
 } from "../messages";
+import { RateLimitError } from "../rateLimit";
+import { copyText } from "../report";
+import ConfirmDialog from "../ConfirmDialog";
+import { ForwardSheet, MessageActions, ReactionChips, ReplyQuote, ReportMessageSheet } from "../MessageTools";
 import { personHash } from "../profiles";
 import { useProfile, useSession } from "../session";
 import { chatPhoto } from "../image";
@@ -14,13 +19,18 @@ import type { Media } from "../stickers";
 import type { Profile } from "../types";
 import Avatar from "../Avatar";
 import Highlight from "../Highlight";
-import ChatActionsSheet from "../ChatActionsSheet";
+import { Linkified } from "../links";
+import CameraSheet from "../CameraSheet";
 import ChatInfoSheet from "../ChatInfoSheet";
+import E2eePrompt from "../E2eePrompt";
+import { useE2ee } from "../e2ee";
 import ImageViewer from "../ImageViewer";
 import { enterSendsMessage } from "../preferences";
+import { DropHint, useImageDrop } from "../imageDrop";
 import MediaPicker from "../MediaPicker";
 import {
-  ArrowLeftIcon, ChevronDownIcon, ChevronUpIcon, CloseIcon, ImageIcon, MenuIcon, SearchIcon, SendIcon, SmileIcon,
+  AlertIcon, ArrowLeftIcon, CameraIcon, CheckIcon, ChevronDownIcon, ChevronUpIcon, CloseIcon, ForwardIcon, ImageIcon, InfoIcon, MoreIcon, PinIcon, SearchIcon, SendIcon,
+  SmileIcon,
 } from "../icons";
 import { LinesSkeleton } from "../Skeleton";
 
@@ -56,6 +66,12 @@ const enterSends = enterSendsMessage;
 type BubblesProps = {
   messages: Message[]; loading: boolean; me: string; other: Profile | null | undefined; otherSeenAt: number;
   q: string; activeId: string; onPhoto: (src: string) => void;
+  /** people's names as this chat calls them (nicknames included) */
+  nameOf: (uid: string) => string;
+  reactions: Map<string, Reaction[]>; pinned: Set<string>; flash: string;
+  /** false when nothing can be written (a request, a block, locked keys): no menu, no reacting */
+  canAct: boolean;
+  onMenu: (m: Message) => void; onReact: (m: Message, emoji: string) => void; onJump: (id: string) => void;
 };
 
 /** Whether the device thinks it is online (a message waiting to send says "Waiting for connection" while it is not). */
@@ -66,8 +82,23 @@ function useOnline(): boolean {
   );
 }
 
-function Bubbles({ messages, loading, me, other, otherSeenAt, q, activeId, onPhoto }: BubblesProps) {
+function Bubbles({ messages, loading, me, other, otherSeenAt, q, activeId, onPhoto, nameOf, reactions, pinned, flash, canAct, onMenu, onReact, onJump }: BubblesProps) {
   const [timeFor, setTimeFor] = useState("");
+  const byId = useMemo(() => new Map(messages.map((m) => [m.id, m])), [messages]);
+  // Long press (touch) opens the message menu; a right click or the ... button does the same on a computer.
+  const press = useRef<{ timer: number; x: number; y: number } | null>(null);
+  const endPress = () => { if (press.current) { clearTimeout(press.current.timer); press.current = null; } };
+  useEffect(() => endPress, []);
+  const startPress = (e: TouchEvent<HTMLElement>, m: Message) => {
+    if (!canAct || m.unsent || m.pending) return;
+    endPress();
+    const t = e.touches[0];
+    press.current = { x: t.clientX, y: t.clientY, timer: window.setTimeout(() => { press.current = null; navigator.vibrate?.(12); onMenu(m); }, 450) };
+  };
+  const movePress = (e: TouchEvent<HTMLElement>) => {
+    const p = press.current;
+    if (p && Math.hypot(e.touches[0].clientX - p.x, e.touches[0].clientY - p.y) > 10) endPress();
+  };
   const online = useOnline();
   // Only messages that arrive (or are sent) while the chat is open animate in; the ones loaded with it, and older ones, just appear.
   const known = useRef(new Set<string>());
@@ -99,11 +130,21 @@ function Bubbles({ messages, loading, me, other, otherSeenAt, q, activeId, onPho
         const seen = otherSeenAt > 0 && otherSeenAt >= m.at;
         if (primed.current && !known.current.has(m.id) && m.at >= newest.current) animated.current.add(m.id);
         return (
-          <div key={m.id} className={`msg ${mine ? "mine" : "theirs"} ${pos}${animated.current.has(m.id) ? " enter" : ""}${m.pending ? " pending" : ""}`} data-mid={m.id}>
+          <div key={m.id} className={`msg ${mine ? "mine" : "theirs"} ${pos}${animated.current.has(m.id) ? " enter" : ""}${m.pending ? " pending" : ""}${flash === m.id ? " flash" : ""}`} data-mid={m.id}>
             {sep && <p className="chat-sep">{sepLabel(m.at)}</p>}
             <div className="msg-row">
               {!mine && <span className="msg-av">{ends && <Avatar profile={other} size="sm" />}</span>}
-              <div className="msg-col">
+              <div className="msg-col"
+                onTouchStart={(e) => startPress(e, m)} onTouchMove={movePress} onTouchEnd={endPress} onTouchCancel={endPress}
+                onContextMenu={(e) => { if (canAct && !m.unsent && !m.pending) { e.preventDefault(); onMenu(m); } }}>
+                {m.unsent ? (
+                  <div className={`bubble unsent ${mine ? "mine" : "theirs"}`}>{mine ? "You unsent a message" : `${nameOf(m.from)} unsent a message`}</div>
+                ) : <>
+                {m.fwd && <span className="msg-fwd"><ForwardIcon />Forwarded</span>}
+                {m.reply && (
+                  <ReplyQuote reply={m.reply} mine={mine} original={byId.get(m.reply.id)} onJump={onJump}
+                    who={m.reply.from === me ? "You" : nameOf(m.reply.from)} />
+                )}
                 {m.image && (
                   <button type="button" className="msg-photo" aria-label="Open photo" onClick={() => onPhoto(m.image)}>
                     <img src={m.image} alt="Photo" />
@@ -113,11 +154,21 @@ function Bubbles({ messages, loading, me, other, otherSeenAt, q, activeId, onPho
                 {m.text !== "" && (
                   <div className={`bubble ${mine ? "mine" : "theirs"}${big ? " big" : ""}`} title={timeLabel(m.at)}
                     onClick={() => setTimeFor((t) => (t === m.id ? "" : m.id))}>
-                    <Highlight text={m.text} q={q} current={m.id === activeId} />
+                    {q.trim() ? <Highlight text={m.text} q={q} current={m.id === activeId} /> : <Linkified text={m.text} />}
                   </div>
                 )}
+                <ReactionChips list={reactions.get(m.id) ?? []} me={me} onToggle={(emoji) => canAct && onReact(m, emoji)} />
+                {(m.edited || pinned.has(m.id)) && (
+                  <span className="msg-flags">{pinned.has(m.id) && <span><PinIcon />Pinned</span>}{m.edited && <span>Edited</span>}</span>
+                )}
                 {timeFor === m.id && <time className="msg-time">{timeLabel(m.at)}</time>}
+                </>}
               </div>
+              {canAct && !m.unsent && !m.pending && (
+                <div className="msg-tools">
+                  <button type="button" className="icon-btn" aria-label="Message actions: react, reply, forward, pin and more" title="React, reply and more" onClick={() => onMenu(m)}><MoreIcon /></button>
+                </div>
+              )}
             </div>
             {mine && m.id === lastMine && (
               <div className="msg-seen" key={m.pending ? "sending" : seen ? "seen" : "sent"}>
@@ -139,19 +190,41 @@ const outboxes = new Map<string, Failed[]>(); // per conversation, so leaving th
 let failedSeq = 0;
 
 /** `emoji` is what the button next to the box sends (a thumbs up unless you and your friend picked another one in the chat info). */
-function Composer({ onSend, emoji }: { onSend: (out: Outgoing) => void; emoji: string }) {
+type ComposerProps = {
+  onSend: (out: Outgoing) => void; emoji: string; adder: { current: (files: File[]) => void };
+  /** the message being answered, and what to call who wrote it */
+  replying: Message | null; replyName: string; onCancelReply: () => void;
+  /** the message being edited: the box holds its text and Send becomes Save */
+  editing: Message | null; onCancelEdit: () => void; onSaveEdit: (m: Message, text: string) => void;
+};
+
+function Composer({ onSend, emoji, adder, replying, replyName, onCancelReply, editing, onCancelEdit, onSaveEdit }: ComposerProps) {
   const s = useSession();
   const [text, setText] = useState("");
   const [preparing, setPreparing] = useState(0);
   const [pending, setPending] = useState<Pending[]>([]);
   const [panel, setPanel] = useState(false);
+  const [camera, setCamera] = useState(false);
+  const shot = useRef<HTMLInputElement>(null);
   const box = useRef<HTMLTextAreaElement>(null);
   const files = useRef<HTMLInputElement>(null);
   const nextId = useRef(0);
   const hasText = text.trim().length > 0;
-  const ready = hasText || pending.length > 0;
+  const ready = editing ? hasText && text.trim() !== editing.text.trim() : hasText || pending.length > 0;
+
+  // Editing puts the message's words in the box; leaving edit mode (saved or cancelled) empties it again.
+  const editId = editing?.id;
+  useEffect(() => {
+    if (!editId) return;
+    setText(editing?.text ?? ""); setPanel(false);
+    box.current?.focus();
+    return () => setText("");
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only a different message restarts the edit, not a refreshed copy of it
+  }, [editId]);
+  useEffect(() => { if (replying) box.current?.focus(); }, [replying?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function addFiles(list: File[]) {
+    if (editing) return; // an edit changes words only
     const pics = list.filter((f) => f.type.startsWith("image/"));
     if (!pics.length) return;
     const room = MAX_PENDING - pending.length - preparing;
@@ -171,24 +244,33 @@ function Composer({ onSend, emoji }: { onSend: (out: Outgoing) => void; emoji: s
     }
   }
 
+  // The chat page hands pictures dropped anywhere on it to this box.
+  adder.current = (list) => { void addFiles(list); };
+
   // The message appears in the chat at once (as "Sending…") and the box is cleared; if it cannot be sent, ThreadPage keeps it as "Not sent".
   function send() {
     if (!ready || preparing > 0) return;
+    if (editing) { onSaveEdit(editing, text); return; }
     const body = text;
     const pics = pending;
     setPending([]); setText(""); setPanel(false);
-    for (const p of pics) onSend({ image: p.url });
-    if (body.trim()) onSend({ text: body });
+    // a reply is attached to the first message of this send (the photos, else the words)
+    let reply = replying ? replyRefOf(replying) : undefined;
+    const go = (out: Outgoing) => { onSend(reply ? { ...out, reply } : out); reply = undefined; };
+    for (const p of pics) go({ image: p.url });
+    if (body.trim()) go({ text: body });
+    if (replying) onCancelReply();
     box.current?.focus();
   }
 
   function pickMedia(media: Media) {
     setPanel(false);
-    onSend(media.gif ? { gif: media.gif } : { text: media.sticker });
+    onSend({ ...(media.gif ? { gif: media.gif } : { text: media.sticker }), ...(replying ? { reply: replyRefOf(replying) } : {}) });
+    if (replying) onCancelReply();
   }
 
   function onKey(e: KeyboardEvent<HTMLTextAreaElement>) {
-    if (e.key === "Escape") setPanel(false);
+    if (e.key === "Escape") { setPanel(false); if (editing) onCancelEdit(); else if (replying) onCancelReply(); }
     if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing && enterSends()) { e.preventDefault(); send(); }
   }
 
@@ -199,7 +281,16 @@ function Composer({ onSend, emoji }: { onSend: (out: Outgoing) => void; emoji: s
 
   return (
     <div className="chat-compose">
-      {(pending.length > 0 || preparing > 0) && (
+      {(replying || editing) && (
+        <div className="chat-context" role="status">
+          <span className="chat-context-text">
+            {editing ? <b>Editing message</b> : <>Replying to <b>{replyName}</b></>}
+            <small>{snippetOf(editing ?? replying!).slice(0, 100)}</small>
+          </span>
+          <button type="button" className="icon-btn" aria-label={editing ? "Cancel editing" : "Cancel reply"} onClick={editing ? onCancelEdit : onCancelReply}><CloseIcon /></button>
+        </div>
+      )}
+      {!editing && (pending.length > 0 || preparing > 0) && (
         <div className="chat-pending" aria-label="Photos to send">
           {pending.map((p) => (
             <div key={p.id} className="pending-thumb">
@@ -210,21 +301,48 @@ function Composer({ onSend, emoji }: { onSend: (out: Outgoing) => void; emoji: s
           {Array.from({ length: preparing }, (_, i) => <div key={`p${i}`} className="pending-thumb loading" role="status" aria-label="Preparing photo" />)}
         </div>
       )}
-      {panel && <MediaPicker onPick={pickMedia} onEmoji={(e) => insertEmoji(box.current, text, e, setText, MESSAGE_MAX)} />}
+      {text.length >= MESSAGE_MAX && (
+        <p className="chat-limit" role="alert"><AlertIcon />Character limit reached ({MESSAGE_MAX.toLocaleString()}). Shorten your message or send it in parts.</p>
+      )}
+      {panel && !editing && <MediaPicker onPick={pickMedia} onEmoji={(e) => insertEmoji(box.current, text, e, setText, MESSAGE_MAX)} />}
       <form className="chat-composer" onSubmit={(e) => { e.preventDefault(); send(); }}>
-        <button type="button" className="icon-btn tool" aria-label="Add photos" title="Add photos" 
+        <button type="button" className="icon-btn tool" aria-label="Take a photo" title="Take a photo" disabled={!!editing}
+          onClick={() => (window.matchMedia("(pointer: coarse)").matches || !navigator.mediaDevices?.getUserMedia ? shot.current?.click() : setCamera(true))}><CameraIcon /></button>
+        <button type="button" className="icon-btn tool" aria-label="Add photos" title="Add photos" disabled={!!editing}
           onClick={() => files.current?.click()}><ImageIcon /></button>
-        <button type="button" className={`icon-btn tool${panel ? " on" : ""}`} aria-label="Emoji, stickers and GIFs" title="Emoji, stickers and GIFs"
+        <button type="button" className={`icon-btn tool${panel ? " on" : ""}`} aria-label="Emoji, stickers and GIFs" title="Emoji, stickers and GIFs" disabled={!!editing}
           aria-expanded={panel} onClick={() => setPanel((v) => !v)}><SmileIcon /></button>
         <textarea ref={box} rows={1} value={text} maxLength={MESSAGE_MAX} placeholder="Aa" aria-label="Message"
           onChange={(e) => setText(e.target.value)} onKeyDown={onKey} onPaste={onPaste} />
-        {ready
-          ? <button key="send" type="submit" className="icon-btn send" aria-label="Send" disabled={preparing > 0}><SendIcon /></button>
-          : <button key="like" type="button" className="icon-btn like" aria-label={`Send ${emoji}`} title={`Send ${emoji}`}
-            onClick={() => onSend({ text: emoji })}>{emoji}</button>}
+        {editing
+          ? <button key="save" type="submit" className="icon-btn send" aria-label="Save edit" title="Save edit" disabled={!ready}><CheckIcon /></button>
+          : ready
+            ? <button key="send" type="submit" className="icon-btn send" aria-label="Send" disabled={preparing > 0}><SendIcon /></button>
+            : <button key="like" type="button" className="icon-btn like" aria-label={`Send ${emoji}`} title={`Send ${emoji}`}
+              onClick={() => { onSend({ text: emoji, ...(replying ? { reply: replyRefOf(replying) } : {}) }); if (replying) onCancelReply(); }}>{emoji}</button>}
+        {/* on a phone this opens the camera app itself; the picture comes back like any other file */}
+        <input ref={shot} type="file" accept="image/*" capture="environment" hidden
+          onChange={(e) => { void addFiles(Array.from(e.target.files ?? [])); e.target.value = ""; }} />
         <input ref={files} type="file" accept="image/*" multiple hidden
           onChange={(e) => { void addFiles(Array.from(e.target.files ?? [])); e.target.value = ""; }} />
       </form>
+      {camera && <CameraSheet onCapture={(f) => void addFiles([f])} onClose={() => setCamera(false)} />}
+    </div>
+  );
+}
+
+/** What a message request looks like from the person who got it. Nothing is sent or marked as read until they accept. */
+function RequestBar({ other, name, onDone }: { other: string; name: string; onDone: () => void }) {
+  const s = useSession();
+  return (
+    <div className="chat-request" role="region" aria-label="Message request">
+      <p><b>{name}</b> is not your friend and wants to message you. They will not know you have read this until you accept.</p>
+      <div className="chat-request-actions">
+        <button type="button" className="btn primary"
+          onClick={() => acceptChat(s.uid, other).then(() => s.notify("Chat accepted"), () => s.notify("Could not accept the request. Deploy the Firestore rules first."))}>Accept</button>
+        <button type="button" className="btn"
+          onClick={() => deleteChatForMe(s.uid, other).then(() => { s.notify("Request deleted"); onDone(); }, () => s.notify("Could not delete the request"))}>Delete</button>
+      </div>
     </div>
   );
 }
@@ -239,14 +357,22 @@ export default function ThreadPage({ uid: other }: { uid: string }) {
   const frame = useRef<HTMLDivElement>(null);
   useMessagingFrame(frame);
 
+  const keysReady = useE2ee().phase === "ready";
   const settings = useChatSettings(s.uid, other);
   const prefs = s.chats.prefsOf(other);
   const blocked = s.chats.blocked.has(other);
+  const blockedBy = useBlockedBy(s.uid, other);
+  const restricted = s.chats.restricted.has(other);
   const [count, setCount] = useState(PAGE);
   const { messages, hasMore, loading, error } = useMessages(s.uid, other, count, prefs.clearedAt);
   const chat = s.chats.all.find((c) => c.other === other);
   const friend = s.friends.has(other);
-  const unread = chat ? isUnread(chat, s.uid) : false;
+  const unread = chat ? isUnread(chat, s.uid) && !chat.request : false;
+  const chatRef = useRef(chat); chatRef.current = chat;
+  const friendRef = useRef(friend); friendRef.current = friend;
+  // Friends, accepted chats and chats from before requests can write; with a request you got you answer by accepting it, and
+  // with one you sent you wait for the answer.
+  const open = chat ? !chat.request && !chat.waiting : friend;
 
   const body = useRef<HTMLDivElement>(null);
   const stick = useRef(true);   // true while the person is at the newest message
@@ -255,10 +381,24 @@ export default function ThreadPage({ uid: other }: { uid: string }) {
   const [viewer, setViewer] = useState("");
   const [finding, setFinding] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
-  const [actionsOpen, setActionsOpen] = useState(false);
   const [q, setQ] = useState("");
   const [curId, setCurId] = useState("");
   const [failed, setFailed] = useState<Failed[]>(() => outboxes.get(other) ?? []);
+  // Reply, react, forward, pin, edit, unsend and report. Messages are kept by id so a refreshed copy (or one that was just
+  // unsent) is always the current one.
+  const { reactions, pins } = useChatExtras(s.uid, other);
+  const [menuId, setMenuId] = useState("");
+  const [forwardId, setForwardId] = useState("");
+  const [reportId, setReportId] = useState("");
+  const [unsendId, setUnsendId] = useState("");
+  const [replyId, setReplyId] = useState("");
+  const [editId, setEditId] = useState("");
+  const [flash, setFlash] = useState("");
+  const [jumpTo, setJumpTo] = useState("");
+  // Pictures dragged onto the conversation go into the message box, when the box is there (not for a request, a block or locked keys).
+  const adder = useRef<(files: File[]) => void>(() => undefined);
+  const canCompose = !(chat?.request && !blocked) && !blocked && !blockedBy && !chat?.waiting && keysReady;
+  const { over, bind } = useImageDrop((files) => adder.current(files), { disabled: !canCompose, onRejected: () => s.notify("Only pictures can be sent here.") });
 
   const changeFailed = useCallback((fn: (cur: Failed[]) => Failed[]) => setFailed((cur) => {
     const next = fn(cur);
@@ -268,15 +408,70 @@ export default function ThreadPage({ uid: other }: { uid: string }) {
   // Sending never blocks the box: the message shows up as "Sending…", and if the server turns it down it comes back here.
   const dispatch = useCallback((out: Outgoing) => {
     stick.current = true;
-    sendMessage(s.uid, other, out).catch((err) => changeFailed((cur) => [...cur, { key: failedSeq++, out, reason: failureReason(err) }]));
+    sendMessage(s.uid, other, out, chatRef.current ? undefined : { friend: friendRef.current }).catch((err) => changeFailed((cur) => [...cur, { key: failedSeq++, out, reason: failureReason(err) }]));
   }, [s.uid, other, changeFailed]);
   const retry = (f: Failed) => { changeFailed((cur) => cur.filter((x) => x.key !== f.key)); dispatch(f.out); };
   const discard = (f: Failed) => changeFailed((cur) => cur.filter((x) => x.key !== f.key));
 
+  const byId = useMemo(() => new Map(messages.map((m) => [m.id, m])), [messages]);
+  const pinnedIds = useMemo(() => new Set(pins.map((p) => p.id)), [pins]);
+  const menuMsg = byId.get(menuId);
+  const replying = byId.get(replyId) ?? null;
+  const editing = byId.get(editId) ?? null;
+  const latest = messages[messages.length - 1];
+  const tell = (what: string) => (err: unknown) =>
+    s.notify(err instanceof RateLimitError ? err.message : `Could not ${what}. If you just updated the app, deploy the Firestore rules first.`);
+
+  function react(m: Message, emoji: string) {
+    const mine = (reactions.get(m.id) ?? []).find((r) => r.by === s.uid)?.emoji;
+    setReaction(s.uid, other, m.id, mine === emoji ? null : emoji).catch(tell("add your reaction"));
+  }
+  function togglePin(m: Message) {
+    const pinned = pinnedIds.has(m.id);
+    (pinned ? unpinMessage(s.uid, other, m.id) : pinMessage(s.uid, other, m)).then(
+      () => s.notify(pinned ? "Unpinned. You can see pinned messages in chat info." : "Pinned. You can see pinned messages in chat info."), tell(pinned ? "unpin the message" : "pin the message"));
+  }
+  function copy(m: Message) {
+    void copyText(m.text).then((ok) => { if (ok) s.notify("Copied"); else s.manualCopy(m.text); });
+  }
+  function saveEdit(m: Message, text: string) {
+    editMessage(s.uid, other, m, text, m.id === latest?.id && chat?.lastFrom === s.uid).then(
+      () => { setEditId(""); s.notify("Message edited"); },
+      (err) => {
+        // our own checks ("Message is empty") and the rate limit explain themselves; a refusal from the database gets the usual hint
+        if (err instanceof RateLimitError || !(err as { code?: string }).code) s.notify(err instanceof Error ? err.message : "Could not edit the message.");
+        else tell("edit the message")(err);
+      },
+    );
+  }
+  function unsend(m: Message) {
+    setUnsendId("");
+    if (replyId === m.id) setReplyId("");
+    if (editId === m.id) setEditId("");
+    unsendMessage(s.uid, other, m, m.id === latest?.id && chat?.lastFrom === s.uid).then(() => s.notify("Message unsent"), tell("unsend the message"));
+  }
+  /** Scrolls to a message and lights it up for a moment. A message older than what is loaded is fetched first. */
+  function jump(id: string) { setFinding(false); setQ(""); setJumpTo(id); }
+  useEffect(() => {
+    if (!jumpTo) return;
+    const el = body.current?.querySelector(`[data-mid="${jumpTo}"]`);
+    if (el) {
+      stick.current = false;
+      el.scrollIntoView({ block: "center", behavior: "smooth" });
+      setFlash(jumpTo); setJumpTo("");
+      const t = window.setTimeout(() => setFlash(""), 1600);
+      return () => clearTimeout(t);
+    }
+    if (loading) return;
+    if (hasMore && messages.length >= count) setCount((n) => n + SEARCH_WINDOW);
+    else if (!hasMore) { s.notify("That message is no longer in this chat."); setJumpTo(""); }
+  }, [jumpTo, messages, loading, hasMore, count]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Opening a conversation, or getting a message while it is open, marks it read (the other person is only told if read receipts are on).
   useEffect(() => {
-    if (unread) markRead(s.uid, other, prefs.receipts).catch(() => {});
-  }, [unread, prefs.receipts, s.uid, other]);
+    // a restricted person never gets a read receipt, whatever your receipts setting is
+    if (unread) markRead(s.uid, other, prefs.receipts && !restricted).catch(() => {});
+  }, [unread, prefs.receipts, restricted, s.uid, other]);
 
   const toBottom = useCallback(() => {
     const el = body.current;
@@ -357,7 +552,8 @@ export default function ThreadPage({ uid: other }: { uid: string }) {
   const name = calledBy(settings, other, realName);
 
   return (
-    <div className="chat" ref={frame}>
+    <div className={`chat${over ? " drop-over" : ""}`} ref={frame} {...bind}>
+      {over && <DropHint label="Drop photos to add them to your message" />}
       {finding ? (
         <header className="chat-bar">
           <button type="button" className="chat-back" onClick={closeSearch} aria-label="Close search"><ArrowLeftIcon /></button>
@@ -383,8 +579,7 @@ export default function ThreadPage({ uid: other }: { uid: string }) {
               {p?.username && <span>@{p.username}</span>}
             </span>
           </button>
-          <button type="button" className="icon-btn" aria-label="Search in conversation" title="Search in conversation" onClick={openSearch}><SearchIcon /></button>
-          <button type="button" className="icon-btn" aria-label="Chat menu" title="Chat menu" aria-haspopup="dialog" onClick={() => setActionsOpen(true)}><MenuIcon /></button>
+          <button type="button" className="icon-btn" aria-label="Chat info and options" title="Chat info, search and options" aria-haspopup="dialog" onClick={() => setInfoOpen(true)}><InfoIcon /></button>
         </header>
       )}
       {finding && hasMore && (
@@ -412,7 +607,9 @@ export default function ThreadPage({ uid: other }: { uid: string }) {
               </div>
             )}
             <Bubbles messages={messages} loading={loading} me={s.uid} other={p} otherSeenAt={prefs.receipts ? chat?.otherSeenAt ?? 0 : 0}
-              q={finding ? q : ""} activeId={finding ? activeId : ""} onPhoto={setViewer} />
+              q={finding ? q : ""} activeId={finding ? activeId : ""} onPhoto={setViewer}
+              nameOf={(uid) => (uid === s.uid ? "You" : name)} reactions={reactions} pinned={pinnedIds} flash={flash} canAct={canCompose}
+              onMenu={(m) => setMenuId(m.id)} onReact={react} onJump={jump} />
             {failed.map((f) => (
               <div key={f.key} className="msg mine solo failed" role="group" aria-label="Message not sent">
                 <div className="msg-row">
@@ -437,20 +634,58 @@ export default function ThreadPage({ uid: other }: { uid: string }) {
         )}
       </div>
 
-      {blocked ? (
+      {chat?.request && !blocked && !blockedBy ? (
+        <RequestBar other={other} name={name} onDone={() => { location.hash = "#/messages"; }} />
+      ) : blocked ? (
         <p className="hint chat-locked">
           You blocked {name}. You cannot message each other.{" "}
           <button type="button" className="link-act" onClick={() => unblockPerson(s.uid, other).then(() => s.notify(`Unblocked ${name}`), () => s.notify("Could not unblock"))}>Unblock</button>
         </p>
-      ) : friend
-        ? <Composer onSend={dispatch} emoji={settings.emoji} />
-        : <p className="hint chat-locked">You can only message people who are your friends.</p>}
+      ) : blockedBy ? (
+        <p className="hint chat-locked">{name} blocked you. You cannot message each other.</p>
+      ) : chat?.waiting ? (
+        <p className="hint chat-locked">{name} is not your friend yet, so your message is a request. You can send more once they accept it.</p>
+      ) : !keysReady ? (
+        <E2eePrompt />
+      ) : (
+        <>
+          {restricted && (
+            <p className="hint chat-restricted" role="status">
+              You restricted {name}. Their messages go to message requests, and they cannot see when you read them.{" "}
+              <button type="button" className="link-act" onClick={() => unrestrictPerson(s.uid, other).then(() => s.notify(`Unrestricted ${name}`), () => s.notify("Could not unrestrict"))}>Unrestrict</button>
+            </p>
+          )}
+          {!chat && !friend && <p className="hint chat-locked">{name} is not your friend, so your first message goes to them as a message request.</p>}
+          <Composer onSend={dispatch} emoji={settings.emoji} adder={adder}
+            replying={replying} replyName={replying ? (replying.from === s.uid ? "yourself" : name) : ""} onCancelReply={() => setReplyId("")}
+            editing={editing} onCancelEdit={() => setEditId("")} onSaveEdit={saveEdit} />
+        </>
+      )}
+      {menuMsg && !menuMsg.unsent && (
+        <MessageActions message={menuMsg} mine={menuMsg.from === s.uid} pinned={pinnedIds.has(menuMsg.id)} pinsFull={pins.length >= PIN_MAX}
+          myReaction={(reactions.get(menuMsg.id) ?? []).find((r) => r.by === s.uid)?.emoji}
+          onReact={(emoji) => react(menuMsg, emoji)} onReply={() => { setEditId(""); setReplyId(menuMsg.id); }} onCopy={() => copy(menuMsg)}
+          onForward={() => setForwardId(menuMsg.id)} onPin={() => togglePin(menuMsg)}
+          onEdit={() => { setReplyId(""); setEditId(menuMsg.id); }} onReport={() => setReportId(menuMsg.id)} onUnsend={() => setUnsendId(menuMsg.id)}
+          onClose={() => setMenuId("")} />
+      )}
+      {byId.get(forwardId) && <ForwardSheet message={byId.get(forwardId)!} onClose={() => setForwardId("")} />}
+      {byId.get(reportId) && (
+        <ReportMessageSheet message={byId.get(reportId)!} other={other} name={name} onClose={() => setReportId("")}
+          onBlock={() => void blockPerson(s.uid, other).then(() => s.notify(`Blocked ${name}`), () => s.notify("Could not block"))} />
+      )}
+      {byId.get(unsendId) && (
+        <ConfirmDialog title="Unsend this message?" confirmLabel="Unsend" danger onCancel={() => setUnsendId("")} onConfirm={() => unsend(byId.get(unsendId)!)}>
+          <p>It is removed for both of you. {name} may already have seen it.</p>
+        </ConfirmDialog>
+      )}
       {infoOpen && (
-        <ChatInfoSheet uid={other} profile={p} friend={friend} settings={settings} messages={messages} hasMore={hasMore}
+        <ChatInfoSheet uid={other} profile={p} friend={open} settings={settings} messages={messages} hasMore={hasMore}
+          pins={pins} canUnpin={canCompose} onUnpin={(id) => unpinMessage(s.uid, other, id).catch(tell("unpin the message"))}
+          onJump={(id) => { setInfoOpen(false); jump(id); }}
           onLoadOlder={() => setCount((n) => n + SEARCH_WINDOW)} onPhoto={setViewer}
           onClose={() => setInfoOpen(false)} onSearch={() => { setInfoOpen(false); openSearch(); }} />
       )}
-      {actionsOpen && <ChatActionsSheet other={other} profile={p} name={name} onClose={() => setActionsOpen(false)} />}
       {viewer && <ImageViewer src={viewer} label="Photo" onClose={() => setViewer("")} />}
     </div>
   );

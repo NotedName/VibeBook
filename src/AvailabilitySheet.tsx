@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
-import { cleanExceptions, defaultTimes, isAvailable, isTime, shiftMinutes, toggleDate, toMinutes, toTime, type Availability } from "./availability";
+import { addHolidays, cleanExceptions, defaultTimes, HOLIDAY_NAME_MAX, holidayOn, isAvailable, isTime, removeHoliday, shiftMinutes, toggleDate, toMinutes, toTime, type Availability } from "./availability";
 import { MAX_REQUIRED_HOURS, saveAvailability, setRequiredHours } from "./hours";
-import { clockTime, todayStr } from "./report";
-import { addDays, dayOfWeek, formatHM } from "./weeks";
-import { ChevronLeftIcon, ChevronRightIcon, CloseIcon } from "./icons";
+import { clockTime, longDay, todayStr } from "./report";
+import { addDays, dayOfWeek, daysBetween, formatHM } from "./weeks";
+import { CalendarIcon, ChevronLeftIcon, ChevronRightIcon, CloseIcon, PlusIcon } from "./icons";
 import { useScrollLock } from "./scrollLock";
 import FormError from "./FormError";
 
@@ -13,6 +13,18 @@ const WEEK: { day: number; short: string; long: string }[] = [
   { day: 3, short: "Wed", long: "Wednesday" }, { day: 4, short: "Thu", long: "Thursday" }, { day: 5, short: "Fri", long: "Friday" },
   { day: 6, short: "Sat", long: "Saturday" },
 ];
+
+const HOLIDAY_ERROR_PREFIX = "Holiday: ";
+const MAX_HOLIDAY_DAYS = 31;
+/** Holidays that fall on the same date every year; the next one coming up is added. Others (Chinese New Year, Eid, ...) move, so add those by date. */
+const FIXED_HOLIDAYS: { name: string; month: number; day: number }[] = [
+  { name: "New Year's Day", month: 1, day: 1 }, { name: "Labour Day", month: 5, day: 1 }, { name: "Christmas Day", month: 12, day: 25 },
+];
+const nextOccurrence = (month: number, day: number, from: string) => {
+  const y = Number(from.slice(0, 4));
+  const d = `${y}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  return d >= from ? d : `${y + 1}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+};
 
 const WEEK_ERROR = "Pick at least one day you can work.";
 const GOAL_ERROR = `Enter the hours as a number from 1 to ${MAX_REQUIRED_HOURS}, or leave it empty to remove the goal.`;
@@ -42,6 +54,9 @@ export default function AvailabilitySheet({ uid, hours, value, share, onClose }:
   const [view, setView] = useState(() => ({ y: Number(today.slice(0, 4)), m: Number(today.slice(5, 7)) - 1 }));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [hName, setHName] = useState("");
+  const [hFrom, setHFrom] = useState("");
+  const [hTo, setHTo] = useState("");
 
   useScrollLock();
   useEffect(() => {
@@ -60,6 +75,21 @@ export default function AvailabilitySheet({ uid, hours, value, share, onClose }:
   const shift = (n: number) => setView((v) => { const d = new Date(v.y, v.m + n, 1); return { y: d.getFullYear(), m: d.getMonth() }; });
   const exceptions = a.daysOff.length + a.daysOn.length;
   const dayMinutes = shiftMinutes(times.start, times.end, Number(times.brk) || 0);
+
+  /** Adds a holiday for one date or a run of dates; each one becomes unavailable on its own. */
+  function addHoliday(name: string, from: string, to: string) {
+    const end = to || from;
+    if (!from) { setError(`${HOLIDAY_ERROR_PREFIX}pick the date it starts.`); return; }
+    if (from < today) { setError(`${HOLIDAY_ERROR_PREFIX}pick today or a day to come.`); return; }
+    if (end < from) { setError(`${HOLIDAY_ERROR_PREFIX}the last day cannot be before the first.`); return; }
+    const dates = daysBetween(from, end);
+    if (dates.length > MAX_HOLIDAY_DAYS) { setError(`${HOLIDAY_ERROR_PREFIX}up to ${MAX_HOLIDAY_DAYS} days at a time.`); return; }
+    setError("");
+    setA((cur) => addHolidays(cur, dates, name.trim() || "Holiday"));
+    setView({ y: Number(from.slice(0, 4)), m: Number(from.slice(5, 7)) - 1 }); // show where it landed
+    setHName(""); setHFrom(""); setHTo("");
+  }
+  const holidays = (a.holidays ?? []).filter((h) => h.date >= today).sort((x, y) => x.date.localeCompare(y.date));
 
   async function save() {
     const goal = Number(goalText.replace(",", "."));
@@ -114,23 +144,29 @@ export default function AvailabilitySheet({ uid, hours, value, share, onClose }:
           <fieldset className="setting">
             <legend>Daily schedule</legend>
             <div className="time-row">
-              <label>From
+              <label><span className="cap">From</span>
                 <input type="time" value={times.start} onChange={(e) => setTimes((t) => ({ ...t, start: e.target.value }))} />
               </label>
-              <label>To
+              <label><span className="cap">To</span>
                 <input type="time" value={times.end} onChange={(e) => setTimes((t) => ({ ...t, end: e.target.value }))} />
               </label>
-              <label>Break (min)
+              <label><span className="cap">Break (min)</span>
                 <input type="number" inputMode="numeric" min="0" step="5" value={times.brk} onChange={(e) => setTimes((t) => ({ ...t, brk: e.target.value }))} />
               </label>
-              <label>Break starts <small>(optional)</small>
-                <input type="time" value={times.at} onChange={(e) => setTimes((t) => ({ ...t, at: e.target.value }))} />
+              <label><span className="cap">Break starts <small>(optional)</small></span>
+                <span className="input-clear">
+                  <input type="time" value={times.at} onChange={(e) => setTimes((t) => ({ ...t, at: e.target.value }))} />
+                  {times.at && (
+                    <button type="button" className="icon-btn clear-btn" aria-label="Clear break start time" title="Clear break start time"
+                      onClick={() => setTimes((t) => ({ ...t, at: "" }))}><CloseIcon /></button>
+                  )}
+                </span>
               </label>
             </div>
             <p className="hint">{dayMinutes > 0 ? <>Counts as <b>{formatHM(dayMinutes)}</b> a day</> : "The end must come after the start."}</p>
             {times.at && Number(times.brk) > 0 && isTime(times.at) && (
               <p className="hint">The break from <b>{clockTime(times.at)}</b> to <b>{clockTime(toTime(toMinutes(times.at) + Number(times.brk)))}</b> is taken out of your shift by itself while you are clocked in. Tap Break time before it starts to use those minutes early.{" "}
-                <button type="button" className="link-btn" onClick={() => setTimes((t) => ({ ...t, at: "" }))}>Clear start time</button></p>
+                <button type="button" className="btn small" onClick={() => setTimes((t) => ({ ...t, at: "" }))}><CloseIcon />Clear start time</button></p>
             )}
             {TIME_ERRORS.includes(error) && <FormError>{error}</FormError>}
           </fieldset>
@@ -146,23 +182,69 @@ export default function AvailabilitySheet({ uid, hours, value, share, onClose }:
               {WEEK.map((d) => <span key={d.day} className="cal-dow" aria-hidden="true">{d.short.slice(0, 2)}</span>)}
               {cells.map((date, i) => date === null ? <span key={`e${i}`} /> : (
                 <button key={date} type="button"
-                  className={`cal-day ${isAvailable(date, a) ? "avail" : "off"}${a.daysOff.includes(date) || a.daysOn.includes(date) ? " changed" : ""}${date === today ? " today" : ""}`}
-                  aria-pressed={isAvailable(date, a)}
-                  aria-label={`${date}: ${isAvailable(date, a) ? "available" : "unavailable"}`}
-                  onClick={() => setA((cur) => toggleDate(date, cur))}>{Number(date.slice(8))}</button>
+                  className={`cal-day ${isAvailable(date, a) ? "avail" : "off"}${holidayOn(date, a) ? " holiday" : a.daysOff.includes(date) || a.daysOn.includes(date) ? " changed" : ""}${date === today ? " today" : ""}`}
+                  aria-pressed={isAvailable(date, a)} title={holidayOn(date, a)?.name}
+                  aria-label={`${date}: ${holidayOn(date, a) ? `${holidayOn(date, a)!.name}, ` : ""}${isAvailable(date, a) ? "available" : "unavailable"}`}
+                  onClick={() => setA((cur) => removeHoliday(toggleDate(date, cur), date))}>{Number(date.slice(8))}</button>
               ))}
             </div>
             <ul className="cal-legend">
               <li><i className="cal-key avail" /> Available</li>
               <li><i className="cal-key off" /> Unavailable</li>
               <li><i className="cal-key avail changed" /> Changed by you</li>
+              <li><i className="cal-key off holiday" /> Holiday</li>
             </ul>
             <p className="hint">Tap a date to switch it, e.g. a holiday or a Saturday you will work.
               {exceptions > 0 && <> {exceptions} {exceptions === 1 ? "date" : "dates"} changed. <button type="button" className="link-btn" onClick={() => setA((cur) => ({ ...cur, daysOff: [], daysOn: [] }))}>Clear all changes</button></>}
             </p>
+            <p className="hint">A date you change goes back to your usual week once the day has passed.</p>
           </fieldset>
 
-          {error && error !== WEEK_ERROR && error !== GOAL_ERROR && !TIME_ERRORS.includes(error) && <FormError>{error}</FormError>}
+          <fieldset className="setting">
+            <legend>Holidays</legend>
+            <p className="hint">Holidays are marked unavailable on the calendar by themselves, so they are left out of your finish date and weekly hours.</p>
+            <div className="holiday-quick" role="group" aria-label="Common holidays">
+              {FIXED_HOLIDAYS.map((h) => {
+                const date = nextOccurrence(h.month, h.day, today);
+                const on = holidays.some((x) => x.date === date);
+                return (
+                  <button key={h.name} type="button" className={`chip-btn${on ? " on" : ""}`} aria-pressed={on} title={longDay(date)}
+                    onClick={() => (on ? setA((cur) => removeHoliday(cur, date)) : addHoliday(h.name, date, date))}>{h.name}</button>
+                );
+              })}
+            </div>
+            <form className="holiday-form" onSubmit={(e) => { e.preventDefault(); addHoliday(hName, hFrom, hTo); }}>
+              <label><span className="cap">Name <small>(optional)</small></span>
+                <input value={hName} maxLength={HOLIDAY_NAME_MAX} placeholder="e.g. Hari Raya" onChange={(e) => setHName(e.target.value)} />
+              </label>
+              <div className="time-row">
+                <label><span className="cap">From</span>
+                  <input type="date" value={hFrom} min={today} onChange={(e) => { setHFrom(e.target.value); if (hTo && e.target.value > hTo) setHTo(""); }} />
+                </label>
+                <label><span className="cap">To <small>(optional)</small></span>
+                  <span className="input-clear">
+                    <input type="date" value={hTo} min={hFrom || today} onChange={(e) => setHTo(e.target.value)} />
+                    {hTo && <button type="button" className="icon-btn clear-btn" aria-label="Clear last day" title="Clear last day" onClick={() => setHTo("")}><CloseIcon /></button>}
+                  </span>
+                </label>
+              </div>
+              <button type="submit" className="btn"><PlusIcon />Add holiday</button>
+            </form>
+            {error.startsWith(HOLIDAY_ERROR_PREFIX) && <FormError>{error.slice(HOLIDAY_ERROR_PREFIX.length).replace(/^./, (c) => c.toUpperCase())}</FormError>}
+            {holidays.length > 0 && (
+              <ul className="holiday-list">
+                {holidays.map((h) => (
+                  <li key={h.date}>
+                    <i><CalendarIcon /></i>
+                    <span>{h.name}<small>{longDay(h.date)}</small></span>
+                    <button type="button" className="icon-btn" aria-label={`Remove ${h.name}, ${longDay(h.date)}`} onClick={() => setA((cur) => removeHoliday(cur, h.date))}><CloseIcon /></button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </fieldset>
+
+          {error && error !== WEEK_ERROR && error !== GOAL_ERROR && !TIME_ERRORS.includes(error) && !error.startsWith(HOLIDAY_ERROR_PREFIX) && <FormError>{error}</FormError>}
         </div>
 
         <div className="sheet-actions">

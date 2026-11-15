@@ -34,7 +34,7 @@ export default function MediaPicker({ onPick, onEmoji }: { onPick: (media: Media
   );
 }
 
-function GifTab({ onPick }: { onPick: (media: Media) => void }) {
+export function GifTab({ onPick }: { onPick: (media: Media) => void }) {
   const [text, setText] = useState("");
   const [results, setResults] = useState<GifResult[] | null>(null);
   const [error, setError] = useState("");

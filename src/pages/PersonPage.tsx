@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useSlideOnChange } from "../slide";
 import { useProfile, useSession } from "../session";
 import ProfileTabs, { type ProfileTab } from "../ProfileTabs";
 import { useSharedEntries } from "../feed";
@@ -37,6 +38,8 @@ export default function PersonPage({ uid }: { uid: string }) {
   const privatePosts = useTeasedEntries(who, uid === s.uid ? none : s.groups.ids, 30, dir);
   const reposts = useRepostedEntries(who, 15, dir, 0, "stub");
   const [tab, setTab] = useState<ProfileTab>("notes");
+  const feedRef = useRef<HTMLDivElement>(null);
+  useSlideOnChange(feedRef, (["notes", "reposts", "likes"] as const).indexOf(tab));
   const pool = useMemo(
     () => [...(tab === "reposts" ? reposts : [...original, ...privatePosts])].sort(dir === "asc" ? (a, b) => -newestFirst(a, b) : newestFirst),
     [tab, original, privatePosts, reposts, dir],
@@ -88,7 +91,7 @@ export default function PersonPage({ uid }: { uid: string }) {
         {entries.length > 1 && <SortMenu mode={mode} onChange={setMode} />}
       </ProfileTabs>}
       {friendsOpen && <FriendsSheet uid={uid} initialView={friendsOpen} onClose={() => setFriendsOpen(null)} />}
-      {!hidden && <div className="feed">
+      {!hidden && <div className="feed" ref={feedRef}>
         {error && <p className="error note" role="alert">{error}</p>}
         {loading && entries.length === 0 && <FeedSkeleton />}
         {tab === "reposts" && entries.length === 0 && (

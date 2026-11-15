@@ -45,7 +45,8 @@ const CONTRAST_KEY = "vibebook-contrast";
 const LINKS_KEY = "vibebook-underline-links";
 const CORNERS_KEY = "vibebook-square-corners";
 const SIZE_KEY = "vibebook-text-size";
-const HONEY_KEY = "vibebook-honey";
+// The honeycomb background is an option in the Material 3 look (off by default). The key was renamed so everyone starts from "None" once.
+const HONEY_KEY = "vibebook-background";
 const SYSTEM_LIGHT_KEY = "vibebook-system-light"; // the device's last settled answer, read by index.html before first paint
 const lightQuery = window.matchMedia("(prefers-color-scheme: light)");
 // In the Android app the WebView may say "light" for its first moment and then correct itself. Until it settles (a change event, or a
@@ -89,7 +90,7 @@ function load(): Appearance {
     underlineLinks: read(LINKS_KEY) === "on",
     squareCorners: read(CORNERS_KEY) === "on",
     textSize: Number.isInteger(size) && size >= 0 && size < TEXT_SIZES.length ? size : DEFAULT_TEXT_SIZE,
-    honey: HONEY_STYLES.some((h) => h.id === read(HONEY_KEY)) ? (read(HONEY_KEY) as HoneyStyle) : "classic",
+    honey: HONEY_STYLES.some((h) => h.id === read(HONEY_KEY)) ? (read(HONEY_KEY) as HoneyStyle) : "off",
   };
 }
 
@@ -126,7 +127,7 @@ function apply() {
   flag(root, "data-contrast", state.contrast ? "high" : null);
   flag(root, "data-links", state.underlineLinks ? "underline" : null);
   flag(root, "data-corners", state.squareCorners ? "square" : null);
-  const bar = theme === "light" ? "#f3f2f5" : amoled ? "#000000" : "#1e1c23";
+  const bar = theme === "light" ? "#fdf7ff" : amoled ? "#000000" : "#151219";
   document.querySelector('meta[name="theme-color"]')?.setAttribute("content", bar);
 }
 
@@ -166,7 +167,7 @@ function subscribe(listener: () => void) {
 
 /** Back to the defaults: follow the device, purple accent, default text size, no extras. */
 export const resetAppearance = () => update({
-  mode: "system", textSize: DEFAULT_TEXT_SIZE, honey: "classic", accent: "purple", customAccent: DEFAULT_CUSTOM,
+  mode: "system", textSize: DEFAULT_TEXT_SIZE, honey: "off", accent: "purple", customAccent: DEFAULT_CUSTOM,
   bold: false, contrast: false, underlineLinks: false, squareCorners: false,
 });
 

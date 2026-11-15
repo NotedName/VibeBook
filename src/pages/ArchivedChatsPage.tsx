@@ -3,7 +3,7 @@ import ChatRow from "../ChatRow";
 import { RowsSkeleton } from "../Skeleton";
 import { ArchiveIcon } from "../icons";
 
-/** Opened from Account > Archived chats: conversations you tucked away. A new message from them brings a chat back to your messages. */
+/** Opened from Settings > Data & account > Archived chats: conversations you tucked away. A new message from them brings a chat back to your messages. */
 export default function ArchivedChatsPage() {
   const s = useSession();
   const { archived, ready, error } = s.chats;

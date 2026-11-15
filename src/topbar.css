@@ -1,50 +1,130 @@
-/* ---------- one unified top bar ---------- */
-/* Before: round grey buttons, tabs with an underline, a glass pill and a floating bar each had their own shape and colours.
-   Now the bar speaks one language: soft capsules, the same tint on hover, the same accent tint for "you are here".
-   Loaded last, so it sits on top of the per-screen layout rules in layout.css (the .topbar prefix keeps it stronger than them). */
-.topbar {
-  --bar-tint: color-mix(in srgb, var(--text) 6%, transparent);
-  --bar-hover: color-mix(in srgb, var(--text) 11%, transparent);
+/* ---------- navigation: Material 3 ----------
+   Phones      navigation bar along the bottom (80dp): icon in a pill, label under it.
+   Tablets     navigation rail down the left, the same icon-in-a-pill items.
+   Desktop     top app bar with the sections as pills in the middle.
+   The pill ("indicator") is one element, <span class="ind">, that slides to whichever section is current (see slide.ts); the items
+   themselves have no background of their own. Loaded after layout.css, so the .topbar prefix keeps these rules on top of it. */
+
+.topbar { border-bottom: 0; }
+.topbar::before {
+  background: var(--bg); -webkit-backdrop-filter: none; backdrop-filter: none;
+  transition: background-color .25s var(--ease);
+}
+/* top app bar colour change on scroll: the bar picks up a container tone once content moves under it */
+html:not([data-scroll="top"]) .topbar::before { background: var(--surface); }
+
+/* the actions (messages, notifications, settings, account) are plain round icon buttons */
+.topbar .top-actions { gap: 4px; padding: 0; background: none; border-radius: 0; box-shadow: none; }
+.topbar .top-actions .icon-btn { background: none; border-radius: 50%; color: var(--muted); }
+.topbar .top-actions .icon-btn:hover { background: var(--sl-hover); color: var(--text); }
+.topbar .top-actions .icon-btn.on, .topbar .top-actions .icon-btn.on:hover { background: var(--accent-soft); color: var(--on-accent-soft); }
+.topbar .top-actions .icon-btn:not(.avatar-btn):hover:not(:disabled) { border-radius: 50%; }
+
+/* ---------- the sliding indicator, shared by the tab bar, the logbook tabs and the segmented buttons ---------- */
+.tabs > .ind, .profile-tablist > .ind, .m3-seg > .ind {
+  position: absolute; left: 0; top: 0; z-index: 0; pointer-events: none;
+  width: var(--ind-w, 0px); height: var(--ind-h, 0px); opacity: var(--ind-o, 0);
+  transform: translate(var(--ind-x, 0px), var(--ind-y, 0px));
+  background: var(--accent-soft); border-radius: var(--radius-pill);
+}
+/* the first placement jumps into position; every later one glides */
+.tabs[data-ready="1"] > .ind, .profile-tablist[data-ready="1"] > .ind, .m3-seg[data-ready="1"] > .ind {
+  transition: transform .5s var(--ease), width .5s var(--ease), height .5s var(--ease), opacity .2s linear;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tabs > .ind, .profile-tablist > .ind, .m3-seg > .ind { transition: none !important; }
 }
 
-/* the actions (messages, notifications, settings, account) share one capsule instead of four loose buttons */
-.topbar .top-actions { gap: 2px; padding: 4px; background: var(--bar-tint); border-radius: var(--radius-pill); }
-.topbar .top-actions .icon-btn { background: none; border-radius: 50%; }
-.topbar .top-actions .icon-btn:hover { background: var(--bar-hover); }
-.topbar .top-actions .icon-btn.on, .topbar .top-actions .icon-btn.on:hover { background: var(--accent-soft); color: var(--accent-text); }
-@media (hover: hover) {
-  /* buttons in the capsule stay round; the morph to a soft square would break the shape of the capsule */
-  .topbar .top-actions .icon-btn:not(.avatar-btn):hover:not(:disabled) { border-radius: 50%; }
+/* ---------- items ---------- */
+.topbar .tabs .tab {
+  position: relative; z-index: 1; border-bottom: 0; border-radius: var(--radius-pill); box-shadow: none; background: none;
+  color: var(--muted); font-weight: 500; letter-spacing: .01em;
+  -webkit-tap-highlight-color: transparent;
 }
+.topbar .tabs .tab svg { width: 24px; height: 24px; }
+.topbar .tabs .tab:hover { background: var(--sl-hover); color: var(--text); }
+.topbar .tabs .tab.on, .topbar .tabs .tab.on:hover { background: none; box-shadow: none; color: var(--text); font-weight: 700; view-transition-name: none; }
+.topbar .tabs .tab.on svg { color: var(--on-accent-soft); }
+.topbar .tab .badge { background: var(--danger); color: var(--on-danger); z-index: 2; }
 
-/* the tabs: pills with no underline, tinted when hovered, accent-tinted when current */
-.topbar .tabs .tab { border-bottom: 0; border-radius: var(--radius-pill); box-shadow: none; }
-.topbar .tabs .tab:hover { background: var(--bar-hover); color: var(--text); }
-.topbar .tabs .tab.on, .topbar .tabs .tab.on:hover { background: var(--accent-soft); color: var(--accent-text); box-shadow: none; }
+/* New: a small filled button in the bar (Material's extra-small FAB) */
+.topbar .tabs .tab-new { color: var(--text); }
+.topbar .tabs .tab-new:hover { background: none; }
+.topbar .tab-new i {
+  width: 56px; height: 32px; border-radius: 16px; background: var(--primary); color: var(--on-primary); box-shadow: none;
+  transition: border-radius .3s var(--ease), transform .3s var(--spring);
+}
+.topbar .tab-new i svg { width: 24px; height: 24px; }
+.topbar .tab-new:hover i { filter: none; border-radius: 12px; }
+.topbar .tab-new:active i { transform: scale(.92); }
 
-/* stacked tabs (phone bar, tablet side rail) are tall, so their corners are softer than a full pill */
+/* ---------- phones: navigation bar ---------- */
 @media (max-width: 599.98px) {
-  .topbar .tabs { border-radius: 30px; }
-  .topbar .tabs .tab { border-radius: 25px; }
+  .topbar .tabs {
+    left: 0; right: 0; bottom: 0; max-width: none; margin: 0; gap: 0; border: 0; border-radius: 0; box-shadow: none;
+    padding: 12px max(8px, env(safe-area-inset-right, 0px)) calc(16px + env(safe-area-inset-bottom, 0px)) max(8px, env(safe-area-inset-left, 0px));
+    background: var(--surface); -webkit-backdrop-filter: none; backdrop-filter: none;
+  }
+  .topbar .tabs .tab {
+    flex-direction: column; justify-content: flex-start; gap: 8px; padding: 8px 2px 0; border-radius: 16px; min-height: 52px;
+    font-size: calc(12px * var(--ts)); line-height: 16px;
+  }
+  .topbar .tabs .tab:hover { background: none; }
+  .topbar .tabs .tab.on, .topbar .tabs .tab.on:hover { background: none; }
+  .topbar .tabs .tab-new { padding-top: 8px; }
+  .topbar .tabs .tab-new i { margin-top: 0; }
+  .topbar .tabs > .ind {
+    width: 64px; height: 32px;
+    transform: translate(calc(var(--ind-x, 0px) + (var(--ind-w, 64px) - 64px) / 2), calc(var(--ind-y, 0px) + 4px));
+  }
+  .topbar .tab .badge { top: 4px; left: calc(50% + 6px); }
+  .logbook { padding-bottom: calc(112px + env(safe-area-inset-bottom, 0px)); }
 }
+/* the cover screen of a flip phone: a slimmer bar, no labels */
+@media (orientation: portrait) and (max-width: 599.98px) and (max-height: 500px) {
+  .topbar .tabs { padding: 6px max(8px, env(safe-area-inset-right, 0px)) calc(6px + env(safe-area-inset-bottom, 0px)) max(8px, env(safe-area-inset-left, 0px)); }
+  .topbar .tabs .tab { padding: 0; justify-content: center; min-height: 40px; }
+  .topbar .tabs > .ind { transform: translate(calc(var(--ind-x, 0px) + (var(--ind-w, 64px) - 64px) / 2), calc(var(--ind-y, 0px) + (var(--ind-h, 32px) - 32px) / 2)); }
+  .topbar .tab-new i { width: 56px; }
+}
+
+/* ---------- tablets and unfolded foldables: navigation rail ---------- */
 @media (min-width: 600px) and (max-width: 1023.98px) and (min-height: 501px), (horizontal-viewport-segments: 2) {
-  .topbar .tabs .tab { border-radius: 20px; }
-  .topbar .top-actions { border-radius: 28px; }
+  .topbar { background: var(--bg); border-right: 0; }
+  .topbar::before { display: none; }
+  .topbar .tabs { position: relative; gap: 12px; margin-top: 12px; }
+  .topbar .tabs .tab {
+    flex-direction: column; justify-content: flex-start; gap: 8px; padding: 8px 4px 4px; border-radius: 16px;
+    font-size: calc(12px * var(--ts)); line-height: 16px;
+  }
+  .topbar .tabs .tab:hover { background: none; }
+  .topbar .tabs > .ind {
+    width: 56px; height: 32px;
+    transform: translate(calc(var(--ind-x, 0px) + (var(--ind-w, 56px) - 56px) / 2), calc(var(--ind-y, 0px) + 4px));
+  }
+  .topbar .tab .badge { top: 6px; left: calc(50% + 8px); }
+  .topbar .top-actions .icon-btn { width: 48px; height: 48px; }
+}
+/* a fold with a hinge lists the names beside the icons, so the pill is the whole row */
+@media (horizontal-viewport-segments: 2) {
+  .topbar .tabs > .ind { width: var(--ind-w, 0px); height: var(--ind-h, 0px); transform: translate(var(--ind-x, 0px), var(--ind-y, 0px)); }
+  .topbar .tabs .tab { border-radius: var(--radius-pill); }
 }
 
-/* desktop: the tabs sit in a capsule that matches the actions on the other side */
+/* ---------- short landscape screens: the sections sit in a slim bar on top ---------- */
+@media (orientation: landscape) and (max-height: 500px) and (max-width: 1023.98px) {
+  .topbar .tabs { position: relative; }
+  .topbar .tabs .tab { border-radius: var(--radius-pill); }
+  .topbar .tabs .tab:hover { background: var(--sl-hover); }
+}
+
+/* ---------- desktop: top app bar ---------- */
 @media (min-width: 1024px) {
-  .topbar .tabs { gap: 2px; padding: 4px; background: var(--bar-tint); border-radius: var(--radius-pill); }
-  .topbar .tabs .tab { padding: 8px 18px; }
-}
-
-/* bigger screens: the highlight jumps straight to the new tab instead of gliding there */
-@media (min-width: 600px) {
-  .topbar .tabs .tab.on { view-transition-name: none; }
+  .topbar .tabs { position: relative; gap: 4px; padding: 0; background: none; border-radius: 0; box-shadow: none; }
+  .topbar .tabs .tab { padding: 0 20px; height: 40px; font-size: calc(14px * var(--ts)); line-height: 20px; }
+  .topbar .tab .badge { position: static; }
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .topbar .tabs .tab, .topbar .top-actions, .topbar .top-actions .icon-btn {
-    transition: background-color .25s var(--ease), color .25s var(--ease), border-radius .25s var(--ease), transform .25s var(--spring);
-  }
+  .topbar .tabs .tab, .topbar .top-actions .icon-btn { transition: background-color .2s var(--ease), color .2s var(--ease); }
 }

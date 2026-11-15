@@ -1,17 +1,14 @@
 import { useEffect, useState } from "react";
-import { PERIODS, SORT_KINDS, type Grouping, type SortMode } from "./sorting";
+import { PERIODS, SORT_KINDS, type SortMode } from "./sorting";
 import { CheckIcon, SortIcon } from "./icons";
 
 type Props = {
   mode: SortMode;
   onChange: (mode: SortMode) => void;
-  /** Only on your own logbook: also offer to group the list by week or by day, in this same menu. */
-  grouping?: Grouping;
-  onGrouping?: (g: Grouping) => void;
 };
 
-/** Sort button with the sort choices (Newest, Hottest, Popular with a period, Oldest) and, on your logbook, the Weeks / Days view. The date filter is its own button (DateFilterMenu). */
-export default function SortMenu({ mode, onChange, grouping, onGrouping }: Props) {
+/** Sort button with the sort choices (Newest, Hottest, Popular with a period, Oldest). The date filter is its own button (DateFilterMenu); Days / Weeks / Months is the logbook's own toggle. */
+export default function SortMenu({ mode, onChange }: Props) {
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
@@ -44,13 +41,6 @@ export default function SortMenu({ mode, onChange, grouping, onGrouping }: Props
               <>
                 <span className="menu-title">Popular during</span>
                 {PERIODS.map((p) => item(mode.period === p.id, p.label, () => { onChange({ ...mode, period: p.id }); setOpen(false); }))}
-              </>
-            )}
-            {grouping && onGrouping && (mode.kind === "newest" || mode.kind === "oldest") && (
-              <>
-                <span className="menu-title">View</span>
-                {item(grouping === "weeks", "Weeks", () => { onGrouping("weeks"); setOpen(false); }, "Group by week, with the hours for each week")}
-                {item(grouping === "days", "Days", () => { onGrouping("days"); setOpen(false); }, "Group by day only")}
               </>
             )}
           </div>

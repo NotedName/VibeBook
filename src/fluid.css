@@ -381,29 +381,9 @@
 /* Fast drags stay glued to the finger: no transition on a row while it is being dragged */
 .note-swipe.dragging .note-swipe-fg { transition: none !important; }
 
-/* ---------- moving between pages: liquid glass ---------- */
-/* (Shell.tsx starts the transition, names <main> "page" for its duration and sets data-nav on <html> to "forward" or "back" when the move
-   is between two main tabs; browsers without view transitions simply switch pages.)
-   The old page slips away like a pane of glass sliding off, softened and brightened as it goes; the new one slides in from the other side
-   out of a blur and settles with a little overshoot. The highlighted tab is a glass pill that stretches as it travels, then springs back. */
-@media (prefers-reduced-motion: no-preference) {
-  /* Kept deliberately light so a tab change feels instant: only opacity and a few pixels of movement (no blur, no filters,
-     no scaling of the whole page, which are what made it stutter), over about a fifth of a second. The rest of the window
-     is not cross-faded at all. */
-  ::view-transition-group(root) { animation: none; }
-  ::view-transition-old(root), ::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
-  ::view-transition-group(page) { animation-duration: .18s; animation-timing-function: ease-out; }
-  ::view-transition-old(page) { animation: vt-out .08s linear both; }
-  ::view-transition-new(page) { animation: vt-in .18s cubic-bezier(.22, 1, .36, 1) both; }
-  :root[data-nav="forward"]::view-transition-new(page) { animation-name: vt-in-fwd; }
-  :root[data-nav="back"]::view-transition-new(page) { animation-name: vt-in-back; }
-  @keyframes vt-out { to { opacity: 0; } }
-  @keyframes vt-in { from { opacity: 0; transform: translateY(6px); } }
-  @keyframes vt-in-fwd { from { opacity: 0; transform: translateX(14px); } }
-  @keyframes vt-in-back { from { opacity: 0; transform: translateX(-14px); } }
-  ::view-transition-group(tab-pill) { animation-duration: .25s; animation-timing-function: var(--ease); }
-  ::view-transition-old(tab-pill), ::view-transition-new(tab-pill) { height: 100%; }
-}
+/* ---------- moving between pages ---------- */
+/* Pages and tabs slide on a shared horizontal axis (Material 3). That is done with the Web Animations API in slide.ts and Shell.tsx,
+   so it also works on phones, where the old View Transitions morph had to be switched off. Reduced motion skips it there. */
 
 /* ---------- messaging: bubbles spring in from the side they belong to ---------- */
 /* Only messages that arrive or are sent while a chat is open get `.enter` (ThreadPage), so opening a chat never plays a hundred animations. */

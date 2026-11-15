@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { onSnapshot, orderBy, query } from "firebase/firestore";
 import { entriesRef, newestFirst, stampOf, type Entry } from "../entries";
 import { useRepostedEntries } from "../reposts";
@@ -7,7 +7,9 @@ import HoursCard from "../HoursCard";
 import ReportSheet from "../ReportSheet";
 import { DateFilterMenu, inRange, NO_RANGE, rangeActive, RangeSummary } from "../DateRangeFilter";
 import { useSession } from "../session";
-import { dateDir, useGrouping, useSortedEntries, useSortMode } from "../sorting";
+import { dateDir, LOGBOOK_VIEWS, useLogbookView, useSortedEntries, useSortMode } from "../sorting";
+import { useSlideOnChange } from "../slide";
+import Segmented from "../Segmented";
 import { useLikedEntries } from "../likes";
 import ProfileTabs, { type ProfileTab } from "../ProfileTabs";
 import SortMenu from "../SortMenu";
@@ -28,7 +30,6 @@ function Logbook({ onViewAs }: { onViewAs: () => void }) {
   const [friendsOpen, setFriendsOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [range, setRange] = useState(NO_RANGE);
-  const [view, setView] = useState<"list" | "month">("list");
   const [search, setSearch] = useState("");
   const goal = useHoursGoal(s.uid);
 
@@ -50,7 +51,11 @@ function Logbook({ onViewAs }: { onViewAs: () => void }) {
   // Notes are what you wrote; Reposts and Likes are other people's entries. Only Notes count towards your stats and reports.
   const [tab, setTab] = useState<ProfileTab>("notes");
   const [mode, setMode] = useSortMode("logbook");
-  const [grouping, setGrouping] = useGrouping("logbook");
+  const [view, setView] = useLogbookView("logbook");
+  // Searching lists the matches by week or day (a calendar cannot hold search results).
+  const grouping = view === "days" ? "days" : "weeks";
+  const content = useRef<HTMLDivElement>(null);
+  useSlideOnChange(content, (["notes", "reposts", "likes"] as const).indexOf(tab) * 10 + LOGBOOK_VIEWS.findIndex((v) => v.id === view));
   const myUid = useMemo(() => [s.uid], [s.uid]);
   const reposts = useRepostedEntries(myUid, 50, dateDir(mode));
   const likes = useLikedEntries(s.uid, tab === "likes");
@@ -62,7 +67,7 @@ function Logbook({ onViewAs }: { onViewAs: () => void }) {
     [list, q, searching],
   );
   const notesShown = tab === "notes" || searching;
-  const monthOn = tab === "notes" && view === "month" && !searching;
+  const monthOn = tab === "notes" && view === "months" && !searching;
   const pool = searching ? matches : tab === "notes" ? list : tab === "reposts" ? reposts : likes.entries;
   // The date filter narrows whatever tab is open; totals, hours and reports above are not affected by it.
   const filtered = useMemo(() => (rangeActive(range) ? pool.filter((e) => inRange(stampOf(e).slice(0, 10), range)) : pool), [pool, range]);
@@ -100,13 +105,7 @@ function Logbook({ onViewAs }: { onViewAs: () => void }) {
       <ProfileTabs tab={tab} onChange={setTab} showLikes />
 
       {tab === "notes" && !searching && (
-        <div className="seg two view-toggle" role="group" aria-label="Logbook view">
-          {(["list", "month"] as const).map((v) => (
-            <label key={v} className={view === v ? "on" : ""}>
-              <input type="radio" name="logbook-view" checked={view === v} onChange={() => setView(v)} />{v === "list" ? "List" : "Month"}
-            </label>
-          ))}
-        </div>
+        <Segmented className="view-toggle" label="Logbook view" value={view} options={LOGBOOK_VIEWS} onChange={setView} />
       )}
 
       {!monthOn && <RangeSummary value={range} onChange={setRange} shown={filtered.length} total={pool.length} />}
@@ -117,11 +116,12 @@ function Logbook({ onViewAs }: { onViewAs: () => void }) {
           <input type="search" value={search} placeholder="Search your notes" aria-label="Search your notes" onChange={(e) => setSearch(e.target.value)} />
         </label>
         <DateFilterMenu value={range} onChange={setRange} />
-        {pool.length > 1 && <SortMenu mode={mode} onChange={setMode} grouping={notesShown ? grouping : undefined} onGrouping={setGrouping} />}
+        {pool.length > 1 && <SortMenu mode={mode} onChange={setMode} />}
       </div>
 
       {loadError && <p className="error note" role="alert">{loadError}</p>}
 
+      <div ref={content} className="slide-pane">
       {monthOn && entries !== null && goal.ready && (
         <LogbookMonth entries={list} availability={goal.availability} onEdit={s.openEntry} onAdd={(date) => s.openEntry(null, undefined, date)} />
       )}
@@ -166,6 +166,7 @@ function Logbook({ onViewAs }: { onViewAs: () => void }) {
         <EntryList entries={shown} onEdit={s.openEntry} dayHeadings={mode.kind === "newest" || mode.kind === "oldest"}
           weeks={notesShown && grouping === "weeks" ? { origin: earliestDay(list) } : undefined}
           dayHours={notesShown} />
+      </div>
       </div>
     </>
   );

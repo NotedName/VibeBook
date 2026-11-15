@@ -5,7 +5,7 @@ import "./styles.css";
 import "./layout.css";
 import "./fluid.css";
 import "./topbar.css";
-import "./neumorphic.css";
+import "./material.css";
 import "./share.css";
 import { watchInsets } from "./insets";
 import { watchParallax } from "./parallax";

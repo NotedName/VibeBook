@@ -9,15 +9,34 @@ import { personHash, setFriendsAudience, setHoursAudience, setPrivateProfile, se
 import { AUDIENCES, VISIBILITY, type Audience } from "./types";
 import { BrandName } from "./Logo";
 import { TermsContent } from "./Terms";
-import { AmoledIcon, CloseIcon, GlobeIcon, LockIcon, MoonIcon, MonitorIcon, SunIcon, UsersIcon } from "./icons";
+import {
+  AmoledIcon, ArchiveIcon, CheckIcon, CloseIcon, DatabaseIcon, DownloadIcon, GlobeIcon, InfoIcon, LockIcon, LogOutIcon, MoonIcon, MonitorIcon,
+  PaletteIcon, SettingsIcon, ShieldIcon, SunIcon, ToggleIcon, TrashIcon, UploadIcon, UsersIcon,
+} from "./icons";
 import { useScrollLock } from "./scrollLock";
 import { RowsSkeleton } from "./Skeleton";
 import SecuritySettings from "./SecuritySettings";
 import { deleteAccount } from "./deleteAccount";
 import { authMessage } from "./authErrors";
+import { signOut } from "firebase/auth";
+import { auth } from "./firebase";
+import { saveFile } from "./download";
+import { buildBackup, parseBackup, restoreBackup, type BackupFile } from "./backup";
 
-const CATEGORIES = ["Appearance", "Media", "Notifications", "Privacy", "Security", "Accessibility", "Activity", "About", "Reset"] as const;
-type Category = (typeof CATEGORIES)[number];
+/** Closely related settings share a tab: colours and text (Appearance); photos, notifications and motion (Preferences); who sees what and how you sign in (Privacy & security). */
+const CATEGORIES = [
+  { id: "appearance", label: "Appearance", icon: <PaletteIcon /> },
+  { id: "preferences", label: "Preferences", icon: <ToggleIcon /> },
+  { id: "privacy", label: "Privacy & security", icon: <ShieldIcon /> },
+  { id: "data", label: "Data & account", icon: <DatabaseIcon /> },
+  { id: "about", label: "About", icon: <InfoIcon /> },
+] as const;
+type Category = (typeof CATEGORIES)[number]["id"];
+
+/** A titled group inside a tab, like BACKUP and ACCOUNT. */
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return <section className="set-section"><h3>{title}</h3>{children}</section>;
+}
 
 type Option<T extends string | number> = { id: T; label: string; icon?: React.ReactNode };
 
@@ -302,17 +321,7 @@ function ActivityLog({ onNavigate }: { onNavigate: () => void }) {
   );
 }
 
-/** Settings > Reset: one plain button. Pressing it asks first, and the dialog is where the warning is spelled out. */
-function Reset({ onAsk }: { onAsk: () => void }) {
-  return (
-    <>
-      <button type="button" className="btn" onClick={onAsk}>Reset</button>
-      <DeleteAccount />
-    </>
-  );
-}
-
-/** Settings > Reset > Delete account: the password, then a dialog that asks for the word "delete" before anything is removed. */
+/** Settings > Data & account > Delete my account: the password, then a dialog that asks for the word "delete" before anything is removed. */
 function DeleteAccount() {
   const { user } = useSession();
   const [password, setPassword] = useState("");
@@ -337,8 +346,7 @@ function DeleteAccount() {
   }
 
   return (
-    <section className="deactivate-section" aria-label="Delete account">
-      <h3>Delete account</h3>
+    <div className="deactivate-section" role="group" aria-label="Delete account">
       <p className="hint">Permanently deletes your account, entries, photos and profile. This cannot be undone.</p>
       <label>Password
         <input type="password" value={password} autoComplete="current-password" onChange={(e) => setPassword(e.target.value)} />
@@ -350,46 +358,160 @@ function DeleteAccount() {
           <p>Your entries, photos, comments, friendships and profile are deleted and your username is released. Chats you had and group posts may remain.</p>
         </ConfirmDialog>
       )}
-    </section>
+    </div>
+  );
+}
+
+/** Settings > Data & account: backup and restore, the archive, who you are signed in as, the activity log and resetting this device. */
+function DataAccount({ onNavigate, onAskReset }: { onNavigate: () => void; onAskReset: () => void }) {
+  const { uid, user, chats, notify } = useSession();
+  const [busy, setBusy] = useState(false);
+  const [status, setStatus] = useState("");
+  const [pending, setPending] = useState<{ backup: BackupFile; name: string } | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [showLog, setShowLog] = useState(false);
+  const fileInput = useRef<HTMLInputElement>(null);
+
+  async function download() {
+    setBusy(true);
+    setStatus("Preparing your backup…");
+    try {
+      const file = await buildBackup(uid, (done, total) => setStatus(`Collecting your entries… ${done} of ${total}`));
+      const day = new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD
+      const result = await saveFile(new TextEncoder().encode(JSON.stringify(file)), `vibebook-backup-${day}.json`, "application/json", "Backup");
+      setStatus(result === "saved" ? `Backup saved: ${file.entries.length} ${file.entries.length === 1 ? "entry" : "entries"} with their photos.`
+        : result === "cancelled" ? "" : "Could not save the backup file.");
+    } catch {
+      setStatus("Could not make the backup. Check your connection and try again.");
+    }
+    setBusy(false);
+  }
+
+  async function chosen(file: File | undefined) {
+    if (!file) return;
+    if (file.size > 200 * 1024 * 1024) return setStatus("That file is too big to be a VibeBook backup.");
+    try {
+      setPending({ backup: parseBackup(await file.text()), name: file.name });
+      setStatus("");
+    } catch (err) {
+      setStatus(err instanceof Error ? err.message : "Could not read that file.");
+    }
+  }
+
+  async function restore() {
+    if (!pending) return;
+    const { backup } = pending;
+    setPending(null);
+    setBusy(true);
+    try {
+      const r = await restoreBackup(uid, backup, setStatus);
+      setStatus(`Restored: ${r.added} new, ${r.updated} updated${r.skipped ? `, ${r.skipped} skipped because they could not be read` : ""}.`);
+      notify("Backup restored");
+    } catch (err) {
+      setStatus(err instanceof Error && !/permission|firestore/i.test(err.message) ? err.message : "Could not restore everything. Wait a few seconds and try again; entries already restored are kept.");
+    }
+    setBusy(false);
+  }
+
+  const archivedChats = chats.archived.length;
+  return (
+    <>
+      <Section title="Backup">
+        <div className="set-pair">
+          <button type="button" className="btn" disabled={busy} onClick={download}><DownloadIcon />Download backup</button>
+          <button type="button" className="btn" disabled={busy} onClick={() => fileInput.current?.click()}><UploadIcon />Restore backup</button>
+        </div>
+        <input ref={fileInput} type="file" accept="application/json,.json" hidden
+          onChange={(e) => { void chosen(e.target.files?.[0]); e.target.value = ""; }} />
+        <p className="hint">Restoring overwrites entries with the same ID; nothing is deleted. Sharing settings of entries you already have stay as they are.</p>
+        {status && <p className="hint set-status" role="status">{status}</p>}
+      </Section>
+
+      <Section title="Archive">
+        <div className="set-pair">
+          <a className="btn" href="#/archived" onClick={onNavigate}><ArchiveIcon />Archived entries</a>
+          <a className="btn" href="#/archived-chats" onClick={onNavigate}><ArchiveIcon />Archived chats{archivedChats > 0 ? ` (${archivedChats})` : ""}</a>
+        </div>
+      </Section>
+
+      <Section title="Account">
+        <p className="hint">Signed in as {user.email}</p>
+        <div className="set-pair">
+          <button type="button" className="btn" onClick={() => signOut(auth)}><LogOutIcon />Sign out</button>
+          <button type="button" className="btn danger-ghost" aria-expanded={deleting} onClick={() => setDeleting(!deleting)}><TrashIcon />Delete my account…</button>
+        </div>
+        {deleting && <DeleteAccount />}
+      </Section>
+
+      <Section title="Activity">
+        <details className="about-terms" onToggle={(e) => e.currentTarget.open && setShowLog(true)}>
+          <summary>Activity log</summary>
+          {showLog && <ActivityLog onNavigate={onNavigate} />}
+        </details>
+      </Section>
+
+      <Section title="This device">
+        <button type="button" className="btn" onClick={onAskReset}>Reset settings</button>
+        <p className="hint">Puts appearance and preferences on this device back to how they started.</p>
+      </Section>
+
+      {pending && (
+        <ConfirmDialog title="Restore this backup?" confirmLabel="Restore" onCancel={() => setPending(null)} onConfirm={restore}>
+          <p>{pending.name} has {pending.backup.entries.length} {pending.backup.entries.length === 1 ? "entry" : "entries"}. Entries with the same ID are overwritten with the backup’s version and the rest are added. Nothing is deleted.</p>
+        </ConfirmDialog>
+      )}
+    </>
   );
 }
 
 export default function SettingsSheet({ onClose }: { onClose: () => void }) {
-  const [category, setCategory] = useState<Category>("Appearance");
+  const [category, setCategory] = useState<Category>("appearance");
   const [askReset, setAskReset] = useState(false);
 
   useScrollLock();
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && !askReset && onClose();
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  }, [onClose, askReset]);
 
   return (
     <>
     <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className="sheet settings-sheet" role="dialog" aria-modal="true" aria-label="Settings">
         <div className="sheet-head">
-          <h2>Settings</h2>
+          <h2><SettingsIcon />Settings</h2>
           <button type="button" className="icon-btn close" aria-label="Close" onClick={onClose}><CloseIcon /></button>
         </div>
         <div className="settings-layout">
         <div className="settings-nav" role="tablist" aria-label="Settings categories" aria-orientation="vertical">
           {CATEGORIES.map((c) => (
-            <button key={c} type="button" role="tab" aria-selected={category === c} onClick={() => setCategory(c)}>{c}</button>
+            <button key={c.id} type="button" role="tab" aria-selected={category === c.id} onClick={() => setCategory(c.id)}>
+              {c.icon}<span>{c.label}</span>
+            </button>
           ))}
         </div>
         <div className="sheet-body" role="tabpanel">
-          {category === "Appearance" && <Appearance />}
-          {category === "Media" && <Media />}
-          {category === "Notifications" && <Notifications />}
-          {category === "Privacy" && <Privacy />}
-          {category === "Security" && <SecuritySettings />}
-          {category === "Accessibility" && <Accessibility />}
-          {category === "Activity" && <ActivityLog onNavigate={onClose} />}
-          {category === "About" && <About />}
-          {category === "Reset" && <Reset onAsk={() => setAskReset(true)} />}
+          {category === "appearance" && <Appearance />}
+          {category === "preferences" && (
+            <>
+              <Section title="Photos"><Media /></Section>
+              <Section title="Notifications"><Notifications /></Section>
+              <Section title="Accessibility"><Accessibility /></Section>
+            </>
+          )}
+          {category === "privacy" && (
+            <>
+              <Section title="Privacy"><Privacy /></Section>
+              <Section title="Security"><SecuritySettings /></Section>
+            </>
+          )}
+          {category === "data" && <DataAccount onNavigate={onClose} onAskReset={() => setAskReset(true)} />}
+          {category === "about" && <About />}
         </div>
+        </div>
+        <div className="sheet-actions">
+          <button type="button" className="btn primary" onClick={onClose}><CheckIcon />Done</button>
         </div>
       </div>
     </div>

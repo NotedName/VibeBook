@@ -6,7 +6,7 @@ import EntryList from "../EntryList";
 import { FeedSkeleton } from "../Skeleton";
 import { ArchiveIcon } from "../icons";
 
-/** Opened from Account > Archived entries: the entries you tucked away. Only you can see them; Unarchive puts one back. */
+/** Opened from Settings > Data & account > Archived entries: the entries you tucked away. Only you can see them; Unarchive puts one back. */
 export default function ArchivedPage() {
   const s = useSession();
   const [entries, setEntries] = useState<Entry[] | null>(null);

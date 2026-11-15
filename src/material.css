@@ -1,0 +1,235 @@
+/* ---------- Material 3 components (the Android 17 look) ----------
+   Replaces the old soft-UI (neumorphic) layer. Tone does the work of depth: cards are filled containers one step lighter than the page,
+   with no outline and no shadow; buttons are fully rounded; fields are outlined; menus and dialogs are a step above the cards.
+   Every hover, focus and press is a "state layer": a wash of the control's own text colour (--sl-hover, --sl-press in styles.css).
+   Loaded last, so these rules sit on top of the per-screen rules in styles.css and layout.css. Navigation is in topbar.css. */
+
+/* ---------- surfaces: filled cards, no outline, no shadow ---------- */
+.post, .profile, .side-card, .composer, .empty, .confirm-dialog.card {
+  background: var(--surface); border: 0; box-shadow: none;
+}
+.empty { border-radius: var(--radius); }
+.stat, .pin-item, .hours, .day-detail, .daily-schedule, .report-date, .report-tabs, .known-account, .invite-row, .person-card {
+  border-color: transparent; box-shadow: none;
+}
+.stat { background: var(--surface-2); }
+.hours, .day-detail, .daily-schedule { background: var(--surface-2); border: 0; }
+.profile-bar ~ .feed .post, .feed .post { border: 0; }
+.post-actions { border-top: 0; margin: 0 8px; padding-block: 2px 6px; }
+.day-label { color: var(--accent-text); letter-spacing: .01em; }
+.chips li { border-radius: 8px; padding: 4px 10px; background: var(--accent-soft); color: var(--on-accent-soft); }
+.chip-more button { border-radius: 8px; }
+.vis { background: var(--surface-2); }
+.vis-public { background: var(--accent-soft); color: var(--on-accent-soft); }
+hr, .sheet-head, .sheet-actions, .lm-day-panel { border-color: var(--line); }
+
+/* ---------- buttons ---------- */
+.btn {
+  border: 0; border-radius: var(--radius-btn); min-height: 40px; padding: 0 20px;
+  font-weight: 500; letter-spacing: .01em; line-height: 20px;
+  background: var(--accent-soft); color: var(--on-accent-soft); box-shadow: none;
+}
+.btn.small { min-height: 32px; padding: 0 14px; }
+.btn.wide { min-height: 48px; }
+.btn:hover:not(:disabled), .btn:focus-visible { background-image: linear-gradient(var(--sl-hover), var(--sl-hover)); filter: none; }
+.btn:active:not(:disabled) { background-image: linear-gradient(var(--sl-press), var(--sl-press)); }
+.btn.primary { background-color: var(--primary); color: var(--on-primary); font-weight: 500; box-shadow: none; }
+.btn.primary:hover:not(:disabled) { filter: none; box-shadow: var(--shadow); }
+.btn.primary.small { box-shadow: none; }
+.btn.on { background: var(--accent-soft); color: var(--on-accent-soft); }
+.btn.armed { color: var(--danger); }
+.btn:disabled { opacity: 1; background: color-mix(in srgb, var(--text) 12%, transparent); color: color-mix(in srgb, var(--text) 38%, transparent); box-shadow: none; }
+/* quiet buttons: Cancel, Close and the like are text buttons */
+.sheet-actions .btn:not(.primary) { background: none; color: var(--accent-text); }
+.sheet-actions .btn:not(.primary):hover { background: var(--sl-hover); color: var(--accent-text); }
+.link { border-radius: var(--radius-btn); }
+.link:hover { background: var(--sl-hover); }
+.btn.danger-ghost { background: none; }
+
+.icon-btn { background: none; color: var(--muted); border-radius: 50%; }
+.icon-btn:hover:not(:disabled) { background: var(--sl-hover); color: var(--text); }
+.icon-btn:active:not(:disabled) { background: var(--sl-press); }
+.menu-btn:hover, .menu-btn[aria-expanded="true"] { background: var(--sl-hover); color: var(--text); }
+
+.act { border-radius: var(--radius-btn); }
+.act:hover { background: var(--sl-hover); color: var(--text); }
+.act:active { background: var(--sl-press); }
+.act.on { color: var(--accent-text); }
+
+/* the way back out of a page: a tonal button */
+.back-btn {
+  border: 0; border-radius: var(--radius-btn); background: var(--accent-soft); color: var(--on-accent-soft); box-shadow: none;
+  font-weight: 500; min-height: 40px; padding: 0 20px 0 12px;
+}
+.back-btn:hover { filter: none; background-image: linear-gradient(var(--sl-hover), var(--sl-hover)); }
+
+/* ---------- fields: outlined, 12dp corners ---------- */
+.sheet input:not([type="file"]):not([type="checkbox"]):not([type="radio"]):not([type="range"]), .sheet textarea, .sheet select,
+.confirm-type input, .comment-form input {
+  background: none; border: 1px solid color-mix(in srgb, var(--muted) 60%, transparent); box-shadow: none; border-radius: var(--radius-sm);
+}
+.sheet input:not([type="file"]):not([type="checkbox"]):not([type="radio"]):not([type="range"]):hover, .sheet textarea:hover, .sheet select:hover {
+  border-color: var(--text);
+}
+.sheet input:not([type="file"]):not([type="checkbox"]):not([type="radio"]):not([type="range"]):focus, .sheet textarea:focus, .sheet select:focus,
+.confirm-type input:focus {
+  border-color: var(--primary); box-shadow: 0 0 0 1px var(--primary); outline: none;
+}
+.hours-form input:is([type="time"], [type="date"], [type="number"]), .time-row input {
+  background: none; box-shadow: none; border: 1px solid color-mix(in srgb, var(--muted) 60%, transparent);
+}
+.hours-form input:is([type="time"], [type="date"], [type="number"]):focus, .time-row input:focus {
+  border-color: var(--primary); box-shadow: 0 0 0 1px var(--primary);
+}
+/* search bar: a pill */
+.search {
+  min-height: 48px; padding: 0 16px; border: 0; border-radius: var(--radius-pill); background: var(--surface-2); box-shadow: none; color: var(--muted);
+}
+.search:hover { background-image: linear-gradient(var(--sl-hover), var(--sl-hover)); }
+.search:focus-within { box-shadow: 0 0 0 2px var(--primary); }
+.chat-composer textarea, .composer-input { background: var(--surface-2); box-shadow: none; border-radius: var(--radius-pill); }
+.composer-input { border-radius: var(--radius-pill); padding: 12px 18px; }
+.composer-input:hover { background: var(--surface-3); }
+.chat-composer textarea:focus { outline: 2px solid var(--primary); outline-offset: -2px; box-shadow: none; }
+.sheet .sheet-search { background: var(--surface-2); border: 0; }
+.sheet label.invite-row, .sheet .group-pick label, .sheet .cover-opt, .sheet .switch-row { border: 1px solid var(--line); background: none; }
+.sheet label.invite-row.on, .sheet .group-pick label.on { background: var(--accent-soft); border-color: transparent; color: var(--on-accent-soft); }
+
+/* switches: Material's 52 x 32 track with a knob that grows when it is on */
+.switch {
+  width: 52px; height: 32px; background: var(--surface-3); box-shadow: none; border: 2px solid color-mix(in srgb, var(--muted) 70%, transparent);
+  transition: background-color .25s var(--ease), border-color .25s var(--ease);
+}
+.switch::after {
+  top: 6px; left: 6px; width: 16px; height: 16px; background: color-mix(in srgb, var(--muted) 85%, transparent); box-shadow: none;
+  transition: transform .4s var(--spring), width .25s var(--ease), height .25s var(--ease), top .25s var(--ease), left .25s var(--ease), background-color .25s var(--ease);
+}
+.switch-row input:checked + .switch { background: var(--primary); border-color: var(--primary); box-shadow: none; }
+.switch-row input:checked + .switch::after { width: 24px; height: 24px; top: 2px; left: 2px; transform: translateX(20px); background: var(--on-primary); box-shadow: none; }
+.switch-row:active .switch::after { width: 28px; height: 28px; top: 0; left: 0; }
+.switch-row:has(input:checked):active .switch::after { transform: translateX(16px); }
+.theme-slider { box-shadow: none; border: 0; background: var(--surface-2); }
+
+/* ---------- segmented button (Days / Weeks / Months): one outlined row, the chosen segment slides ---------- */
+.m3-seg {
+  position: relative; display: flex; margin: 4px var(--gutter) 6px; border: 1px solid color-mix(in srgb, var(--muted) 55%, transparent);
+  border-radius: var(--radius-pill); overflow: hidden; isolation: isolate;
+}
+.m3-seg > .ind { z-index: 0; border-radius: 0; }
+.m3-seg label {
+  position: relative; z-index: 1; flex: 1 1 0; min-width: 0; min-height: 40px; display: grid; place-items: center; padding: 0 12px;
+  color: var(--text); font-weight: 500; font-size: calc(14px * var(--ts)); letter-spacing: .01em; cursor: pointer; user-select: none;
+  transition: color .2s var(--ease);
+}
+.m3-seg label + label { box-shadow: -1px 0 0 color-mix(in srgb, var(--muted) 55%, transparent); }
+.m3-seg label:hover { background: var(--sl-hover); }
+.m3-seg label.on { color: var(--on-accent-soft); }
+.m3-seg label.on + label, .m3-seg label:has(+ label.on) { box-shadow: none; }
+.m3-seg label:has(input:focus-visible) { outline: 2px solid var(--primary); outline-offset: -3px; }
+.m3-seg input { position: absolute; opacity: 0; pointer-events: none; }
+.view-toggle { margin: 12px var(--gutter) 4px; }
+
+/* ---------- logbook tabs (Notes / Reposts / Likes): a pill row with a sliding highlight ---------- */
+.profile-tabs { background: var(--surface); border: 0; box-shadow: none; border-radius: var(--radius-pill); padding: 4px; }
+.profile-sort { background: var(--surface); border: 0; box-shadow: none; border-radius: var(--radius-pill); }
+.profile-tablist { position: relative; isolation: isolate; }
+.profile-tablist button { position: relative; z-index: 1; border-radius: var(--radius-pill); color: var(--muted); font-weight: 500; }
+.profile-tablist button:hover { background: var(--sl-hover); color: var(--text); }
+.profile-tablist button[aria-selected="true"], .profile-tablist button[aria-selected="true"]:hover { background: none; color: var(--on-accent-soft); }
+.profile-tablist > .ind { z-index: 0; }
+
+/* the page under the tabs slides when you change tab (slide.ts); keep the clip off so cards are not cut */
+.slide-pane { min-width: 0; }
+
+/* ---------- menus, sheets and dialogs ---------- */
+.menu { background: var(--surface-2); border: 0; border-radius: var(--radius-md); box-shadow: var(--shadow-lift); padding: 8px 0; }
+.menu button { border-radius: 0; padding: 0 16px; min-height: 48px; font-weight: 500; }
+.menu button:hover { background: var(--sl-hover); }
+.menu button.on { color: var(--accent-text); }
+.menu-title { color: var(--muted); font-weight: 500; }
+.menu-scrim { background: transparent; }
+
+.overlay { -webkit-backdrop-filter: none; backdrop-filter: none; }
+.sheet { position: relative; background: var(--surface-2); box-shadow: none; }
+.confirm-dialog { background: var(--surface-2); border: 0; box-shadow: none; border-radius: var(--radius-lg); }
+.sheet-head { border-bottom: 0; }
+.sheet-actions { border-top: 0; }
+/* bottom sheets get Material's drag handle (centred dialogs on bigger screens do not) */
+@media (max-width: 639.98px) {
+  .sheet::before {
+    content: ""; position: absolute; z-index: 2; top: 8px; left: 50%; width: 32px; height: 4px; margin-left: -16px; border-radius: 2px;
+    background: color-mix(in srgb, var(--muted) 55%, transparent); pointer-events: none;
+  }
+  .sheet-head { padding-top: 18px; }
+}
+
+/* snackbar */
+.toast { background: var(--text); color: var(--bg); border-radius: var(--radius-sm); box-shadow: var(--shadow-lift); font-weight: 500; text-align: left; padding: 14px 16px; }
+
+/* badges */
+.badge { background: var(--danger); color: var(--on-danger); }
+
+/* ---------- conversation bubbles ---------- */
+.bubble { border-radius: 20px; }
+.bubble.mine { background: var(--primary); color: var(--on-primary); }
+.bubble.theirs { background: var(--surface-3); border: 0; }
+.bubble.big { background: none; }
+
+/* ---------- month view: round, filled days ---------- */
+.lm-day { border: 0; background: none; border-radius: 50%; color: var(--text); }
+.lm-day:hover { background: var(--sl-hover); }
+.lm-day.has { background: var(--accent-soft); color: var(--on-accent-soft); }
+.lm-day.has small { color: var(--on-accent-soft); }
+.lm-day.missed { background: none; box-shadow: inset 0 0 0 1.5px #f2a516; color: #f2a516; }
+.lm-day.today { outline: 0; box-shadow: inset 0 0 0 1.5px var(--primary); }
+.lm-day.today b { text-decoration: none; }
+.lm-day.has.today { box-shadow: inset 0 0 0 1.5px var(--primary); }
+.lm-day.picked, .lm-day.picked:hover { background: var(--primary); color: var(--on-primary); box-shadow: none; }
+.lm-day.picked small { color: var(--on-primary); }
+.lm-grid { gap: 4px; }
+.lm-head b { font-family: var(--font-display); font-weight: 500; }
+.lm-day-panel { border-top: 0; }
+
+/* ---------- misc controls that borrowed the old raised look ---------- */
+.day-chip, .cal-day.off { background: none; border: 1px solid var(--line); box-shadow: none; border-radius: var(--radius-sm); }
+.day-chip.on, .cal-day.avail { background: var(--accent-soft); color: var(--on-accent-soft); border-color: transparent; box-shadow: none; }
+.cal-day.picked, .cal-day.today { box-shadow: inset 0 0 0 2px var(--primary); }
+.chip { box-shadow: none; }
+.seg label.on, .report-tabs button.on { background: var(--accent-soft); color: var(--on-accent-soft); border-color: transparent; box-shadow: none; }
+.seg label { border-radius: var(--radius-btn); }
+
+/* ---------- motion ---------- */
+@media (prefers-reduced-motion: no-preference) {
+  .btn, .icon-btn, .act, .chip, .link, .menu button, .profile-tablist button, .m3-seg label, .lm-day, .search {
+    transition: background-color .2s var(--ease), color .2s var(--ease), box-shadow .25s var(--ease), border-radius .3s var(--ease), transform .3s var(--spring);
+  }
+  .btn:active:not(:disabled) { transform: scale(.97); }
+  .icon-btn:active:not(:disabled) { transform: scale(.92); }
+  /* a menu or sheet opens with Material's emphasized-decelerate (a short rise and fade) */
+  .menu { animation: m3-pop .2s var(--ease); transform-origin: top right; }
+  .sheet { animation: m3-sheet .35s var(--ease); }
+  .overlay { animation: m3-fade .2s linear; }
+  .confirm-dialog { animation: m3-pop .25s var(--ease); transform-origin: center; }
+}
+@keyframes m3-pop { from { opacity: 0; transform: scale(.92) translateY(-4px); } }
+@keyframes m3-sheet { from { opacity: 0; transform: translateY(32px); } }
+@keyframes m3-fade { from { opacity: 0; } }
+@media (min-width: 640px) { @keyframes m3-sheet { from { opacity: 0; transform: scale(.94); } } }
+
+/* month view sits inside the column like the cards do */
+.lm { margin: 8px var(--gutter) 0; }
+
+/* ---------- username field: the box carries the outline; the input inside is bare (the generic outlined-field rule above must not apply to it) ---------- */
+.username-field {
+  background: none; border: 1px solid color-mix(in srgb, var(--muted) 60%, transparent); border-radius: var(--radius-sm); padding-left: 14px;
+}
+.username-field:hover { border-color: var(--text); }
+.username-field:focus-within { border-color: var(--primary); box-shadow: 0 0 0 1px var(--primary); }
+.sheet .username-field input:not([type="file"]):not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+.sheet .username-field input:not([type="file"]):not([type="checkbox"]):not([type="radio"]):not([type="range"]):hover,
+.sheet .username-field input:not([type="file"]):not([type="checkbox"]):not([type="radio"]):not([type="range"]):focus,
+.auth-card .username-field input {
+  border: 0; box-shadow: none; background: none; border-radius: 0; outline: none;
+}
+.username-field:has(input[aria-invalid="true"]) { border-color: var(--danger); }
+.username-field:has(input[aria-invalid="true"]):focus-within { box-shadow: 0 0 0 1px var(--danger); }

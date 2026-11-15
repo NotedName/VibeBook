@@ -50,17 +50,30 @@ export function useSortMode(key: string): [SortMode, (m: SortMode) => void] {
 /** How a list of your own entries is grouped: under week headings (each with its total hours) and day headings, or under day headings only. */
 export type Grouping = "weeks" | "days";
 
-/** The chosen grouping, remembered on this device. */
-export function useGrouping(key: string): [Grouping, (g: Grouping) => void] {
-  const storeKey = `vibebook.group.${key}`;
-  const [grouping, setGrouping] = useState<Grouping>(() => {
-    try { return localStorage.getItem(storeKey) === "days" ? "days" : "weeks"; } catch { return "weeks"; }
+/** The logbook's view of your notes: Days (grouped by day), Weeks (grouped by week, with each week's hours) or Months (a calendar). */
+export type LogbookView = "days" | "weeks" | "months";
+export const LOGBOOK_VIEWS: readonly { id: LogbookView; label: string }[] = [
+  { id: "days", label: "Days" }, { id: "weeks", label: "Weeks" }, { id: "months", label: "Months" },
+];
+
+/**
+ * The chosen view, remembered on this device. Before Days / Weeks / Months existed the choice was a Weeks / Days grouping
+ * (stored under vibebook.group.*), so that older answer is the starting point.
+ */
+export function useLogbookView(key: string): [LogbookView, (v: LogbookView) => void] {
+  const storeKey = `vibebook.view.${key}`;
+  const [view, setView] = useState<LogbookView>(() => {
+    try {
+      const saved = localStorage.getItem(storeKey);
+      if (saved === "days" || saved === "weeks" || saved === "months") return saved;
+      return localStorage.getItem(`vibebook.group.${key}`) === "days" ? "days" : "weeks";
+    } catch { return "weeks"; }
   });
-  const set = useCallback((g: Grouping) => {
-    setGrouping(g);
-    try { localStorage.setItem(storeKey, g); } catch { /* not remembered, still works */ }
+  const set = useCallback((v: LogbookView) => {
+    setView(v);
+    try { localStorage.setItem(storeKey, v); } catch { /* not remembered, still works */ }
   }, [storeKey]);
-  return [grouping, set];
+  return [view, set];
 }
 
 /** When each reaction and comment on an entry happened (ms since 1970). */

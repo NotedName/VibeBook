@@ -15,6 +15,11 @@ export const TrashIcon = () => <Svg n="trash"><path d="M3 6h18" /><path d="M8 6V
 export const CloseIcon = () => <Svg n="close"><path d="M6 6l12 12M18 6L6 18" /></Svg>;
 export const MoonIcon = () => <Svg n="moon"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" /></Svg>;
 export const AmoledIcon = () => <Svg n="amoled"><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="4.5" fill="currentColor" /></Svg>;
+export const PaletteIcon = () => <Svg n="palette"><path d="M12 3a9 9 0 1 0 0 18c1.1 0 1.8-.8 1.8-1.7 0-.5-.2-.9-.5-1.3-.3-.4-.5-.8-.5-1.3 0-1 .8-1.7 1.8-1.7H17a4 4 0 0 0 4-4c0-4.4-4-8-9-8z" /><circle cx="7.5" cy="11" r="1" /><circle cx="10" cy="7.5" r="1" /><circle cx="14.5" cy="7.5" r="1" /></Svg>;
+export const ToggleIcon = () => <Svg n="toggle"><rect x="2" y="7" width="20" height="10" rx="5" /><circle cx="16" cy="12" r="2.5" /></Svg>;
+export const ShieldIcon = () => <Svg n="shield"><path d="M12 3l8 3v6c0 4.5-3.2 7.8-8 9-4.8-1.2-8-4.5-8-9V6z" /><path d="M9 12l2 2 4-4" /></Svg>;
+export const DatabaseIcon = () => <Svg n="database"><ellipse cx="12" cy="6" rx="8" ry="3" /><path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6" /><path d="M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6" /></Svg>;
+export const UploadIcon = () => <Svg n="upload"><path d="M12 16V5M7.5 9.5L12 5l4.5 4.5" /><path d="M5 19h14" /></Svg>;
 export const SunIcon = () => <Svg n="sun"><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" /></Svg>;
 export const CameraIcon = () => <Svg n="camera"><path d="M4 8h3l2-3h6l2 3h3v11H4z" /><circle cx="12" cy="13" r="3.5" /></Svg>;
 export const ImageIcon = () => <Svg n="image"><rect x="3" y="4" width="18" height="16" rx="2" /><circle cx="9" cy="10" r="1.6" /><path d="M21 16l-5-5-8 8" /></Svg>;

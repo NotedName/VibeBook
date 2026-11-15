@@ -11,6 +11,8 @@ import { BrandName } from "./Logo";
 import { TermsDialog } from "./Terms";
 import ForgotPasswordForm from "./ForgotPasswordForm";
 import { MIN_PASSWORD, STRENGTH_LABEL, strength } from "./password";
+import { clearLoginHint, peekLoginHint, useKnownAccounts } from "./accounts";
+import { initials } from "./report";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -28,7 +30,11 @@ export default function AuthForm({ initialMode = "signin", onBack }: Props) {
   const [name, setName] = useState("");
   const [username, setUsername] = useState("");
   const [usernameTouched, setUsernameTouched] = useState(false);
-  const [email, setEmail] = useState("");
+  // Switching accounts from the menu signs out and lands here with that account's email filled in.
+  const [email, setEmail] = useState(peekLoginHint);
+  const [hinted] = useState(email !== "");
+  useEffect(clearLoginHint, []); // used once
+  const known = useKnownAccounts();
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [show, setShow] = useState(false);
@@ -140,6 +146,17 @@ export default function AuthForm({ initialMode = "signin", onBack }: Props) {
 
         <form className="auth-card" onSubmit={submit} noValidate>
           <h1>{signup ? "Join VibeBook" : "Welcome back"}</h1>
+          {!signup && known.length > 0 && (
+            <div className="known-accounts" role="group" aria-label="Accounts used on this device">
+              {known.map((a) => (
+                <button key={a.uid} type="button" className={`known-account${email.trim().toLowerCase() === a.email.toLowerCase() ? " on" : ""}`}
+                  onClick={() => setEmail(a.email)}>
+                  <i aria-hidden="true">{initials(a.name)}</i>
+                  <span><b>{a.name}</b><small>{a.email}</small></span>
+                </button>
+              ))}
+            </div>
+          )}
           {signup && (
             <label>Your name
               <input value={name} autoComplete="name" required
@@ -164,6 +181,7 @@ export default function AuthForm({ initialMode = "signin", onBack }: Props) {
             <span className="pw">
               <input type={show ? "text" : "password"} value={password} required
                 autoComplete={signup ? "new-password" : "current-password"}
+                autoFocus={hinted && !signup}
                 placeholder={signup ? `At least ${MIN_PASSWORD} characters` : "Your password"}
                 {...invalidProps("password", shown("password"))}
                 onChange={(e) => setPassword(e.target.value)} />

@@ -21,9 +21,8 @@ import EntrySheet from "./EntrySheet";
 import SideColumn from "./SideColumn";
 import ProfileSheet from "./ProfileSheet";
 import SettingsSheet from "./SettingsSheet";
-import AccountSheet from "./AccountSheet";
+import AccountMenu from "./AccountMenu";
 import DeactivatedGate from "./DeactivatedGate";
-import Avatar from "./Avatar";
 import MyLogbook from "./pages/MyLogbook";
 import FeedPage from "./pages/FeedPage";
 import GroupsPage from "./pages/GroupsPage";
@@ -43,6 +42,7 @@ import ThreadPage from "./pages/ThreadPage";
 import { FeedSkeleton, ProfileSkeleton } from "./Skeleton";
 import { hideSplash } from "./splash";
 import { useScrollLock } from "./scrollLock";
+import { slideIn, slideOut, useSlidingIndicator } from "./slide";
 
 type Route =
   | { name: "me" } | { name: "archived" } | { name: "archivedChats" } | { name: "requests" } | { name: "feed" } | { name: "people" } | { name: "groups" }
@@ -130,8 +130,10 @@ export default function Shell({ user }: { user: User }) {
   const [notice, setNotice] = useState("");
   const [manualCopy, setManualCopy] = useState<string | null>(null);
   useScrollLock(manualCopy !== null);
+  // The highlight under the current tab glides to the new one (the measuring itself happens in slide.ts, from the tab that has class "on").
+  const tabsRef = useRef<HTMLElement>(null);
+  useSlidingIndicator(tabsRef, `${route.name}|${"handle" in route ? route.handle : ""}|${me === undefined ? "loading" : me ? me.username : "none"}|${social.incoming.length}|${invites.length}`);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [accountOpen, setAccountOpen] = useState(false);
   const noticeTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   useEffect(
@@ -149,26 +151,32 @@ export default function Shell({ user }: { user: User }) {
   }, [me, profileError]);
 
   useEffect(() => {
+    // Moving between pages is a shared-axis slide (Material 3): the old page slips out toward one side and fades, the new one arrives from
+    // the other. Between the main tabs the direction follows the tab bar (right = forward); going deeper (a person, a group, a post) is
+    // forward and coming back out is back. A chat only fades, because a transform would move its fixed message box.
+    let moving = 0;
     const onHash = () => {
       const t = trail.current;
       if (t.length > 1 && t[t.length - 2] === location.hash) t.pop(); // went back
       else if (t[t.length - 1] !== location.hash) t.push(location.hash);
       const show = () => { setRoute(parse(location.hash)); window.scrollTo(0, 0); };
-      // Morph between pages with the View Transitions API where the browser has it (and motion is welcome); otherwise just switch.
-      const start = (document as Document & { startViewTransition?: (update: () => void) => { finished: Promise<unknown> } }).startViewTransition;
-      const calm = window.matchMedia("(prefers-reduced-motion: reduce)").matches || document.documentElement.dataset.motion === "reduced";
       const main = document.querySelector<HTMLElement>("main.logbook");
-      // Between the main tabs the page slides the way the tab bar goes (right = forward); anywhere else it just settles in.
-      const from = tabOrder(lastHash.current), to = tabOrder(location.hash);
+      const prev = lastHash.current;
       lastHash.current = location.hash;
-      // Touch screens and phones: no page morph. It re-snapshots the page and the fixed bottom bar, which looked like jumping and overlapping.
-      const touch = window.matchMedia("(max-width: 599.98px), (pointer: coarse)").matches;
-      if (!start || calm || !main || touch) { show(); return; }
-      const root = document.documentElement;
-      root.dataset.nav = from >= 0 && to >= 0 && from !== to ? (to > from ? "forward" : "back") : "";
-      main.style.setProperty("view-transition-name", "page");
-      const clear = () => { main.style.removeProperty("view-transition-name"); delete root.dataset.nav; };
-      try { start.call(document, () => flushSync(show)).finished.then(clear, clear); } catch { clear(); show(); }
+      const from = tabOrder(prev), to = tabOrder(location.hash);
+      const deeper = (h: string) => /^#\/(u|g|post|archived|message-requests|m)\b|^#\/p\//.test(h) || parsePostHash(h) !== null;
+      let dir: 1 | -1 | 0 = 0;
+      if (from >= 0 && to >= 0 && from !== to) dir = to > from ? 1 : -1;
+      else if (!deeper(prev) && deeper(location.hash)) dir = 1;
+      else if (deeper(prev) && !deeper(location.hash)) dir = -1;
+      const chat = prev.startsWith("#/m/") || location.hash.startsWith("#/m/") || prev.startsWith("#/messages") || location.hash.startsWith("#/messages");
+      if (!main || prev === location.hash) { show(); return; }
+      const mine = ++moving;
+      slideOut(main, chat ? 0 : dir).then(() => {
+        if (mine !== moving) return; // a newer move took over
+        flushSync(show);
+        slideIn(main, chat ? 0 : dir);
+      });
     };
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
@@ -182,7 +190,6 @@ export default function Shell({ user }: { user: User }) {
   const closeEntry = useCallback(() => setEntrySheet(null), []);
   const closeProfile = useCallback(() => setEditingProfile(false), []);
   const closeSettings = useCallback(() => setSettingsOpen(false), []);
-  const closeAccount = useCallback(() => setAccountOpen(false), []);
   const entrySaved = useCallback((message: string) => { setEntrySheet(null); notify(message); }, [notify]);
 
   const session = useMemo<Session>(() => ({
@@ -223,13 +230,11 @@ export default function Shell({ user }: { user: User }) {
               aria-label="Settings" aria-haspopup="dialog">
               <SettingsIcon />
             </button>
-            <button type="button" className="icon-btn avatar-btn" onClick={() => setAccountOpen(true)}
-              aria-label="Account" aria-haspopup="dialog">
-              <Avatar profile={me} />
-            </button>
+            <AccountMenu />
           </div>
         </div>
-        <nav className="tabs" aria-label="Sections">
+        <nav className="tabs" aria-label="Sections" ref={tabsRef}>
+          <span className="ind" aria-hidden="true" />
           {tab("#/feed", active.name === "feed", <FeedIcon />, "Feed")}
           {tab("#/groups", active.name === "groups" || active.name === "group", <GroupsIcon />, "Groups", invites.length)}
           {me && (
@@ -276,7 +281,6 @@ export default function Shell({ user }: { user: User }) {
       )}
 
       {settingsOpen && <SettingsSheet onClose={closeSettings} />}
-      {accountOpen && <AccountSheet email={user.email ?? ""} onClose={closeAccount} />}
 
       {manualCopy !== null && (
         <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && setManualCopy(null)}>

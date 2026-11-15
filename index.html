@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content" />
-    <meta name="theme-color" content="#1e1c23" />
+    <meta name="theme-color" content="#151219" />
     <meta name="color-scheme" content="dark light" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -15,7 +15,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Poppins:wght@600;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Roboto+Flex:wght@400;500;600;700&family=Poppins:wght@600;700&display=swap"
     />
     <script>
       // Apply the saved appearance (colour mode incl. AMOLED, accent colour, text size and the extra options) before first paint so the page does not flash,
@@ -33,7 +33,7 @@
         var light = mode === "light" || (mode !== "dark" && mode !== "amoled" && sysLight);
         root.setAttribute("data-theme", light ? "light" : "dark");
         if (amoled && !light) root.setAttribute("data-amoled", "on");
-        try { var hn = localStorage.getItem("vibebook-honey"); if (hn) root.setAttribute("data-honey", hn); } catch (e) {}
+        try { var hn = localStorage.getItem("vibebook-background"); if (hn) root.setAttribute("data-honey", hn); } catch (e) {}
         if (size !== null && /^[0-4]$/.test(size)) root.setAttribute("data-text-size", size);
         // Accent colour and the extra appearance options (src/theme.ts has the full list and validates them).
         var accent = localStorage.getItem("vibebook-accent");
@@ -50,7 +50,7 @@
         if (localStorage.getItem("vibebook-contrast") === "on") root.setAttribute("data-contrast", "high");
         if (localStorage.getItem("vibebook-underline-links") === "on") root.setAttribute("data-links", "underline");
         if (localStorage.getItem("vibebook-square-corners") === "on") root.setAttribute("data-corners", "square");
-        document.querySelector('meta[name="theme-color"]').setAttribute("content", light ? "#f3f2f5" : amoled ? "#000000" : "#1e1c23");
+        document.querySelector('meta[name="theme-color"]').setAttribute("content", light ? "#fdf7ff" : amoled ? "#000000" : "#151219");
       } catch (e) {}
     </script>
 
@@ -58,16 +58,16 @@
       /* Splash screen. It lives here, outside React, so it paints before the app bundle has downloaded.
          src/splash.ts fades it out once the app is ready. */
       #splash {
-        --sp-bg: #141414; --sp-text: #cfcfcf; --sp-accent: #b58be3; --sp-glow: rgba(126, 73, 179, .5);
+        --sp-bg: #151219; --sp-text: #e6e0e9; --sp-accent: #cdb8e6; --sp-glow: rgba(126, 73, 179, .5);
         --sp-ease: cubic-bezier(.22, 1, .36, 1);
         position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; overflow: hidden;
         background: var(--sp-bg); color: var(--sp-text);
         transition: opacity .55s var(--sp-ease), transform .55s var(--sp-ease), visibility 0s linear .55s;
       }
       @media (prefers-color-scheme: light) {
-        html:not([data-theme="dark"]) #splash { --sp-bg: #d9d8dc; --sp-text: #141414; --sp-accent: #6a3a9c; --sp-glow: rgba(126, 73, 179, .3); }
+        html:not([data-theme="dark"]) #splash { --sp-bg: #fdf7ff; --sp-text: #1d1b20; --sp-accent: #6a3a9c; --sp-glow: rgba(126, 73, 179, .3); }
       }
-      html[data-theme="light"] #splash { --sp-bg: #d9d8dc; --sp-text: #141414; --sp-accent: #6a3a9c; --sp-glow: rgba(126, 73, 179, .3); }
+      html[data-theme="light"] #splash { --sp-bg: #fdf7ff; --sp-text: #1d1b20; --sp-accent: #6a3a9c; --sp-glow: rgba(126, 73, 179, .3); }
       html[data-theme="dark"][data-amoled="on"] #splash { --sp-bg: #000000; }
       #splash.out { opacity: 0; visibility: hidden; transform: scale(1.04); pointer-events: none; }
 

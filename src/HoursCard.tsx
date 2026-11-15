@@ -34,6 +34,8 @@ export default function HoursCard({ entries, loading = false }: { entries: Entry
   const [logOpen, setLogOpen] = useState(false);
   const [confirming, setConfirming] = useState<null | "discard" | "start">(null);
   const [clocking, setClocking] = useState(false);
+  // After "No, still on break" the question waits this long (epoch ms) before it is asked again.
+  const [askAfter, setAskAfter] = useState(0);
 
   // The running time ticks once a minute, and again when the tab comes back.
   useEffect(() => {
@@ -49,6 +51,10 @@ export default function HoursCard({ entries, loading = false }: { entries: Entry
   const thisWeek = sumMinutes(entries.filter((e) => e.date >= thisWeekStart && e.date <= weekEnd(thisWeekStart)));
   const a = goal.availability;
   const plan = planOf(a);
+  // Break time is used up while a break is still running (an extra break with no end): ask whether the person is actually working.
+  const overBreakMin = clock && plan && clock.breakStart !== undefined && isOnBreak(clock, now, plan) && !clock.breakPlanned
+    ? breakMinutesOf(clock, now, plan) - plan.minutes : -1;
+  const askWorking = overBreakMin >= 0 && now >= askAfter;
   // What a full week would hold, and how long until the required hours are reached, counting only the days you can work.
   const weekCapacity = availableDaysIn(thisWeekStart, weekEnd(thisWeekStart), a) * a.hoursPerDay * 60;
   const todayMinutes = sumMinutes(entries.filter((e) => e.date === todayStr()));
@@ -192,6 +198,18 @@ export default function HoursCard({ entries, loading = false }: { entries: Entry
         )}
         {!editingStart && error && <FormError>{error}</FormError>}
       </div>
+      {askWorking && clock && plan && (
+        <ConfirmDialog title="Are you working again?" confirmLabel="Yes, I'm working" cancelLabel="No, still on break"
+          onCancel={() => setAskAfter(Date.now() + 5 * 60000)}
+          onConfirm={() => {
+            // The break allowance ended `overBreakMin` minutes ago: the time since then counts as work, not break.
+            const at = Math.max(clock.breakStart ?? 0, Date.now() - overBreakMin * 60000);
+            run(() => endBreak(s.uid, clock, plan, at));
+          }}>
+          <p>Your {formatHM(plan.minutes)} of break time is used up{overBreakMin > 0 ? `, ${overBreakMin} min ago` : ""}, but your clock is still paused.</p>
+          <p>If you are working, the time since your break ran out counts as work. If you are still on break, we will ask again in 5 minutes.</p>
+        </ConfirmDialog>
+      )}
       {confirming === "start" && clock && (
         <ConfirmDialog title="Change your start time?" confirmLabel="Yes, edit start"
           onCancel={() => setConfirming(null)} onConfirm={() => { setConfirming(null); startEditingStart(); }}>

@@ -125,7 +125,7 @@ export default function Shell({ user }: { user: User }) {
   // Pages visited inside the app, so Back never leaves it: only offered when there is somewhere in the app to go.
   const trail = useRef<string[]>([location.hash]);
   const lastHash = useRef(location.hash);
-  const [entrySheet, setEntrySheet] = useState<{ entry: Entry | null; groupId?: string } | null>(null);
+  const [entrySheet, setEntrySheet] = useState<{ entry: Entry | null; groupId?: string; date?: string } | null>(null);
   const [editingProfile, setEditingProfile] = useState(false);
   const [notice, setNotice] = useState("");
   const [manualCopy, setManualCopy] = useState<string | null>(null);
@@ -189,7 +189,7 @@ export default function Shell({ user }: { user: User }) {
     ...social, user, uid, me, groups, invites, reposts, groupAlerts, markGroupSeen, chats, notify,
     manualCopy: setManualCopy,
     editProfile: () => setEditingProfile(true),
-    openEntry: (entry, groupId) => setEntrySheet({ entry, groupId }),
+    openEntry: (entry, groupId, date) => setEntrySheet({ entry, groupId, date }),
   }), [social, groups, invites, reposts, groupAlerts, markGroupSeen, chats, user, uid, me, notify]);
 
   if (profileError) return <p className="center error">{profileError}</p>;
@@ -269,7 +269,7 @@ export default function Shell({ user }: { user: User }) {
 
       {entrySheet && (
         <EntrySheet key={entrySheet.entry?.id ?? "new"} uid={uid} entry={entrySheet.entry}
-          defaultGroupId={entrySheet.groupId} onClose={closeEntry} onSaved={entrySaved} />
+          defaultGroupId={entrySheet.groupId} defaultDate={entrySheet.date} onClose={closeEntry} onSaved={entrySaved} />
       )}
       {(me === null || editingProfile || !me.username) && (
         <ProfileSheet profile={me} suggestedName={user.displayName ?? ""} onClose={closeProfile} />

@@ -28,7 +28,7 @@ export type Session = SocialState & {
   manualCopy: (text: string) => void;
   editProfile: () => void;
   /** entry null = new entry; groupId pre-selects a group to share a new entry with. */
-  openEntry: (entry: Entry | null, groupId?: string) => void;
+  openEntry: (entry: Entry | null, groupId?: string, date?: string) => void;
 };
 
 const Ctx = createContext<Session | null>(null);

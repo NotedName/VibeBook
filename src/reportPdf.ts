@@ -1,4 +1,4 @@
-import type { PDFFont, PDFImage, PDFPage } from "pdf-lib";
+import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFImage, type PDFPage } from "pdf-lib";
 import type { ReportModel } from "./reportDocs";
 
 const PAGE_W = 612, PAGE_H = 792, MARGIN = 72;
@@ -13,9 +13,8 @@ const PICTURE_GAP = 4;
 type Item = { kind: "line"; text: string } | { kind: "image"; img: PDFImage; w: number; h: number };
 type TextLine = { text: string; gap: number };
 
-/** Builds the PDF. pdf-lib is loaded only when a report is exported. */
+/** Builds the PDF. */
 export async function makePdf(model: ReportModel): Promise<Uint8Array> {
-  const { PDFDocument, StandardFonts, rgb } = await import("pdf-lib");
   const doc = await PDFDocument.create();
   doc.setTitle(model.title);
   doc.setCreator("VibeBook");

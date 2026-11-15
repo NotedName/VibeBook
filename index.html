@@ -18,22 +18,38 @@
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Poppins:wght@600;700&display=swap"
     />
     <script>
-      // Apply the saved appearance (colour mode, AMOLED, text size) before first paint so the page does not flash,
+      // Apply the saved appearance (colour mode incl. AMOLED, accent colour, text size and the extra options) before first paint so the page does not flash,
       // and tint the phone's browser/status bar to match. Keys and attributes mirror src/theme.ts.
       try {
         var root = document.documentElement;
         var mode = localStorage.getItem("vibebook-theme");
-        var amoled = localStorage.getItem("vibebook-amoled") === "on";
+        // AMOLED is a mode of its own now; older versions saved dark plus a separate AMOLED switch, so that pair still counts.
+        var amoled = mode === "amoled" || (mode === "dark" && localStorage.getItem("vibebook-amoled") === "on");
         var size = localStorage.getItem("vibebook-text-size");
         // In the Android app the WebView can answer "light" on its first frame and correct itself a moment later, which showed a light
         // splash that then flipped to dark. There, the last answer it settled on (saved by src/theme.ts) is used until it has settled.
         var sysLight = window.matchMedia("(prefers-color-scheme: light)").matches;
         if ("__TAURI_INTERNALS__" in window) sysLight = localStorage.getItem("vibebook-system-light") === "1";
-        var light = mode === "light" || (mode !== "dark" && sysLight);
+        var light = mode === "light" || (mode !== "dark" && mode !== "amoled" && sysLight);
         root.setAttribute("data-theme", light ? "light" : "dark");
-        if (amoled) root.setAttribute("data-amoled", "on");
+        if (amoled && !light) root.setAttribute("data-amoled", "on");
         try { var hn = localStorage.getItem("vibebook-honey"); if (hn) root.setAttribute("data-honey", hn); } catch (e) {}
         if (size !== null && /^[0-4]$/.test(size)) root.setAttribute("data-text-size", size);
+        // Accent colour and the extra appearance options (src/theme.ts has the full list and validates them).
+        var accent = localStorage.getItem("vibebook-accent");
+        if (accent && /^(blue|teal|green|orange|red|pink|custom)$/.test(accent)) {
+          root.setAttribute("data-accent", accent);
+          var custom = localStorage.getItem("vibebook-accent-custom");
+          if (accent === "custom" && custom && /^#[0-9a-f]{6}$/i.test(custom)) {
+            root.style.setProperty("--accent", custom);
+            var ch = [1, 3, 5].map(function (i) { var c = parseInt(custom.slice(i, i + 2), 16) / 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); });
+            root.style.setProperty("--accent-ink", 0.2126 * ch[0] + 0.7152 * ch[1] + 0.0722 * ch[2] > 0.4 ? "#141414" : "#ffffff");
+          }
+        }
+        if (localStorage.getItem("vibebook-bold") === "on") root.setAttribute("data-bold", "on");
+        if (localStorage.getItem("vibebook-contrast") === "on") root.setAttribute("data-contrast", "high");
+        if (localStorage.getItem("vibebook-underline-links") === "on") root.setAttribute("data-links", "underline");
+        if (localStorage.getItem("vibebook-square-corners") === "on") root.setAttribute("data-corners", "square");
         document.querySelector('meta[name="theme-color"]').setAttribute("content", light ? "#f3f2f5" : amoled ? "#000000" : "#1e1c23");
       } catch (e) {}
     </script>

@@ -13,7 +13,7 @@
   transition: background-color .22s var(--ease), color .22s var(--ease), border-color .22s var(--ease),
     box-shadow .22s var(--ease), filter .22s var(--ease), opacity .22s var(--ease);
 }
-.sheet input:not([type="file"]):focus, .sheet textarea:focus {
+.sheet input:not([type="file"]):focus, .sheet textarea:focus, .sheet select:focus {
   border-color: var(--accent); outline: none; box-shadow: 0 0 0 3px var(--accent-soft);
 }
 .sheet input:not([type="file"]), .sheet textarea, .comment-form input, .gif-tab input, .search, .auth-card input {
@@ -39,7 +39,7 @@
   .tab-new i { transition: transform .3s var(--spring), filter .2s var(--ease); }
   .tab-new:hover i { transform: scale(1.1) rotate(90deg); }
   .tab-new:active i { transform: scale(.9); }
-  .btn.primary { transition-property: background-color, border-color, box-shadow, filter, transform, border-radius; }
+  .btn.primary { transition-property: background-color, border-color, box-shadow, filter, transform; }
 
   @media (hover: hover) {
     .post:hover, .side-card:hover { box-shadow: var(--shadow-lift); }
@@ -73,12 +73,15 @@
     stroke-dasharray: 1; animation: logo-draw .8s cubic-bezier(.65, 0, .35, 1) both; animation-delay: calc(var(--i, 0) * .07s);
   }
 
-  /* ---------- shapes that morph ---------- */
-  /* Round buttons relax into soft squares, rectangular ones swell into pills, and back again when the pointer leaves. */
-  .icon-btn, .btn, .back-btn { transition-property: background-color, color, border-color, box-shadow, filter, opacity, transform, border-radius; }
+  /* ---------- buttons lift ---------- */
+  /* Buttons rise a little under the pointer and settle back when it leaves. The shape never changes. */
+  .icon-btn, .btn, .back-btn { transition-property: background-color, color, border-color, box-shadow, filter, opacity, transform; }
   @media (hover: hover) {
-    .icon-btn:not(.avatar-btn):hover:not(:disabled) { border-radius: 32%; }
-    .btn:hover:not(:disabled), .back-btn:hover { border-radius: calc(var(--radius-sm) + 12px); }
+    .icon-btn:not(.avatar-btn):hover:not(:disabled), .btn:hover:not(:disabled), .back-btn:hover { transform: translateY(-2px); }
+    .icon-btn:not(.avatar-btn):hover:active:not(:disabled), .btn:hover:active:not(:disabled), .back-btn:hover:active { transform: scale(.96); }
+    /* these are centred with a transform, so they do not lift */
+    .pw .icon-btn:hover:not(:disabled) { transform: translateY(-50%); }
+    .viewer-nav:hover:not(:disabled) { transform: translateY(-50%); }
   }
 
   /* ---------- animated icons ---------- */

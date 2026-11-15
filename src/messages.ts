@@ -379,24 +379,28 @@ export const markConversationSeen = (me: string, other: string) =>
 export const DEFAULT_EMOJI = "👍";
 export const NICK_MAX = 40;
 /** `emoji` is what the quick-send button sends; `nick` maps a person's uid to the nickname given to them (either of you can change them). */
-export type ChatSettings = { emoji: string; nick: Record<string, string> };
-const NO_SETTINGS: ChatSettings = { emoji: DEFAULT_EMOJI, nick: {} };
+export type ChatSettings = { emoji: string; nick: Record<string, string>; /** false until the first answer: the nicknames are not known yet */ loaded: boolean };
+const NO_SETTINGS: ChatSettings = { emoji: DEFAULT_EMOJI, nick: {}, loaded: false };
 const settingsRef = (me: string, other: string) => doc(db, "conversations", pairId(me, other), "settings", "shared");
 
+// The last answer for each conversation stays here after its listener stops, so a list that comes back (changing tabs) shows the
+// nicknames at once instead of the real names first.
+const lastKnown = new Map<string, ChatSettings>();
 // One listener per conversation, shared by everything on screen that needs it (the chat, and each row of the inbox).
 const watched = new Map<string, { value: ChatSettings; subs: Set<() => void>; stop: () => void }>();
 function watch(me: string, other: string, cb: () => void) {
   const id = pairId(me, other);
   let w = watched.get(id);
   if (!w) {
-    const entry: { value: ChatSettings; subs: Set<() => void>; stop: () => void } = { value: NO_SETTINGS, subs: new Set(), stop: () => undefined };
+    const entry: { value: ChatSettings; subs: Set<() => void>; stop: () => void } = { value: lastKnown.get(id) ?? NO_SETTINGS, subs: new Set(), stop: () => undefined };
     entry.stop = onSnapshot(settingsRef(me, other), (snap) => {
       const d = snap.data() ?? {};
       const nick: Record<string, string> = {};
       for (const [k, v] of Object.entries((d.nick ?? {}) as Record<string, unknown>)) if (typeof v === "string" && v) nick[k] = v;
-      entry.value = { emoji: typeof d.emoji === "string" && d.emoji ? d.emoji : DEFAULT_EMOJI, nick };
+      entry.value = { emoji: typeof d.emoji === "string" && d.emoji ? d.emoji : DEFAULT_EMOJI, nick, loaded: true };
+      lastKnown.set(id, entry.value);
       entry.subs.forEach((f) => f());
-    }, () => undefined);
+    }, () => { entry.value = { ...entry.value, loaded: true }; entry.subs.forEach((f) => f()); }); // no access (rules not deployed): real names
     watched.set(id, entry);
     w = entry;
   }
@@ -412,7 +416,7 @@ function watch(me: string, other: string, cb: () => void) {
 /** The emoji and nicknames of one conversation (the defaults until they load, or if the rules are not deployed yet). */
 export function useChatSettings(me: string, other: string): ChatSettings {
   const subscribe = useCallback((cb: () => void) => watch(me, other, cb), [me, other]);
-  const snapshot = useCallback(() => watched.get(pairId(me, other))?.value ?? NO_SETTINGS, [me, other]);
+  const snapshot = useCallback(() => watched.get(pairId(me, other))?.value ?? lastKnown.get(pairId(me, other)) ?? NO_SETTINGS, [me, other]);
   return useSyncExternalStore(subscribe, snapshot);
 }
 
@@ -422,8 +426,8 @@ export const setChatEmoji = (me: string, other: string, emoji: string) =>
 export const setNickname = (me: string, other: string, who: string, nickname: string) =>
   setDoc(settingsRef(me, other), { nick: { [who]: nickname.trim().slice(0, NICK_MAX) } }, { merge: true });
 
-/** What to call someone in this conversation: their nickname here, otherwise their name. */
-export const calledBy = (s: ChatSettings, uid: string, name: string) => s.nick[uid] || name;
+/** What to call someone in this conversation: their nickname here, otherwise their name. "…" until the nicknames are known, so the name never flashes first. */
+export const calledBy = (s: ChatSettings, uid: string, name: string) => (s.loaded ? s.nick[uid] || name : "…");
 
 // ---------- what only you decide: read state, mute, archive, delete, block ----------
 

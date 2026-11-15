@@ -14,6 +14,7 @@ export const PlayIcon = () => <Svg n="play" filled><path d="M7 4.5v15l12-7.5z" /
 export const TrashIcon = () => <Svg n="trash"><path d="M3 6h18" /><path d="M8 6V4h8v2" /><path d="M19 6l-1 14H6L5 6" /></Svg>;
 export const CloseIcon = () => <Svg n="close"><path d="M6 6l12 12M18 6L6 18" /></Svg>;
 export const MoonIcon = () => <Svg n="moon"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" /></Svg>;
+export const AmoledIcon = () => <Svg n="amoled"><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="4.5" fill="currentColor" /></Svg>;
 export const SunIcon = () => <Svg n="sun"><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" /></Svg>;
 export const CameraIcon = () => <Svg n="camera"><path d="M4 8h3l2-3h6l2 3h3v11H4z" /><circle cx="12" cy="13" r="3.5" /></Svg>;
 export const ImageIcon = () => <Svg n="image"><rect x="3" y="4" width="18" height="16" rx="2" /><circle cx="9" cy="10" r="1.6" /><path d="M21 16l-5-5-8 8" /></Svg>;
@@ -54,6 +55,7 @@ export const BellOffIcon = () => <Svg n="bell-off"><path d="M8.7 3.8A6 6 0 0 1 1
 export const UserIcon = () => <Svg n="user"><circle cx="12" cy="8" r="3.6" /><path d="M4.5 20c0-4 3.4-6.5 7.5-6.5s7.5 2.5 7.5 6.5" /></Svg>;
 export const BellIcon = () => <Svg n="bell"><path d="M6 9a6 6 0 0 1 12 0c0 6 2.5 7.5 2.5 7.5h-17S6 15 6 9z" /><path d="M10 20a2 2 0 0 0 4 0" /></Svg>;
 export const MonitorIcon = () => <Svg n="monitor"><rect x="3" y="4" width="18" height="12" rx="2" /><path d="M8 20h8M12 16v4" /></Svg>;
+export const SortIcon = () => <Svg n="sort"><path d="M8 20V5M4 9l4-4 4 4M16 4v15M12 15l4 4 4-4" /></Svg>;
 export const MenuIcon = () => <Svg n="menu"><path d="M4 7h16M4 12h16M4 17h16" /></Svg>;
 
 export const ArchiveIcon = () => <Svg n="archive"><rect x="3" y="4" width="18" height="4" rx="1" /><path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8" /><path d="M10 12h4" /></Svg>;

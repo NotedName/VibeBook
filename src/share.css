@@ -1,0 +1,65 @@
+/*
+  The share sheet (Share on a post) and the page a shared link opens for someone who is signed out.
+  Loaded last (see main.tsx).
+*/
+
+/* ---------- share sheet ---------- */
+.share-sheet { max-width: 480px; }
+.share-sheet .sheet-body { gap: 16px; padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px)); }
+.share-section { display: grid; gap: 10px; min-width: 0; }
+.share-section h3 { font-family: var(--font-display); font-size: calc(15px * var(--ts)); }
+.share-section > .btn { justify-self: start; display: inline-flex; align-items: center; gap: 6px; }
+.share-link { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.share-link input { flex: 1 1 0; min-width: 0; width: auto; text-overflow: ellipsis; }
+.share-link .btn { flex: none; display: inline-flex; align-items: center; gap: 6px; }
+.share-link .btn svg, .share-section > .btn svg { width: 16px; height: 16px; }
+.share-actions { border-block: 1px solid var(--line); padding-block: 6px; }
+.share-note { min-height: 84px; }
+.share-platforms { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 6px; }
+.share-platforms a {
+  display: grid; justify-items: center; gap: 6px; padding: 10px 4px; border-radius: var(--radius-md);
+  color: var(--text); text-decoration: none; font-weight: 600; font-size: calc(12.5px * var(--ts));
+}
+.share-platforms a:hover { background: var(--surface-2); }
+.share-platforms a:focus-visible { outline: 2px solid var(--accent-text); outline-offset: 2px; }
+.share-platforms i {
+  display: grid; place-items: center; width: 46px; height: 46px; border-radius: 50%; color: #fff;
+  font-style: normal; font-weight: 700; font-size: 18px; line-height: 1; border: 1px solid var(--line);
+}
+.share-platforms i svg { width: 22px; height: 22px; }
+
+/* ---------- a shared link, opened while signed out ---------- */
+/* This page has its own bar and column. It used to borrow the signed-in app's .topbar and .logbook, whose rules assume the tab
+   bar, the side column and (on tablets) the left rail are there: the post stretched across a wide screen, the buttons stacked
+   on tablets and there was a big empty gap under the post. */
+.public-page { min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; }
+.public-bar {
+  position: sticky; top: 0; z-index: 20; border-bottom: 1px solid var(--line);
+  padding: var(--safe-top) max(16px, env(safe-area-inset-right, 0px)) 0 max(16px, env(safe-area-inset-left, 0px));
+}
+.public-bar::before {
+  content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
+  -webkit-backdrop-filter: blur(16px) saturate(1.5); backdrop-filter: blur(16px) saturate(1.5);
+}
+.public-bar-in { max-width: var(--col); margin: 0 auto; height: 56px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.public-brand {
+  display: flex; align-items: center; gap: 8px; min-width: 0; white-space: nowrap; color: var(--text);
+  font-family: var(--font-display); font-weight: 700; font-size: calc(22px * var(--ts)); letter-spacing: -.02em;
+}
+.public-brand .brand-mark { width: 36px; height: 36px; flex: none; color: var(--text); }
+.public-actions { display: flex; align-items: center; gap: 8px; flex: none; }
+
+.public-main {
+  flex: 1; width: 100%; max-width: var(--col); margin: 0 auto; min-width: 0;
+  padding: 16px max(var(--gutter), env(safe-area-inset-right, 0px)) calc(32px + env(safe-area-inset-bottom, 0px)) max(var(--gutter), env(safe-area-inset-left, 0px));
+}
+.public-main .post, .public-main .empty { margin-inline: 0; }
+.public-main .post { margin-bottom: 0; }
+.public-main .empty { margin-top: 8px; margin-bottom: 0; }
+.public-main .locked-hint { padding-top: 2px; }
+.public-main .join-cta { margin: 8px 14px 14px; }
+.public-main .join-cta .btn { flex: 1 1 140px; }
+@media (min-width: 700px) {
+  .public-main { padding-top: 28px; }
+}

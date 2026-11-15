@@ -295,6 +295,11 @@ service cloud.firestore {
       allow read, write: if isOwner(uid);
     }
 
+    // Friends you unfollowed: still friends, but not in your Following feed. Only you can see or change it.
+    match /users/{uid}/unfollowed/{targetId} {
+      allow read, write: if isOwner(uid);
+    }
+
     // Other people can read an entry only when its owner shared it with them: publicly, with
     // friends, or with a group they are in. Entries with no visibility field are private.
     // Text limits for an entry: activity 140, description 2000, at most 15 skills. An edit that does not touch the

@@ -8,12 +8,15 @@ import { formatHM, sumMinutes, weekEnd, weekOfMonthLabel, weekStart } from "./we
  */
 export type ReportKind = "daily" | "weekly" | "period";
 
-/** Printed at the top of every report. Blank lines are left out (except the trainee's own three). */
+/** Printed at the top of every report. Blank lines are left out (except the trainee's own two). `program` is the course. */
 export type ReportDetails = {
-  traineeName: string; course: string; term: string;
+  traineeName: string; term: string;
   school: string; department: string; program: string; schoolYear: string;
 };
-export const EMPTY_DETAILS: ReportDetails = { traineeName: "", course: "", term: "", school: "", department: "", program: "", schoolYear: "" };
+export const EMPTY_DETAILS: ReportDetails = { traineeName: "", term: "", school: "", department: "", program: "", schoolYear: "" };
+
+/** Capitals on the first letter of every word, so the printed text is uniform. The other letters are left as typed (BSIT stays BSIT). */
+export const capitalizeWords = (s: string) => s.replace(/(^|[\s\-/(])(\p{L})/gu, (_, before: string, letter: string) => before + letter.toUpperCase());
 
 /** A JPEG ready to place in a document. */
 export type ReportImage = { bytes: Uint8Array; width: number; height: number };
@@ -81,7 +84,7 @@ function uniqueSkills(list: Entry[]): string[] {
   const out: string[] = [];
   list.forEach((e) => e.skills.forEach((raw) => {
     const s = raw.trim();
-    if (s && !seen.has(s.toLowerCase())) { seen.add(s.toLowerCase()); out.push(s); }
+    if (s && !seen.has(s.toLowerCase())) { seen.add(s.toLowerCase()); out.push(capitalizeWords(s)); }
   }));
   return out;
 }
@@ -104,7 +107,7 @@ export function buildReport(input: ReportInput): ReportModel {
   const days = new Map<string, Entry[]>();
   list.forEach((e) => days.set(e.date, [...(days.get(e.date) ?? []), e]));
   const rows = [...days].map(([date, es]) => {
-    const row = [monthDay(date, manyYears), es.map((e) => tidy(e.title)).filter(Boolean).join(", "), uniqueSkills(es).join(", ")];
+    const row = [monthDay(date, manyYears), es.map((e) => capitalizeWords(tidy(e.title))).filter(Boolean).join(", "), uniqueSkills(es).join(", ")];
     return showHours ? [...row, sumMinutes(es) > 0 ? formatHM(sumMinutes(es)) : "–"] : row;
   });
   const table: ReportTable = showHours
@@ -120,9 +123,9 @@ export function buildReport(input: ReportInput): ReportModel {
     paragraphs: es.flatMap((e) => paragraphsOf(e.description)),
   }));
 
-  const headerLines = [details.school, details.department, details.program, details.schoolYear ? `S.Y. ${details.schoolYear.replace(/^S\.?Y\.?\s*/i, "")}` : ""]
-    .map((l) => l.trim()).filter(Boolean);
-  const info = [`Name of Trainee: ${details.traineeName.trim()}`, `Course: ${details.course.trim()}`, `Term: ${details.term.trim()}`];
+  const headerLines = [details.school, details.department, details.program].map((l) => capitalizeWords(l.trim()))
+    .concat(details.schoolYear ? `S.Y. ${details.schoolYear.replace(/^S\.?Y\.?\s*/i, "")}` : "").filter(Boolean);
+  const info = [`Name of Trainee: ${capitalizeWords(details.traineeName.trim())}`, `Term: ${capitalizeWords(details.term.trim())}`];
   if (kind !== "daily") info.push(`Period: ${monthDay(from, true)} – ${monthDay(to, true)}`);
 
   return {

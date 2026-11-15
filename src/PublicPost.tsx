@@ -74,18 +74,18 @@ export default function PublicPost({ uid, id, onAuth }: Props) {
   const name = owner?.displayName || (owner === undefined ? "…" : "VibeBook member");
 
   return (
-    <>
-      <header className="topbar">
-        <div className="topbar-in">
-          <span className="brand"><BrandName /></span>
-          <div className="top-actions">
+    <div className="public-page">
+      <header className="public-bar">
+        <div className="public-bar-in">
+          <span className="public-brand"><BrandName /></span>
+          <div className="public-actions">
             <button type="button" className="btn small" onClick={() => onAuth("signin")}>Sign in</button>
             <button type="button" className="btn small primary" onClick={() => onAuth("signup")}>Join</button>
           </div>
         </div>
       </header>
 
-      <main className="logbook">
+      <main className="public-main">
         {entry === undefined && <FeedSkeleton count={1} />}
         {entry === null && (
           <div className="empty">
@@ -152,6 +152,6 @@ export default function PublicPost({ uid, id, onAuth }: Props) {
           index={viewing} onIndex={setViewing} onClose={() => setViewing(null)}
           onLocked={() => setLockedHint(true)} />
       )}
-    </>
+    </div>
   );
 }

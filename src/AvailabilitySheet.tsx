@@ -28,6 +28,9 @@ const nextOccurrence = (month: number, day: number, from: string) => {
 
 const WEEK_ERROR = "Pick at least one day you can work.";
 const GOAL_ERROR = `Enter the hours as a number from 1 to ${MAX_REQUIRED_HOURS}, or leave it empty to remove the goal.`;
+/** Quick choices for the length of the break and when it starts. */
+const BREAK_PRESETS = [0, 15, 30, 45, 60, 90];
+const START_PRESETS = ["12:00", "12:30", "13:00"];
 const BREAK_ERROR_LEN = "Set how long the break is, or clear its start time.";
 const BREAK_ERROR_SPAN = "The whole break must fall between your start and end times.";
 const TIME_ERRORS = ["Set when your day starts and ends.", "Break must be a whole number of minutes.", "The end time must come after the start time, with the break taken out.", BREAK_ERROR_LEN, BREAK_ERROR_SPAN];
@@ -50,6 +53,9 @@ export default function AvailabilitySheet({ uid, hours, value, share, onClose }:
       : defaultTimes(value.hoursPerDay);
     return { start: t.startTime, end: t.endTime, brk: String(t.breakMinutes), at: value.breakAt ?? "" };
   });
+  const breakMin = Number(times.brk) || 0;
+  /** "Other" is open, or the saved break is not one of the quick choices. */
+  const [otherBreak, setOtherBreak] = useState(() => !BREAK_PRESETS.includes(Number(times.brk)));
   const today = todayStr();
   const [view, setView] = useState(() => ({ y: Number(today.slice(0, 4)), m: Number(today.slice(5, 7)) - 1 }));
   const [busy, setBusy] = useState(false);
@@ -143,31 +149,50 @@ export default function AvailabilitySheet({ uid, hours, value, share, onClose }:
 
           <fieldset className="setting">
             <legend>Daily schedule</legend>
-            <div className="time-row">
+            <div className="time-row two">
               <label><span className="cap">From</span>
                 <input type="time" value={times.start} onChange={(e) => setTimes((t) => ({ ...t, start: e.target.value }))} />
               </label>
               <label><span className="cap">To</span>
                 <input type="time" value={times.end} onChange={(e) => setTimes((t) => ({ ...t, end: e.target.value }))} />
               </label>
-              <label><span className="cap">Break (min)</span>
+            </div>
+
+            <span className="cap">Break</span>
+            <div className="opt-chips" role="group" aria-label="Break length">
+              {BREAK_PRESETS.map((m) => (
+                <button key={m} type="button" className={`opt-chip${!otherBreak && breakMin === m ? " on" : ""}`} aria-pressed={!otherBreak && breakMin === m}
+                  onClick={() => { setOtherBreak(false); setTimes((t) => ({ ...t, brk: String(m), at: m === 0 ? "" : t.at })); }}>
+                  {m === 0 ? "No break" : `${m} min`}
+                </button>
+              ))}
+              <button type="button" className={`opt-chip${otherBreak ? " on" : ""}`} aria-pressed={otherBreak} onClick={() => setOtherBreak(true)}>Other</button>
+            </div>
+            {otherBreak && (
+              <label><span className="cap">Break length (minutes)</span>
                 <input type="number" inputMode="numeric" min="0" step="5" value={times.brk} onChange={(e) => setTimes((t) => ({ ...t, brk: e.target.value }))} />
               </label>
-              <label><span className="cap">Break starts <small>(optional)</small></span>
-                <span className="input-clear">
-                  <input type="time" value={times.at} onChange={(e) => setTimes((t) => ({ ...t, at: e.target.value }))} />
-                  {times.at && (
-                    <button type="button" className="icon-btn clear-btn" aria-label="Clear break start time" title="Clear break start time"
-                      onClick={() => setTimes((t) => ({ ...t, at: "" }))}><CloseIcon /></button>
-                  )}
-                </span>
-              </label>
-            </div>
-            <p className="hint">{dayMinutes > 0 ? <>Counts as <b>{formatHM(dayMinutes)}</b> a day</> : "The end must come after the start."}</p>
-            {times.at && Number(times.brk) > 0 && isTime(times.at) && (
-              <p className="hint">The break from <b>{clockTime(times.at)}</b> to <b>{clockTime(toTime(toMinutes(times.at) + Number(times.brk)))}</b> is taken out of your shift by itself while you are clocked in. Tap Break time before it starts to use those minutes early.{" "}
-                <button type="button" className="btn small" onClick={() => setTimes((t) => ({ ...t, at: "" }))}><CloseIcon />Clear start time</button></p>
             )}
+
+            {breakMin > 0 && (
+              <>
+                <span className="cap">Break starts</span>
+                <div className="opt-chips" role="group" aria-label="When the break starts">
+                  <button type="button" className={`opt-chip${times.at === "" ? " on" : ""}`} aria-pressed={times.at === ""} onClick={() => setTimes((t) => ({ ...t, at: "" }))}>I choose each day</button>
+                  {START_PRESETS.map((t) => (
+                    <button key={t} type="button" className={`opt-chip${times.at === t ? " on" : ""}`} aria-pressed={times.at === t} onClick={() => setTimes((x) => ({ ...x, at: t }))}>{clockTime(t)}</button>
+                  ))}
+                </div>
+                <label><span className="cap">Or pick a time</span>
+                  <input type="time" value={times.at} onChange={(e) => setTimes((t) => ({ ...t, at: e.target.value }))} />
+                </label>
+              </>
+            )}
+
+            <p className="hint">{dayMinutes > 0 ? <>Counts as <b>{formatHM(dayMinutes)}</b> a day.</> : "The end must come after the start."}{" "}
+              {breakMin > 0 && (times.at && isTime(times.at)
+                ? <>The break from <b>{clockTime(times.at)}</b> to <b>{clockTime(toTime(toMinutes(times.at) + breakMin))}</b> is taken out by itself while you are clocked in.</>
+                : "Tap Break time when you take it and those minutes are taken out.")}</p>
             {TIME_ERRORS.includes(error) && <FormError>{error}</FormError>}
           </fieldset>
 

@@ -24,10 +24,10 @@
 .post, .side-card, .composer, .profile { box-shadow: var(--neu-raise); }
 /* pressed-in panels and fields */
 .hours, .day-detail, .daily-schedule { box-shadow: var(--neu-press); border-color: transparent; }
-.sheet input:not([type="file"]):not([type="checkbox"]):not([type="radio"]), .sheet textarea, .search, .chat-composer textarea, .composer-input {
+.sheet input:not([type="file"]):not([type="checkbox"]):not([type="radio"]), .sheet textarea, .sheet select, .search, .chat-composer textarea, .composer-input {
   box-shadow: var(--neu-press-sm);
 }
-.sheet input:not([type="file"]):not([type="checkbox"]):not([type="radio"]):focus, .sheet textarea:focus {
+.sheet input:not([type="file"]):not([type="checkbox"]):not([type="radio"]):focus, .sheet textarea:focus, .sheet select:focus {
   box-shadow: var(--neu-press-sm), 0 0 0 3px var(--accent-soft);
 }
 .chat-composer textarea:focus, .search:focus-within { box-shadow: var(--neu-press-sm), 0 0 0 2px var(--accent); }

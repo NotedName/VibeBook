@@ -13,7 +13,7 @@ type Tab = "following" | "foryou";
 
 /**
  * Following: everything friends and followed people shared, newest first.
- * For you: other people's public entries, ranked by how well their skills match the skills in your own entries.
+ * For you: other people's public entries and those of the people you follow, ranked together by how well their skills match your own.
  * (Sorting lives on group pages and logbooks.)
  */
 export default function FeedPage() {
@@ -24,8 +24,9 @@ export default function FeedPage() {
   const locked = useLockedProfiles(followed);
   const sources = useMemo<Source[]>(() => {
     const open = followed.filter((uid) => locked !== null && !locked.has(uid));
-    return [...new Set([...s.friends, ...open])].map((uid) => ({ uid, friend: s.friends.has(uid) }));
-  }, [s.friends, followed, locked]);
+    const friends = [...s.friends].filter((uid) => !s.unfollowed.has(uid)); // unfollowed friends stay friends, but not in this feed
+    return [...new Set([...friends, ...open])].map((uid) => ({ uid, friend: s.friends.has(uid) }));
+  }, [s.friends, s.unfollowed, followed, locked]);
   // Pulling the page down bumps this, which makes the lists below read their data again (the site itself is not reloaded).
   const [round, setRound] = useState(0);
   const refresh = useCallback(() => setRound((r) => r + 1), []);
@@ -38,8 +39,8 @@ export default function FeedPage() {
     [original, reposts, s.uid],
   );
 
-  const known = useMemo(() => new Set([...s.friends, ...s.following]), [s.friends, s.following]);
-  const forYou = useForYou(s.uid, known, tab === "foryou", round);
+  const followedPeople = useMemo(() => new Set(people), [people]);
+  const forYou = useForYou(s.uid, original, followedPeople, tab === "foryou", round);
   const pulling = usePullToRefresh(refresh, tab === "following" ? loading : forYou.loading);
 
   return (
@@ -86,7 +87,7 @@ export default function FeedPage() {
           {!forYou.loading && forYou.entries.length === 0 && !forYou.error && (
             <div className="empty">
               <h2>Nothing to suggest yet</h2>
-              <p>Public entries from people you are not connected to show up here, ordered by the skills you share with them.</p>
+              <p>Public entries from people you do not know yet show up here, mixed with those of the people you follow and ordered by the skills you share with them.</p>
             </div>
           )}
           <EntryList entries={forYou.entries} dayHeadings={false} />

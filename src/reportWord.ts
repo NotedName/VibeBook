@@ -1,3 +1,4 @@
+import { AlignmentType, BorderStyle, Document, ImageRun, Packer, Paragraph, Table, TableCell, TableLayoutType, TableRow, TextRun, VerticalAlignTable, WidthType } from "docx";
 import type { ReportModel } from "./reportDocs";
 
 const FONT = "Times New Roman";
@@ -7,10 +8,8 @@ const DXA_PER_INCH = 1440;
 const PICTURE_MAX_W = 290;
 const PICTURE_MAX_H = 330;
 
-/** Builds the Word (.docx) file. The docx library is loaded only when a report is exported. */
+/** Builds the Word (.docx) file. */
 export async function makeWord(model: ReportModel): Promise<Uint8Array> {
-  const { AlignmentType, BorderStyle, Document, ImageRun, Packer, Paragraph, Table, TableCell, TableLayoutType, TableRow, TextRun, VerticalAlignTable, WidthType } = await import("docx");
-
   const line = { style: BorderStyle.SINGLE, size: 4, color: "000000" };
   const borders = { top: line, bottom: line, left: line, right: line };
   const margins = { top: 60, bottom: 60, left: 100, right: 100 };

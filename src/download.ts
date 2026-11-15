@@ -5,20 +5,23 @@ const slug = (text: string) => text.toLowerCase().normalize("NFKD").replace(/[^a
 
 const extOf = (blob: Blob) => blob.type.split("/")[1]?.replace("jpeg", "jpg").replace(/[^a-z0-9]/g, "") || "jpg";
 
+/** How saving ended: written, the person closed the Save as screen, or something went wrong. */
+export type SaveResult = "saved" | "cancelled" | "failed";
+
 /**
  * Inside the Android app a browser download does nothing, so ask the phone where to put the file (its own "Save as" screen)
  * and write the bytes there. Returns false if the person cancelled or the write failed.
  */
-async function saveNative(blob: Blob, fileName: string, kind = "Image"): Promise<boolean> {
+async function saveNative(blob: Blob, fileName: string, kind = "Image"): Promise<SaveResult> {
   try {
     const { save } = await import("@tauri-apps/plugin-dialog");
     const { writeFile } = await import("@tauri-apps/plugin-fs");
     const target = await save({ defaultPath: fileName, filters: [{ name: kind, extensions: [fileName.split(".").pop() || extOf(blob)] }] });
-    if (!target) return false; // closed the Save as screen
+    if (!target) return "cancelled"; // closed the Save as screen
     await writeFile(target, new Uint8Array(await blob.arrayBuffer()));
-    return true;
+    return "saved";
   } catch {
-    return false;
+    return "failed";
   }
 }
 
@@ -27,7 +30,7 @@ export async function downloadPhoto(dataUrl: string, title: string, n: number): 
   try {
     const blob = await (await fetch(dataUrl)).blob();
     const name = `vibebook-${slug(title)}-${n}.${extOf(blob)}`;
-    if (isNativeApp) return await saveNative(blob, name);
+    if (isNativeApp) return (await saveNative(blob, name)) === "saved";
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -52,8 +55,8 @@ export async function downloadPhotos(photos: { data: string }[], title: string):
   return ok;
 }
 
-/** Saves a generated file (a Word or PDF report) to the device. Returns false if the person cancelled or it could not be saved. */
-export async function downloadFile(bytes: Uint8Array, fileName: string, mime: string, kind: string): Promise<boolean> {
+/** Saves a generated file (a Word or PDF report) to the device and says how it ended. */
+export async function saveFile(bytes: Uint8Array, fileName: string, mime: string, kind: string): Promise<SaveResult> {
   try {
     const blob = new Blob([bytes as BlobPart], { type: mime });
     if (isNativeApp) return await saveNative(blob, fileName, kind);
@@ -65,8 +68,13 @@ export async function downloadFile(bytes: Uint8Array, fileName: string, mime: st
     a.click();
     a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 10_000);
-    return true;
+    return "saved";
   } catch {
-    return false;
+    return "failed";
   }
+}
+
+/** Saves a generated file. Returns false if the person cancelled or it could not be saved. */
+export async function downloadFile(bytes: Uint8Array, fileName: string, mime: string, kind: string): Promise<boolean> {
+  return (await saveFile(bytes, fileName, mime, kind)) === "saved";
 }

@@ -26,6 +26,12 @@ export function weekOfMonthLabel(sunday: string): string {
   return `${ORDINALS[n - 1]} week of ${d.toLocaleDateString("en-US", { month: "long" })}`;
 }
 
+/** "Week 2 of November" for the week that starts on this Sunday (counted the same way as weekOfMonthLabel). */
+export function weekOfMonthShort(sunday: string): string {
+  const d = toDate(sunday);
+  return `Week ${Math.min(5, Math.ceil(d.getDate() / 7))} of ${d.toLocaleDateString("en-US", { month: "long" })}`;
+}
+
 /** The Sunday of the week this date falls in (YYYY-MM-DD). */
 export function weekStart(date: string): string {
   const d = toDate(date);

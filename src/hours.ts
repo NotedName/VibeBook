@@ -139,6 +139,9 @@ export function useReportDetails(uid: string): ReportDetails | null {
 export const saveReportDetails = (uid: string, d: ReportDetails) =>
   setDoc(reportRef(uid), Object.fromEntries(Object.entries(d).map(([k, v]) => [k, v.trim().slice(0, 120)])));
 
+/** Forgets the remembered report details on every device. */
+export const clearReportDetails = (uid: string) => deleteDoc(reportRef(uid));
+
 /**
  * `edited`: the start was changed after clocking in; `origDate` and `origTime` are when the clock really started.
  * `breakMs`: break time already taken. `breakStart`: when the running break began (epoch ms), absent when not on a break.

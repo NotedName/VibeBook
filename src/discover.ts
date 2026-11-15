@@ -69,25 +69,34 @@ const ageDays = (date: string, now: number) => {
  *  - An entry's match is the sum of those weights over the skills it shares with you.
  *  - The match is divided by (1 + age in weeks), so a good match from last week beats a slightly better one from last year.
  *  - Entries that share no skill score 0 and follow the matches, newest first.
- * `skip` holds the people left out (yourself, and friends and followed people, whose entries are in the Following tab).
+ *  - Entries of people you follow (`followed`) get the weight of one more skill, so they are mixed in with the new ones.
+ * `skip` holds the people left out (yourself).
  */
-export function rankForYou(pool: Entry[], mine: Map<string, number>, skip: Set<string>, now = Date.now()): Entry[] {
+export function rankForYou(pool: Entry[], mine: Map<string, number>, skip: Set<string>, followed: Set<string>, now = Date.now()): Entry[] {
   const scored = pool
     .filter((e) => !skip.has(e.ownerUid ?? "") && e.archived !== true && e.hoursOnly !== true)
     .map((e) => {
       const shared = new Set((e.skills ?? []).map(skillKey).filter((k) => mine.has(k)));
-      let match = 0;
+      let match = followed.has(e.ownerUid ?? "") ? 1 : 0;
       shared.forEach((k) => { match += 1 + Math.log(mine.get(k)!); });
       return { e, score: match / (1 + ageDays(e.date, now) / 7) };
     });
   return scored.sort((a, b) => b.score - a.score || (a.e.date + a.e.time < b.e.date + b.e.time ? 1 : -1)).map((x) => x.e);
 }
 
-/** The "For you" list: the discoverable pool ranked against your own skills. Empty until your skills have loaded. */
-export function useForYou(uid: string, skip: Set<string>, enabled: boolean, refreshKey = 0) {
+/**
+ * The "For you" list: the discoverable pool and the entries of the people you follow (`fromFollowed`), ranked together against your
+ * own skills. Empty until your skills have loaded.
+ */
+export function useForYou(uid: string, fromFollowed: Entry[], followed: Set<string>, enabled: boolean, refreshKey = 0) {
   const { skills, error: skillsError } = useMySkills(uid, enabled);
   const pool = useDiscoverEntries(enabled, refreshKey);
-  const entries = useMemo(() => (skills ? rankForYou(pool.entries, skills, new Set([...skip, uid])) : []), [pool.entries, skills, skip, uid]);
+  const entries = useMemo(() => {
+    if (!skills) return [];
+    const all = new Map<string, Entry>();
+    [...pool.entries, ...fromFollowed].forEach((e) => all.set(`${e.ownerUid}/${e.id}`, e));
+    return rankForYou([...all.values()], skills, new Set([uid]), followed);
+  }, [pool.entries, fromFollowed, skills, followed, uid]);
   return {
     entries,
     loading: pool.loading || (enabled && skills === null && !skillsError),

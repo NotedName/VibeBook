@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { PERIODS, SORT_KINDS, type Grouping, type SortMode } from "./sorting";
-import { CheckIcon, MenuIcon } from "./icons";
-import { DateRangeFields, rangeActive, type DateRange } from "./DateRangeFilter";
+import { CheckIcon, SortIcon } from "./icons";
 
 type Props = {
   mode: SortMode;
@@ -9,13 +8,10 @@ type Props = {
   /** Only on your own logbook: also offer to group the list by week or by day, in this same menu. */
   grouping?: Grouping;
   onGrouping?: (g: Grouping) => void;
-  /** Only on your own logbook: also offer to show only the days between two dates, in this same menu. */
-  range?: DateRange;
-  onRange?: (r: DateRange) => void;
 };
 
-/** Hamburger button with the sort choices (Newest, Hottest, Popular with a period, Oldest) and, on your logbook, the Weeks / Days view and the date filter. */
-export default function SortMenu({ mode, onChange, grouping, onGrouping, range, onRange }: Props) {
+/** Sort button with the sort choices (Newest, Hottest, Popular with a period, Oldest) and, on your logbook, the Weeks / Days view. The date filter is its own button (DateFilterMenu). */
+export default function SortMenu({ mode, onChange, grouping, onGrouping }: Props) {
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
@@ -33,13 +29,12 @@ export default function SortMenu({ mode, onChange, grouping, onGrouping, range, 
 
   return (
     <div className="post-menu">
-      <button type="button" className={`icon-btn menu-btn sort-btn${range && rangeActive(range) ? " filtered" : ""}`}
-        aria-label={range ? (rangeActive(range) ? "Sort and filter entries (dates filtered)" : "Sort and filter entries") : "Sort entries"} aria-haspopup="menu" aria-expanded={open}
-        onClick={() => setOpen(!open)}><MenuIcon /></button>
+      <button type="button" className="icon-btn menu-btn sort-btn" aria-label="Sort entries" aria-haspopup="menu" aria-expanded={open}
+        onClick={() => setOpen(!open)}><SortIcon /></button>
       {open && (
         <>
           <button type="button" className="menu-scrim" aria-label="Close menu" onClick={() => setOpen(false)} />
-          <div className={`menu${range ? " menu-wide" : ""}`} role="menu" aria-label={range ? "Sort and filter entries" : "Sort entries by"}>
+          <div className="menu" role="menu" aria-label="Sort entries by">
             <span className="menu-title">Sort by</span>
             {SORT_KINDS.map((k) => item(mode.kind === k.id, k.label, () => {
               onChange({ ...mode, kind: k.id });
@@ -56,12 +51,6 @@ export default function SortMenu({ mode, onChange, grouping, onGrouping, range, 
                 <span className="menu-title">View</span>
                 {item(grouping === "weeks", "Weeks", () => { onGrouping("weeks"); setOpen(false); }, "Group by week, with the hours for each week")}
                 {item(grouping === "days", "Days", () => { onGrouping("days"); setOpen(false); }, "Group by day only")}
-              </>
-            )}
-            {range && onRange && (
-              <>
-                <span className="menu-title">Filter by date</span>
-                <DateRangeFields value={range} onChange={onRange} />
               </>
             )}
           </div>

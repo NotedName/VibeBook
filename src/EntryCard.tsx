@@ -9,7 +9,6 @@ import Avatar from "./Avatar";
 import ClampedText from "./ClampedText";
 import { Linkified } from "./links";
 import { ArchiveIcon, CheckIcon, CommentIcon, CopyIcon, DownloadIcon, EditIcon, GlobeIcon, GroupsIcon, LockIcon, MoreIcon, RepostIcon, ShareIcon, TrashIcon, UnarchiveIcon, UsersIcon } from "./icons";
-import GroupShareSheet from "./GroupShareSheet";
 import ShareSheet from "./ShareSheet";
 import { removeRepost, repostId } from "./reposts";
 import { removePostFromGroup, useGroup } from "./groups";
@@ -18,7 +17,6 @@ import { useCommentCount } from "./commentStore";
 import ReactionBar from "./ReactionBar";
 import VideoPlayer from "./VideoPlayer";
 import PhotoViewer from "./PhotoViewer";
-import { postLink } from "./share";
 import SkillChips from "./SkillChips";
 import { downloadPhotos } from "./download";
 import LockedPost from "./LockedPost";
@@ -59,7 +57,7 @@ function FullEntryCard({ entry, onEdit, inGroup, single = false }: Props) {
   const commentCount = useCommentCount(ownerUid, entry.id);
   const [menu, setMenu] = useState(false);
   const [visOpen, setVisOpen] = useState(false);
-  const [sharing, setSharing] = useState<"share" | "repost" | null>(null);
+  const [sharing, setSharing] = useState(false);
   const reposter = useProfile(entry.repostedBy);
   const menuRef = useRef<HTMLDivElement>(null);
   const groupIds = (entry.groupIds ?? []).filter((id) => s.groups.ids.has(id));
@@ -132,21 +130,6 @@ function FullEntryCard({ entry, onEdit, inGroup, single = false }: Props) {
   const myRepost = s.reposts.get(repostId(ownerUid, entry.id));
   const iReposted = entry.repostedBy === s.uid;
   const reposterName = entry.repostedBy === s.uid ? "You" : reposter?.displayName || "Someone";
-
-  /** Copies the link to this entry, or opens the phone's share sheet. Only for Public entries. */
-  async function shareLink() {
-    const url = postLink(ownerUid, entry.id);
-    if (typeof navigator.share === "function") {
-      try {
-        await navigator.share({ title: entry.title, url });
-        return;
-      } catch (err) {
-        if ((err as DOMException).name === "AbortError") return; // closed the share sheet
-      }
-    }
-    if (await copyText(url)) s.notify("Link copied");
-    else s.manualCopy(url);
-  }
 
   const expecting = entry.photoCount > 0 && photos.length === 0;
   const name = owner?.displayName || (owner === undefined ? "…" : "VibeBook member");
@@ -264,18 +247,13 @@ function FullEntryCard({ entry, onEdit, inGroup, single = false }: Props) {
         <button type="button" className={`act${commenting ? " on" : ""}`} aria-expanded={commenting}
           aria-label={commentCount ? `Comment, ${commentCount} so far` : "Comment"}
           onClick={() => setCommenting(!commenting)}><CommentIcon /><span className="label">Comment</span>{!!commentCount && <b className="count">{commentCount}</b>}</button>
-        {isPublic && !mine && (
-          <button type="button" className={`act${myRepost ? " on" : ""}`} aria-pressed={!!myRepost}
-            aria-label={myRepost ? "Reposted" : "Repost"} title={myRepost ? "Reposted" : "Repost"}
-            onClick={() => setSharing("repost")}><RepostIcon /><span className="label">{myRepost ? "Reposted" : "Repost"}</span></button>
-        )}
         {(isPublic || mine) && (
-          <button type="button" className="act" aria-label="Share" title="Share" onClick={() => setSharing("share")}><ShareIcon /><span className="label">Share</span></button>
+          <button type="button" className={`act${myRepost ? " on" : ""}`} aria-label={myRepost ? "Share, you reposted this" : "Share"} title={myRepost ? "Share (you reposted this)" : "Share"}
+            onClick={() => setSharing(true)}><ShareIcon /><span className="label">Share</span></button>
         )}
       </div>
 
-      {sharing === "share" && <ShareSheet entry={entry} linkable={isPublic} onLink={shareLink} onClose={() => setSharing(null)} />}
-      {sharing === "repost" && <GroupShareSheet kind="repost" entry={entry} onClose={() => setSharing(null)} />}
+      {sharing && <ShareSheet entry={entry} onClose={() => setSharing(false)} />}
       {commenting && <Comments ownerUid={ownerUid} entryId={entry.id} title={entry.title} />}
 
       {viewing !== null && photos.length > 0 && (

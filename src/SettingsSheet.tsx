@@ -1,5 +1,6 @@
-import { useEffect, useState, type CSSProperties } from "react";
-import { HONEY_STYLES, resetAppearance, TEXT_SIZES, useAppearance, type ThemeMode } from "./theme";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
+import ConfirmDialog from "./ConfirmDialog";
+import { ACCENTS, HONEY_STYLES, resetAppearance, TEXT_SIZES, useAppearance, type ThemeMode } from "./theme";
 import { PHOTO_QUALITY, resetPreferences, usePreferences } from "./preferences";
 import { ACTIVITY_SHOWN, useActivityState } from "./activity";
 import { ago } from "./notifications";
@@ -8,23 +9,25 @@ import { personHash, setFriendsAudience, setHoursAudience, setPrivateProfile, se
 import { AUDIENCES, VISIBILITY, type Audience } from "./types";
 import { BrandName } from "./Logo";
 import { TermsContent } from "./Terms";
-import { CloseIcon, GlobeIcon, LockIcon, MoonIcon, MonitorIcon, SunIcon, UsersIcon } from "./icons";
+import { AmoledIcon, CloseIcon, GlobeIcon, LockIcon, MoonIcon, MonitorIcon, SunIcon, UsersIcon } from "./icons";
 import { useScrollLock } from "./scrollLock";
 import { RowsSkeleton } from "./Skeleton";
 import SecuritySettings from "./SecuritySettings";
+import { deleteAccount } from "./deleteAccount";
+import { authMessage } from "./authErrors";
 
-const CATEGORIES = ["Appearance", "Media", "Notifications", "Privacy", "Security", "Accessibility", "Activity", "About"] as const;
+const CATEGORIES = ["Appearance", "Media", "Notifications", "Privacy", "Security", "Accessibility", "Activity", "About", "Reset"] as const;
 type Category = (typeof CATEGORIES)[number];
 
 type Option<T extends string | number> = { id: T; label: string; icon?: React.ReactNode };
 
 /** One choice out of a few, shown as a row of buttons. */
-function Choice<T extends string | number>({ name, legend, value, options, onChange, className = "", hint }: {
-  name: string; legend: string; value: T; options: Option<T>[]; onChange: (v: T) => void; className?: string; hint?: string;
+function Choice<T extends string | number>({ name, legend, value, options, onChange, className = "", hint, device = false }: {
+  name: string; legend: string; value: T; options: Option<T>[]; onChange: (v: T) => void; className?: string; hint?: string; device?: boolean;
 }) {
   return (
     <fieldset className="setting">
-      <legend>{legend}</legend>
+      <legend>{legend}{device && <DeviceTag />}</legend>
       <div className={`seg ${className}`}>
         {options.map((o) => (
           <label key={o.id} className={value === o.id ? "on" : ""}>
@@ -38,33 +41,101 @@ function Choice<T extends string | number>({ name, legend, value, options, onCha
   );
 }
 
-function Switch({ label, hint, checked, disabled = false, onChange }: {
-  label: string; hint: string; checked: boolean; disabled?: boolean; onChange: (v: boolean) => void;
+/** Titles in settings are in capitals (styles.css). This marks a setting that is saved on this device only and does not follow you to others. */
+function DeviceTag() {
+  return <em className="device-tag"> (THIS DEVICE)</em>;
+}
+
+/** `device`: only changes this device. `raw`: the title is a name someone chose (a group), so it keeps its own capitals. */
+function Switch({ label, hint, checked, disabled = false, device = false, raw = false, onChange }: {
+  label: string; hint: string; checked: boolean; disabled?: boolean; device?: boolean; raw?: boolean; onChange: (v: boolean) => void;
 }) {
   return (
     <label className={`switch-row${disabled ? " off" : ""}`}>
-      <span>{label}<small>{hint}</small></span>
+      <span><b className={`sw-title${raw ? " raw" : ""}`}>{label}{device && <DeviceTag />}</b><small>{hint}</small></span>
       <input type="checkbox" role="switch" checked={checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} />
       <i className="switch" aria-hidden="true" />
     </label>
   );
 }
 
-const MODES: Option<ThemeMode>[] = [
+/** Listed right to left as asked: Light is the right end, System the left end. Take off the .reverse() to run left to right. */
+const THEME_SLIDER: Option<ThemeMode>[] = ([
   { id: "light", label: "Light", icon: <SunIcon /> },
   { id: "dark", label: "Dark", icon: <MoonIcon /> },
+  { id: "amoled", label: "AMOLED", icon: <AmoledIcon /> },
   { id: "system", label: "System", icon: <MonitorIcon /> },
-];
+] as Option<ThemeMode>[]).reverse();
+
+const THEME_HINT: Record<ThemeMode, string> = {
+  light: "Light backgrounds.",
+  dark: "Dark backgrounds.",
+  amoled: "Pure black backgrounds, so the pixels switch off on OLED screens.",
+  system: "",
+};
+
+/** Theme as a slider: a knob slides to the chosen mode. Tap a mode, drag the knob, or use the arrow keys. */
+function ThemeSlider({ value, onChange, hint }: { value: ThemeMode; onChange: (m: ThemeMode) => void; hint: string }) {
+  const track = useRef<HTMLDivElement>(null);
+  const dragging = useRef(false);
+  const index = THEME_SLIDER.findIndex((o) => o.id === value);
+
+  function pick(clientX: number) {
+    const box = track.current?.getBoundingClientRect();
+    if (!box || box.width === 0) return;
+    const i = Math.min(THEME_SLIDER.length - 1, Math.max(0, Math.floor(((clientX - box.left) / box.width) * THEME_SLIDER.length)));
+    if (THEME_SLIDER[i].id !== value) onChange(THEME_SLIDER[i].id);
+  }
+
+  return (
+    <fieldset className="setting">
+      <legend>Theme<DeviceTag /></legend>
+      <div ref={track} className="theme-slider" style={{ "--n": THEME_SLIDER.length, "--i": index } as CSSProperties}
+        onPointerDown={(e) => { dragging.current = true; e.currentTarget.setPointerCapture(e.pointerId); pick(e.clientX); }}
+        onPointerMove={(e) => { if (dragging.current) pick(e.clientX); }}
+        onPointerUp={() => { dragging.current = false; }}
+        onPointerCancel={() => { dragging.current = false; }}>
+        <span className="theme-thumb" aria-hidden="true" />
+        {THEME_SLIDER.map((o) => (
+          <label key={o.id} className={value === o.id ? "on" : ""}>
+            <input type="radio" name="theme-mode" checked={value === o.id} onChange={() => onChange(o.id)} />
+            {o.icon}{o.label}
+          </label>
+        ))}
+      </div>
+      {hint && <p className="hint">{hint}</p>}
+    </fieldset>
+  );
+}
 
 function Appearance() {
   const a = useAppearance();
-  const dark = a.theme === "dark";
   return (
     <>
-      <Choice name="theme-mode" legend="Theme" value={a.mode} options={MODES} onChange={a.setMode}
-        hint={a.mode === "system" ? `Follows your device: currently ${a.theme}.` : undefined} />
+      <ThemeSlider value={a.mode} onChange={a.setMode}
+        hint={a.mode === "system" ? `Follows your device: currently ${a.theme}.` : THEME_HINT[a.mode]} />
       <fieldset className="setting">
-        <legend>Background</legend>
+        <legend>Accent colour<DeviceTag /></legend>
+        <div className="accent-grid" role="radiogroup" aria-label="Accent colour">
+          {ACCENTS.map((c) => (
+            <label key={c.id} className={`accent-opt${a.accent === c.id ? " on" : ""}`}>
+              <input type="radio" name="accent" checked={a.accent === c.id} onChange={() => a.setAccent(c.id)} />
+              <span className="accent-sw" style={{ background: c.color }} />
+              {c.label}
+            </label>
+          ))}
+          <label className={`accent-opt${a.accent === "custom" ? " on" : ""}`}>
+            <input type="color" className="accent-picker" value={a.customAccent} aria-label="Custom accent colour"
+              onChange={(e) => a.setCustomAccent(e.target.value)} />
+            <span className={`accent-sw${a.accent === "custom" ? "" : " rainbow"}`}
+              style={a.accent === "custom" ? { background: a.customAccent } : undefined} />
+            Custom
+          </label>
+        </div>
+        <p className="hint">Buttons, highlights and the honeycomb use this colour.</p>
+      </fieldset>
+      <fieldset className="setting">
+        <legend>Background<DeviceTag /></legend>
         <div className="honey-grid" role="radiogroup" aria-label="Honeycomb background">
           {HONEY_STYLES.map((h) => (
             <label key={h.id} className={`honey-opt${a.honey === h.id ? " on" : ""}`}>
@@ -74,12 +145,10 @@ function Appearance() {
             </label>
           ))}
         </div>
-        <p className="hint">The honeycomb behind the app. It follows your theme colour.</p>
+        <p className="hint">The honeycomb behind the app. It follows your accent colour.</p>
       </fieldset>
-      <Switch label="AMOLED black" hint={dark ? "Pure black backgrounds" : "Dark mode only"}
-        checked={a.amoled} disabled={!dark} onChange={a.setAmoled} />
       <div className="setting">
-        <label htmlFor="text-size" className="setting-title">Text size: {TEXT_SIZES[a.textSize]}</label>
+        <label htmlFor="text-size" className="setting-title">Text size: {TEXT_SIZES[a.textSize]}<DeviceTag /></label>
         <div className="size-slider">
           <span className="size-a small" aria-hidden="true">A</span>
           <div className="size-track">
@@ -92,6 +161,14 @@ function Appearance() {
         </div>
         <p className="size-preview">The quick brown fox jumps over the lazy dog.</p>
       </div>
+      <Switch device label="Bold text" hint="Makes all text heavier and easier to read"
+        checked={a.bold} onChange={a.setBold} />
+      <Switch device label="High contrast" hint="Stronger text, borders and highlights"
+        checked={a.contrast} onChange={a.setContrast} />
+      <Switch device label="Underline links" hint="Underlines tappable text links so they stand out"
+        checked={a.underlineLinks} onChange={a.setUnderlineLinks} />
+      <Switch device label="Square corners" hint="Sharper corners on cards, buttons and fields"
+        checked={a.squareCorners} onChange={a.setSquareCorners} />
     </>
   );
 }
@@ -99,7 +176,7 @@ function Appearance() {
 function Media() {
   const p = usePreferences();
   return (
-    <Choice name="photo-quality" legend="Photo upload quality" value={p.photo} onChange={p.setPhoto}
+    <Choice device name="photo-quality" legend="Photo upload quality" value={p.photo} onChange={p.setPhoto}
       options={PHOTO_QUALITY.map((q) => ({ id: q.id, label: q.label }))}
       hint={`${PHOTO_QUALITY.find((q) => q.id === p.photo)!.hint} New photos only.`} />
   );
@@ -113,16 +190,16 @@ function Notifications() {
   return (
     <>
       <span className="setting-title">Groups</span>
-      <Switch label="Group invitations" hint="Alert when someone invites you"
+      <Switch device label="Group invitations" hint="Alert when someone invites you"
         checked={p.groupInvites} onChange={p.setGroupInvites} />
-      <Switch label="New posts in my groups" hint="Alert for posts in your groups, while VibeBook is open"
+      <Switch device label="New posts in my groups" hint="Alert for posts in your groups, while VibeBook is open"
         checked={p.groupPosts} onChange={p.setGroupPosts} />
       <fieldset className="setting">
-        <legend>Alerts for each group</legend>
+        <legend>Alerts for each group<DeviceTag /></legend>
         {groups.list.length === 0
           ? <p className="hint">No groups yet.</p>
           : groups.list.map((g) => (
-            <Switch key={g.id} label={g.name} hint={p.mutedGroups.includes(g.id) ? "Muted" : "New posts"} disabled={!p.groupPosts}
+            <Switch key={g.id} raw label={g.name} hint={p.mutedGroups.includes(g.id) ? "Muted" : "New posts"} disabled={!p.groupPosts}
               checked={p.groupPosts && !p.mutedGroups.includes(g.id)} onChange={(on) => p.setGroupMuted(g.id, !on)} />
           ))}
       </fieldset>
@@ -159,7 +236,7 @@ function Privacy() {
       <Switch label="Private profile" checked={me.privateProfile}
         hint="Only friends see your entries, hours, schedule and friends. Everyone else sees your name and photo and can send a friend request."
         onChange={(on) => save(setPrivateProfile(uid, on))} />
-      <Choice name="default-visibility" legend="Who can see new entries" value={p.visibility} onChange={p.setVisibility}
+      <Choice device name="default-visibility" legend="Who can see new entries" value={p.visibility} onChange={p.setVisibility}
         options={VISIBILITY.map((v) => ({ id: v.id, label: v.label, icon: VIS_ICON[v.id] }))}
         hint={`${VISIBILITY.find((v) => v.id === p.visibility)!.hint} Change one entry from its ⋯ menu.`} />
       <Choice name="friends-audience" legend="Who can see my friends" value={me.friendsAudience} options={AUDIENCES} className="four"
@@ -175,7 +252,7 @@ function Privacy() {
 function Accessibility() {
   const p = usePreferences();
   return (
-    <Switch label="Reduce motion" hint="Turns off animations"
+    <Switch device label="Reduce motion" hint="Turns off animations"
       checked={p.reduceMotion} onChange={p.setReduceMotion} />
   );
 }
@@ -225,9 +302,61 @@ function ActivityLog({ onNavigate }: { onNavigate: () => void }) {
   );
 }
 
+/** Settings > Reset: one plain button. Pressing it asks first, and the dialog is where the warning is spelled out. */
+function Reset({ onAsk }: { onAsk: () => void }) {
+  return (
+    <>
+      <button type="button" className="btn" onClick={onAsk}>Reset</button>
+      <DeleteAccount />
+    </>
+  );
+}
+
+/** Settings > Reset > Delete account: the password, then a dialog that asks for the word "delete" before anything is removed. */
+function DeleteAccount() {
+  const { user } = useSession();
+  const [password, setPassword] = useState("");
+  const [asking, setAsking] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  if (!user.providerData.some((p) => p.providerId === "password")) {
+    return <p className="hint">You sign in with Google, so this account cannot be deleted with a password here.</p>;
+  }
+
+  async function run() {
+    setAsking(false);
+    setBusy(true);
+    setError("");
+    try {
+      await deleteAccount(user, password);
+    } catch (err) {
+      setError(authMessage(err));
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="deactivate-section" aria-label="Delete account">
+      <h3>Delete account</h3>
+      <p className="hint">Permanently deletes your account, entries, photos and profile. This cannot be undone.</p>
+      <label>Password
+        <input type="password" value={password} autoComplete="current-password" onChange={(e) => setPassword(e.target.value)} />
+      </label>
+      {error && <p className="error" role="alert">{error}</p>}
+      <button type="button" className="btn danger" disabled={busy || !password} onClick={() => setAsking(true)}>{busy ? "Deleting…" : "Delete my account"}</button>
+      {asking && (
+        <ConfirmDialog title="Delete your account?" confirmLabel="Delete forever" danger typeToConfirm="delete" onCancel={() => setAsking(false)} onConfirm={run}>
+          <p>Your entries, photos, comments, friendships and profile are deleted and your username is released. Chats you had and group posts may remain.</p>
+        </ConfirmDialog>
+      )}
+    </section>
+  );
+}
+
 export default function SettingsSheet({ onClose }: { onClose: () => void }) {
   const [category, setCategory] = useState<Category>("Appearance");
-  const [armedReset, setArmedReset] = useState(false);
+  const [askReset, setAskReset] = useState(false);
 
   useScrollLock();
   useEffect(() => {
@@ -237,6 +366,7 @@ export default function SettingsSheet({ onClose }: { onClose: () => void }) {
   }, [onClose]);
 
   return (
+    <>
     <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className="sheet settings-sheet" role="dialog" aria-modal="true" aria-label="Settings">
         <div className="sheet-head">
@@ -258,16 +388,17 @@ export default function SettingsSheet({ onClose }: { onClose: () => void }) {
           {category === "Accessibility" && <Accessibility />}
           {category === "Activity" && <ActivityLog onNavigate={onClose} />}
           {category === "About" && <About />}
+          {category === "Reset" && <Reset onAsk={() => setAskReset(true)} />}
         </div>
-        </div>
-        <div className="settings-foot">
-          <button type="button" className={`btn small${armedReset ? " armed" : ""}`} onBlur={() => setArmedReset(false)}
-            onClick={() => { if (!armedReset) { setArmedReset(true); return; } setArmedReset(false); resetAppearance(); resetPreferences(); }}>
-            {armedReset ? "Tap again to reset" : "Reset settings"}
-          </button>
-          <p className="hint">Resets this device's settings, including new entry visibility. Friends, hours and schedule privacy stay.</p>
         </div>
       </div>
     </div>
+    {askReset && (
+      <ConfirmDialog title="Reset settings?" confirmLabel="Reset" danger onCancel={() => setAskReset(false)}
+        onConfirm={() => { setAskReset(false); resetAppearance(); resetPreferences(); }}>
+        <p>This resets this device's settings, including new entry visibility. Your friends, hours and schedule privacy stay as they are.</p>
+      </ConfirmDialog>
+    )}
+    </>
   );
 }

@@ -23,15 +23,17 @@ type Props = {
   entry: Entry | null; // null = new entry
   /** Group to tick for a new entry, e.g. when writing from inside that group. */
   defaultGroupId?: string;
+  /** Day for a new entry, e.g. when adding from a day of the month view. */
+  defaultDate?: string;
   onClose: () => void;
   onSaved: (message: string) => void;
 };
 
-export default function EntrySheet({ uid, entry, defaultGroupId, onClose, onSaved }: Props) {
+export default function EntrySheet({ uid, entry, defaultGroupId, defaultDate, onClose, onSaved }: Props) {
   const s = useSession();
   // A new entry starts at the moment the sheet opened and the person can change it. Hours are logged with Clock in /
   // Clock out, not here, so an entry being edited keeps the date and time it already has.
-  const [date, setDate] = useState(entry?.date ?? todayStr());
+  const [date, setDate] = useState(entry?.date ?? defaultDate ?? todayStr());
   const [time, setTime] = useState(entry?.time ?? nowStr());
   const [title, setTitle] = useState(entry?.title ?? "");
   const [skills, setSkills] = useState(entry?.skills.join(", ") ?? "");

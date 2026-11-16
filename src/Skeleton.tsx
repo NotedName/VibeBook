@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useState, type ImgHTMLAttributes, type ReactNode } from "react";
 
 /**
  * Grey placeholder shapes shown while something loads. They only appear after a short delay
@@ -144,5 +144,60 @@ export function ThumbsSkeleton({ count }: { count: number }) {
         {Array.from({ length: count }, (_, i) => <span key={i} className="sk" style={{ width: 88, height: 88, borderRadius: 16 }} />)}
       </div>
     </Region>
+  );
+}
+
+/** Stand-in for a conversation: bubbles from both sides, in varied widths, with the other person's picture beside theirs. */
+const BUBBLES: { mine: boolean; w: string; h?: number }[] = [
+  { mine: false, w: "55%" }, { mine: false, w: "38%" }, { mine: true, w: "46%" }, { mine: false, w: "62%", h: 56 }, { mine: true, w: "30%" }, { mine: true, w: "52%" },
+];
+export function MessagesSkeleton({ count = BUBBLES.length, label = "Loading messages" }: { count?: number; label?: string }) {
+  // the newest ones are at the bottom of a chat, so a short placeholder shows the last few
+  const shown = BUBBLES.slice(BUBBLES.length - Math.min(count, BUBBLES.length));
+  return (
+    <Region label={label}>
+      <div className="sk-chat" aria-hidden="true">
+        {shown.map((b, i) => (
+          <div key={i} className={`sk-msg ${b.mine ? "mine" : "theirs"}`}>
+            {!b.mine && <Dot size={28} />}
+            <span className="sk sk-bubble" style={{ width: b.w, height: b.h ?? 38 }} />
+          </div>
+        ))}
+      </div>
+    </Region>
+  );
+}
+
+/** The message box while the encryption keys are still being checked. */
+export function ComposerSkeleton({ label = "Checking your encryption keys" }: { label?: string }) {
+  return (
+    <Region label={label}>
+      <div className="sk-composer" aria-hidden="true">
+        <Dot size={32} /><Dot size={32} /><span className="sk sk-field" /><Dot size={32} />
+      </div>
+    </Region>
+  );
+}
+
+/** A grid of GIF-shaped tiles while a search is on its way. */
+export function GifGridSkeleton({ count = 6 }: { count?: number }) {
+  return (
+    <Region label="Loading GIFs">
+      <div className="gif-grid" aria-hidden="true">
+        {Array.from({ length: count }, (_, i) => <span key={i} className="sk" style={{ height: 96, borderRadius: 10 }} />)}
+      </div>
+    </Region>
+  );
+}
+
+/**
+ * A picture that comes from the internet (a GIF): it sits on a shimmering block of its own size until it has loaded, so the chat
+ * does not jump when it arrives. If it never loads the block goes away and the alt text shows.
+ */
+export function LoadingImg({ className = "", style, onLoad, onError, ...rest }: ImgHTMLAttributes<HTMLImageElement>) {
+  const [state, setState] = useState<"loading" | "done" | "failed">("loading");
+  return (
+    <img {...rest} className={`${className}${state === "loading" ? " sk sk-img" : ""}`} style={style}
+      onLoad={(e) => { setState("done"); onLoad?.(e); }} onError={(e) => { setState("failed"); onError?.(e); }} />
   );
 }

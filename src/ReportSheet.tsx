@@ -265,7 +265,10 @@ export default function ReportSheet({ entries, initialRange, onClose }: Props) {
           )}
 
           {!copying && <fieldset className="setting report-details">
-            <legend>Printed at the top (remembered for next time)</legend>
+            <legend>
+              Printed at the top (remembered for next time)
+              {details !== null && <button type="button" className="btn small legend-clear" disabled={!!busy} onClick={forgetDetails}>Clear</button>}
+            </legend>
             {details === null ? <FieldsSkeleton count={FIELDS.length + 1} label="Loading report details" /> : <>
               {FIELDS.slice(0, 3).map(renderField)}
               <label>School year
@@ -275,7 +278,6 @@ export default function ReportSheet({ entries, initialRange, onClose }: Props) {
                 </select>
               </label>
               {FIELDS.slice(3).map(renderField)}
-              <button type="button" className="btn small" disabled={!!busy} onClick={forgetDetails}>Clear remembered export</button>
             </>}
           </fieldset>}
 

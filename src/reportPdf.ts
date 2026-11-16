@@ -60,7 +60,17 @@ export async function makePdf(model: ReportModel): Promise<Uint8Array> {
   let page!: PDFPage;
   let top = MARGIN; // distance from the top edge of the page
   const bottom = PAGE_H - MARGIN;
-  const newPage = () => { page = doc.addPage([PAGE_W, PAGE_H]); top = MARGIN; };
+  // School, department, course and school year are printed small at the top of every page, above the margin line.
+  const HEAD_SIZE = 10, HEAD_LEADING = 11.5;
+  const headLines = model.headerLines.flatMap((l, i) => wrap(l, i === 0 ? bold : regular, BODY_W).map((t) => ({ t, f: i === 0 ? bold : regular })));
+  const drawHeader = () => {
+    let y = 24;
+    for (const { t, f } of headLines) {
+      page.drawText(t, { x: PAGE_W / 2 - f.widthOfTextAtSize(t, HEAD_SIZE) / 2, y: PAGE_H - y - 8, size: HEAD_SIZE, font: f, color: black });
+      y += HEAD_LEADING;
+    }
+  };
+  const newPage = () => { page = doc.addPage([PAGE_W, PAGE_H]); top = MARGIN; drawHeader(); };
 
   const text = (t: string, x: number, atTop: number, f: PDFFont) =>
     page.drawText(t, { x, y: PAGE_H - atTop - 10.3, size: SIZE, font: f, color: black });
@@ -70,11 +80,7 @@ export async function makePdf(model: ReportModel): Promise<Uint8Array> {
 
   newPage();
 
-  // Heading
-  model.headerLines.forEach((l, i) => {
-    wrap(l, i === 0 ? bold : regular, BODY_W).forEach((ln) => { centered(ln, PAGE_W / 2, top, i === 0 ? bold : regular); top += LEADING; });
-  });
-  top += 14;
+  // Heading (the school lines are in the page header)
   centered(model.title, PAGE_W / 2, top, bold);
   top += LEADING + 8;
   model.info.forEach((l) => wrap(l, regular, BODY_W).forEach((ln) => { text(ln, MARGIN, top, regular); top += LEADING; }));

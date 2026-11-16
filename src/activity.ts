@@ -21,7 +21,7 @@ export type Activity = {
 /** Only a safety cap on storage on this device, far above what anyone does. */
 const MAX = 2000;
 /** How many of the newest items are read from your account (and shown) at once, and uploaded when a device first syncs. */
-export const ACTIVITY_SHOWN = 500;
+export const ACTIVITY_SHOWN = 200;
 const key = (uid: string) => `vibebook-activity-${uid}`;
 const syncedKey = (uid: string) => `vibebook-activity-synced-${uid}`;
 const cache = new Map<string, Activity[]>();

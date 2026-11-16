@@ -55,6 +55,9 @@ function What({ item }: { item: NoteItem }) {
 }
 
 
+/** How many notification rows are drawn before "Show older". */
+const NOTES_FIRST = 30;
+
 /** How far (px) a row must be dragged sideways to count. */
 const SWIPE_AT = 72;
 
@@ -159,6 +162,8 @@ function NotificationsSheet({ items, loading, alerts, unreadIds, onOpen, onOpenG
   items: NoteItem[]; loading: boolean; alerts: GroupAlert[]; unreadIds: string[]; onOpen: (item: NoteItem) => void; onOpenGroup: (gid: string) => void; onClose: () => void;
 }) {
   const [busy, setBusy] = useState(false);
+  // Only the newest rows are drawn at first; the rest appear on request, so a long list does not all render at once
+  const [shown, setShown] = useState(NOTES_FIRST);
   // Clear all deletes them for good, so the first press only arms the button (it disarms itself after a few seconds)
   const [armed, setArmed] = useState(false);
   const s = useSession();
@@ -229,7 +234,14 @@ function NotificationsSheet({ items, loading, alerts, unreadIds, onOpen, onOpenG
             : (
               <ul className="notes">
                 {alerts.map((a) => <GroupAlertRow key={a.gid} alert={a} onOpen={onOpenGroup} onSeen={s.markGroupSeen} />)}
-                {items.map((it) => <Row key={it.key} item={it} onOpen={onOpen} onRead={readOne} onDelete={deleteOne} />)}
+                {items.slice(0, shown).map((it) => <Row key={it.key} item={it} onOpen={onOpen} onRead={readOne} onDelete={deleteOne} />)}
+                {items.length > shown && (
+                  <li className="notes-more">
+                    <button type="button" className="btn small" onClick={() => setShown((n) => n + NOTES_FIRST)}>
+                      Show older ({items.length - shown})
+                    </button>
+                  </li>
+                )}
               </ul>
             )}
         </div>

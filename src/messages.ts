@@ -8,8 +8,8 @@ import { usePreferences } from "./preferences";
 import { pairId } from "./social";
 import { isGifUrl } from "./stickers";
 import { takeTurn } from "./rateLimit";
-import { openFrom, sealFor, useE2ee, type Payload, type ReplyRef } from "./e2ee";
-export type { ReplyRef } from "./e2ee";
+import { openFrom, sealFor, useE2ee, type Notice, type Payload, type ReplyRef } from "./e2ee";
+export type { Notice, ReplyRef } from "./e2ee";
 
 /**
  * Direct messages between two friends. One conversation per pair, named like their friendship ("<uidA>_<uidB>", sorted):
@@ -19,6 +19,8 @@ export type { ReplyRef } from "./e2ee";
  *   conversations/{pairId}/settings/shared  the emoji and nicknames both people see (see ChatSettings)
  *   conversations/{pairId}/reactions/{messageId}_{uid}  one emoji reaction per person per message (the emoji is encrypted)
  *   conversations/{pairId}/pins/{messageId}  messages either of you pinned (a short encrypted copy, so the list needs no history)
+ * Changes to the chat itself (a new emoji or nickname, a pin) also leave a line in the conversation: a message whose encrypted body
+ * holds a `sys` notice instead of words. It does not touch the conversation document, so it never counts as unread or changes the preview.
  *   messageReports/*                   a report of one message, written by the person who reports it (they choose what to include)
  * A message's author can edit it (new `enc`, plus `editedAt`) or unsend it (`unsent: true`, `enc` emptied).
  *   users/{me}/chatPrefs/{otherUid}   only yours: archivedAt, mutedUntil, clearedAt ("delete chat"), readAt, receipts
@@ -30,6 +32,8 @@ export type { ReplyRef } from "./e2ee";
 export const MESSAGE_MAX = 2000;
 const PREVIEW_MAX = 120;
 export const PAGE = 50;
+/** Most conversations kept live at once (newest first); older ones stay in the account. */
+const CHATS_MAX = 200;
 /** How many of the newest messages are loaded while searching inside a conversation. */
 export const SEARCH_WINDOW = 300;
 /** Longest picture (as a data URL) a message may carry. It is inside the encrypted message, so only the app can check it. */
@@ -46,6 +50,8 @@ export type Message = {
   edited: boolean;
   /** the author took it back: there is nothing left to show but that it was unsent */
   unsent: boolean;
+  /** not a message but a line about the chat (a pin, a new emoji or nickname); `from` is who did it */
+  sys: Notice | null;
 };
 export type Conversation = {
   id: string; other: string; lastText: string;
@@ -171,7 +177,7 @@ export function useConversations(uid: string, friends: Set<string>): Chats {
   const [previews, setPreviews] = useState<Map<string, string>>(new Map());
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => onSnapshot(
-    query(collection(db, "conversations"), where("members", "array-contains", uid), orderBy("updatedAt", "desc")),
+    query(collection(db, "conversations"), where("members", "array-contains", uid), orderBy("updatedAt", "desc"), limit(CHATS_MAX)),
     (snap) => { setRaw(snap.docs.map((d) => toConversation(uid, d))); setError(""); setReady(true); },
     () => { setError("Could not load messages. If you just updated the app, deploy the Firestore rules and indexes first (npm run deploy)."); setReady(true); },
   ), [uid]);
@@ -221,13 +227,25 @@ type RawMessage = { id: string; from: string; at: number; pending: boolean; enc:
 /** Shown instead of a message that cannot be read: the keys are still locked, or it was sent before the key was reset. */
 const unreadable = (unlocked: boolean) => (unlocked ? "🔒 This message can't be decrypted. Its encryption key was reset." : "🔒 Encrypted message. Unlock your messages to read it.");
 
+/** The notice inside a message, or null when it is not one (or is malformed: whatever the other person's app sent, only these shapes are shown). */
+function validNotice(n: unknown): Notice | null {
+  const v = n as Partial<Record<string, unknown>> | null | undefined;
+  if (!v || typeof v !== "object") return null;
+  if (v.k === "emoji" && typeof v.emoji === "string" && v.emoji) return { k: "emoji", emoji: v.emoji.slice(0, 16) };
+  if (v.k === "nick" && typeof v.who === "string" && typeof v.nick === "string") return { k: "nick", who: v.who, nick: v.nick.slice(0, NICK_MAX) };
+  if ((v.k === "pin" || v.k === "unpin") && typeof v.mid === "string" && v.mid) return { k: v.k, mid: v.mid };
+  return null;
+}
+
 async function open(other: string, m: RawMessage, unlocked: boolean): Promise<Message> {
   const { id, from, at, pending, edited, unsent } = m;
-  const base = { id, from, at, pending, edited, unsent, reply: null, fwd: false };
+  const base = { id, from, at, pending, edited, unsent, reply: null, fwd: false, sys: null };
   if (unsent) return { ...base, text: "", image: "", gif: "" };
   if (!m.enc) return { ...base, text: m.text, image: m.image, gif: m.gif }; // sent before messages were encrypted
   try {
     const p = await openFrom(other, m.enc);
+    const sys = validNotice(p.sys);
+    if (sys) return { ...base, text: "", image: "", gif: "", sys };
     return { ...base, text: p.text ?? "", image: p.image ?? "", gif: p.gif ?? "", reply: p.reply ?? null, fwd: p.fwd === true };
   } catch {
     return { ...base, text: unreadable(unlocked), image: "", gif: "" };
@@ -420,11 +438,25 @@ export function useChatSettings(me: string, other: string): ChatSettings {
   return useSyncExternalStore(subscribe, snapshot);
 }
 
+/**
+ * Leaves a line in the chat for both of you ("You pinned a message"). It is a message with a notice in it instead of words, and
+ * the conversation itself is left alone, so nobody gets an unread mark and the inbox preview stays as it was. Best effort: the change
+ * it describes has already been made, so a failure here (locked keys, no connection) is not worth reporting.
+ */
+async function postNotice(me: string, other: string, sys: Notice) {
+  try {
+    const [enc] = await sealFor(other, [{ text: "", sys }]);
+    await addDoc(collection(db, "conversations", pairId(me, other), "messages"), { from: me, enc, createdAt: serverTimestamp() });
+  } catch { /* the change itself went through */ }
+}
+
 export const setChatEmoji = (me: string, other: string, emoji: string) =>
-  setDoc(settingsRef(me, other), { emoji }, { merge: true });
+  setDoc(settingsRef(me, other), { emoji }, { merge: true }).then(() => postNotice(me, other, { k: "emoji", emoji }));
 /** Gives `who` (you or the other person) a nickname in this conversation; an empty one takes it away. */
-export const setNickname = (me: string, other: string, who: string, nickname: string) =>
-  setDoc(settingsRef(me, other), { nick: { [who]: nickname.trim().slice(0, NICK_MAX) } }, { merge: true });
+export const setNickname = (me: string, other: string, who: string, nickname: string) => {
+  const nick = nickname.trim().slice(0, NICK_MAX);
+  return setDoc(settingsRef(me, other), { nick: { [who]: nick } }, { merge: true }).then(() => postNotice(me, other, { k: "nick", who, nick }));
+};
 
 /** What to call someone in this conversation: their nickname here, otherwise their name. "…" until the nicknames are known, so the name never flashes first. */
 export const calledBy = (s: ChatSettings, uid: string, name: string) => (s.loaded ? s.nick[uid] || name : "…");
@@ -491,14 +523,18 @@ export function useChatExtras(me: string, other: string) {
   const [rawPins, setRawPins] = useState<{ id: string; by: string; enc: string; pinnedAt: number }[]>([]);
   const [reactions, setReactions] = useState<Map<string, Reaction[]>>(new Map());
   const [pins, setPins] = useState<Pin[]>([]);
+  /** false until the pins have been read and opened, so the list can show a placeholder instead of "nothing pinned" */
+  const [pinsReady, setPinsReady] = useState(false);
   const keys = useE2ee().phase;
   useEffect(() => {
     const pid = pairId(me, other);
     const none = () => undefined;
-    const a = onSnapshot(query(collection(db, "conversations", pid, "reactions"), limit(1000)),
+    setPinsReady(false);
+    const a = onSnapshot(query(collection(db, "conversations", pid, "reactions"), limit(500)),
       (snap) => setRawReactions(snap.docs.map((d) => ({ mid: d.data().mid as string, by: d.data().by as string, enc: d.data().enc as string }))), none);
-    const b = onSnapshot(collection(db, "conversations", pid, "pins"),
-      (snap) => setRawPins(snap.docs.map((d) => ({ id: d.id, by: d.data(estimate).by as string, enc: d.data().enc as string, pinnedAt: millis(d.data(estimate).at) }))), none);
+    const b = onSnapshot(query(collection(db, "conversations", pid, "pins"), limit(100)),
+      (snap) => setRawPins(snap.docs.map((d) => ({ id: d.id, by: d.data(estimate).by as string, enc: d.data().enc as string, pinnedAt: millis(d.data(estimate).at) }))),
+      () => setPinsReady(true)); // no access (rules not deployed): nothing is pinned
     return () => { a(); b(); };
   }, [me, other]);
   useEffect(() => {
@@ -517,10 +553,10 @@ export function useChatExtras(me: string, other: string) {
     let live = true;
     Promise.all(rawPins.map(async (r) => {
       try { const p = await openFrom(other, r.enc); return { id: r.id, by: r.by, from: p.from ?? "", text: p.text ?? "", at: p.at ?? 0, pinnedAt: r.pinnedAt }; } catch { return null; }
-    })).then((list) => live && setPins(list.filter((x): x is Pin => !!x).sort((x, y) => y.pinnedAt - x.pinnedAt)));
+    })).then((list) => { if (live) { setPins(list.filter((x): x is Pin => !!x).sort((x, y) => y.pinnedAt - x.pinnedAt)); setPinsReady(true); } });
     return () => { live = false; };
   }, [rawPins, other, keys]);
-  return { reactions, pins };
+  return { reactions, pins, pinsReady };
 }
 
 /** Sets your reaction to a message (one per person, a new one replaces the old), or takes it away with null. */
@@ -534,9 +570,11 @@ export async function setReaction(me: string, other: string, id: string, emoji: 
 /** Pins a message for both of you. The pin keeps a short encrypted copy so the list works without loading the whole chat. */
 export async function pinMessage(me: string, other: string, m: Message) {
   const [enc] = await sealFor(other, [{ text: snippetOf({ text: m.text, image: m.image, gif: m.gif }).slice(0, PIN_SNIPPET), from: m.from, at: m.at }]);
-  return setDoc(pinRef(me, other, m.id), { by: me, at: serverTimestamp(), enc });
+  await setDoc(pinRef(me, other, m.id), { by: me, at: serverTimestamp(), enc });
+  await postNotice(me, other, { k: "pin", mid: m.id });
 }
-export const unpinMessage = (me: string, other: string, id: string) => deleteDoc(pinRef(me, other, id));
+export const unpinMessage = (me: string, other: string, id: string) =>
+  deleteDoc(pinRef(me, other, id)).then(() => postNotice(me, other, { k: "unpin", mid: id }));
 
 /**
  * Changes the text of one of your messages (a photo, GIF, reply and "forwarded" mark stay). `latest` says it is the newest message

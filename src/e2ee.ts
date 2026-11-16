@@ -23,8 +23,18 @@ const NO_PUBLIC_KEY = "This person has not turned on encrypted messages yet. The
 
 /** What a reply points at (a short copy, so it can be shown without loading the old message). */
 export type ReplyRef = { id: string; from: string; text: string; image?: boolean; gif?: boolean };
-/** Everything inside an encrypted message, reaction or pin. `reply` and `fwd` belong to messages; `from` and `at` to pins. */
-export type Payload = { text?: string; image?: string; gif?: string; reply?: ReplyRef; fwd?: boolean; from?: string; at?: number };
+/**
+ * A line the chat shows to both people when something about it changes ("You pinned a message"). It travels as an ordinary
+ * encrypted message, so the server learns nothing about it. `k` says what happened; `who` is whose nickname changed, `nick` the new
+ * one (empty = removed), and `mid` the message that was pinned or unpinned.
+ */
+export type Notice =
+  | { k: "emoji"; emoji: string }
+  | { k: "nick"; who: string; nick: string }
+  | { k: "pin" | "unpin"; mid: string };
+
+/** Everything inside an encrypted message, reaction or pin. `reply`, `fwd` and `sys` belong to messages; `from` and `at` to pins. */
+export type Payload = { text?: string; image?: string; gif?: string; reply?: ReplyRef; fwd?: boolean; sys?: Notice; from?: string; at?: number };
 
 export type KeyPhase = "loading" | "setup" | "locked" | "ready" | "error";
 export type KeyStatus = { phase: KeyPhase; error: string };

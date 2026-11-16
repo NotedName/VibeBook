@@ -52,8 +52,6 @@ function Logbook({ onViewAs }: { onViewAs: () => void }) {
   const [tab, setTab] = useState<ProfileTab>("notes");
   const [mode, setMode] = useSortMode("logbook");
   const [view, setView] = useLogbookView("logbook");
-  // Searching lists the matches by week or day (a calendar cannot hold search results).
-  const grouping = view === "days" ? "days" : "weeks";
   const content = useRef<HTMLDivElement>(null);
   useSlideOnChange(content, (["notes", "reposts", "likes"] as const).indexOf(tab) * 10 + LOGBOOK_VIEWS.findIndex((v) => v.id === view));
   const myUid = useMemo(() => [s.uid], [s.uid]);
@@ -104,12 +102,6 @@ function Logbook({ onViewAs }: { onViewAs: () => void }) {
       {friendsOpen && <FriendsSheet uid={s.uid} onClose={() => setFriendsOpen(false)} />}
       <ProfileTabs tab={tab} onChange={setTab} showLikes />
 
-      {tab === "notes" && !searching && (
-        <Segmented className="view-toggle" label="Logbook view" value={view} options={LOGBOOK_VIEWS} onChange={setView} />
-      )}
-
-      {!monthOn && <RangeSummary value={range} onChange={setRange} shown={filtered.length} total={pool.length} />}
-
       <div className="logbook-tools">
         <label className="search">
           <SearchIcon />
@@ -118,6 +110,12 @@ function Logbook({ onViewAs }: { onViewAs: () => void }) {
         <DateFilterMenu value={range} onChange={setRange} />
         {pool.length > 1 && <SortMenu mode={mode} onChange={setMode} />}
       </div>
+
+      {tab === "notes" && !searching && (
+        <Segmented className="view-toggle" label="Logbook view" value={view} options={LOGBOOK_VIEWS} onChange={setView} />
+      )}
+
+      {!monthOn && <RangeSummary value={range} onChange={setRange} shown={filtered.length} total={pool.length} />}
 
       {loadError && <p className="error note" role="alert">{loadError}</p>}
 
@@ -164,7 +162,7 @@ function Logbook({ onViewAs }: { onViewAs: () => void }) {
           </div>
         )}
         <EntryList entries={shown} onEdit={s.openEntry} dayHeadings={mode.kind === "newest" || mode.kind === "oldest"}
-          weeks={notesShown && grouping === "weeks" ? { origin: earliestDay(list) } : undefined}
+          weeks={notesShown ? { origin: earliestDay(list) } : undefined}
           dayHours={notesShown} />
       </div>
       </div>

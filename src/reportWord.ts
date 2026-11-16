@@ -1,4 +1,4 @@
-import { AlignmentType, BorderStyle, Document, ImageRun, Packer, Paragraph, Table, TableCell, TableLayoutType, TableRow, TextRun, VerticalAlignTable, WidthType } from "docx";
+import { AlignmentType, BorderStyle, Document, Header, ImageRun, Packer, Paragraph, Table, TableCell, TableLayoutType, TableRow, TextRun, VerticalAlignTable, WidthType } from "docx";
 import type { ReportModel } from "./reportDocs";
 
 const FONT = "Times New Roman";
@@ -21,8 +21,9 @@ export async function makeWord(model: ReportModel): Promise<Uint8Array> {
     new TableCell({ width: { size: width, type: WidthType.DXA }, borders, margins, verticalAlign: valign, children });
 
   // Heading, in the order of the school's template: school lines, title, then the trainee's details.
-  const head = model.headerLines.map((l, i) => para(l, { bold: i === 0, align: AlignmentType.CENTER }));
-  const title = para(model.title, { bold: true, align: AlignmentType.CENTER, before: 240, after: 120 });
+  // The school lines sit in the page header, so they print on every page and take no room in the body.
+  const pageHeader = new Header({ children: model.headerLines.map((l, i) => para(l, { bold: i === 0, align: AlignmentType.CENTER })) });
+  const title = para(model.title, { bold: true, align: AlignmentType.CENTER, before: 0, after: 120 });
   const info = model.info.map((l) => para(l));
 
   // Table 1: dates, activities, skills (and hours when asked for). The header row repeats on every page.
@@ -72,8 +73,9 @@ export async function makeWord(model: ReportModel): Promise<Uint8Array> {
     title: model.title,
     styles: { default: { document: { run: { font: FONT, size: SIZE } } } },
     sections: [{
-      properties: { page: { size: { width: 12240, height: 15840 }, margin: { top: 1440, bottom: 1440, left: 1440, right: 1440 } } },
-      children: [...head, title, ...info, para("", { after: 120 }), t1, para("", { after: 240 }), para(model.picturesTitle), t2],
+      properties: { page: { size: { width: 12240, height: 15840 }, margin: { top: 1440, bottom: 1440, left: 1440, right: 1440, header: 540 } } },
+      headers: { default: pageHeader },
+      children: [title, ...info, para("", { after: 120 }), t1, para("", { after: 240 }), para(model.picturesTitle), t2],
     }],
   });
   const blob = await Packer.toBlob(doc);

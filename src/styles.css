@@ -158,7 +158,7 @@ body::before {
   -webkit-mask-image: var(--honey-mask); mask-image: var(--honey-mask);
   -webkit-mask-size: var(--honey-w, 56px) var(--honey-h, 100px); mask-size: var(--honey-w, 56px) var(--honey-h, 100px);
 }
-/* The honeycomb is an option (Settings > Appearance > Background), off in the Material look. */
+/* The honeycomb is an option (Settings > Appearance > Background), Classic by default. */
 html:not([data-honey]) body::before { display: none; }
 h1, h2, h3, p { margin: 0; }
 button, input, textarea { font: inherit; color: inherit; }
@@ -862,6 +862,14 @@ a.btn { text-decoration: none; }
 .sk-photo { width: 100%; aspect-ratio: 4 / 3; border-radius: 0; }
 .sk-cover { width: 100%; aspect-ratio: 3 / 1; border-radius: calc(var(--radius) - 1px) calc(var(--radius) - 1px) 0 0; }
 .profile .sk-stack.who-text { flex: 1; }
+.sk-chat { display: grid; gap: 6px; padding: 10px 0; }
+.sk-msg { display: flex; align-items: flex-end; gap: 8px; }
+.sk-msg.mine { justify-content: flex-end; }
+.sk-bubble { max-width: 78%; border-radius: 18px; }
+.sk-composer { display: flex; align-items: center; gap: 8px; padding: 8px 12px; }
+.sk-field { flex: 1; height: 38px; border-radius: 999px; }
+.sk-img { display: block; min-width: 180px; min-height: 130px; max-width: 100%; border-radius: 14px; color: transparent; }
+.chat-more-sk { padding: 4px 0 8px; }
 
 /* ---------- emoji ---------- */
 .emoji-picker { display: grid; gap: 6px; }
@@ -1440,12 +1448,12 @@ a.icon-btn { color: inherit; text-decoration: none; }
 .chat-row { display: flex; align-items: center; gap: 12px; padding: 12px 14px; min-width: 0; color: inherit; text-decoration: none; }
 .chat-list li + li .chat-row { border-top: 1px solid var(--line); }
 .chat-row:hover { background: var(--surface-2); }
-.chat-row-text { display: grid; flex: 1 1 0; min-width: 0; }
+.chat-row-text { display: grid; gap: 2px; flex: 1 1 0; min-width: 0; line-height: 1.3; }
 .chat-row-text b, .chat-row-text span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .chat-row-text b { font-weight: 700; }
 .chat-row-text span { color: var(--muted); font-size: calc(14px * var(--ts)); }
 .chat-row.unread .chat-row-text span { color: var(--text); font-weight: 600; }
-.chat-row-meta { display: grid; justify-items: end; gap: 6px; flex: none; color: var(--muted); font-size: calc(12px * var(--ts)); }
+.chat-row-meta { display: grid; grid-template-rows: auto 16px; justify-items: end; align-items: center; gap: 2px; flex: none; min-width: 40px; line-height: 1.3; color: var(--muted); font-size: calc(12px * var(--ts)); }
 .chat-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); }
 
 /* ---- Messenger-style screens: the page does not scroll, the list of chats / messages scrolls inside its own frame ---- */
@@ -1585,7 +1593,9 @@ mark.hl.cur { background: #ff9f1c; box-shadow: 0 0 0 2px #ff9f1c; }
 .chat-item .chat-row { padding-right: 58px; }
 .chat-row-menu { position: absolute; top: 0; bottom: 0; margin-block: auto; right: 8px; background: none; color: var(--muted); }
 .chat-row-menu:hover { background: var(--surface-2); color: var(--text); }
-.chat-row-flags { display: flex; align-items: center; justify-content: flex-end; gap: 6px; min-height: 14px; }
+.chat-row-flags { display: flex; align-items: center; justify-content: flex-end; gap: 6px; height: 16px; }
+.chat-seen { display: flex; }
+.chat-seen .av { width: 16px; height: 16px; font-size: 8px; }
 .chat-row-flags svg { width: 14px; height: 14px; }
 
 .chat-main { position: relative; flex: 1 1 auto; min-height: 0; display: flex; }
@@ -1608,6 +1618,10 @@ mark.hl.cur { background: #ff9f1c; box-shadow: 0 0 0 2px #ff9f1c; }
 .msg.first, .msg.solo { margin-top: 8px; }
 .msg.mid, .msg.last { margin-top: 2px; }
 .chat-sep { margin: 16px 0 6px; text-align: center; color: var(--muted); font-size: calc(12px * var(--ts)); font-weight: 600; }
+.chat-notice { margin: 10px 24px; text-align: center; color: var(--muted); font-size: calc(12px * var(--ts)); line-height: 1.4; }
+.chat-notice > svg { width: 13px; height: 13px; vertical-align: -2px; margin-right: 4px; }
+.chat-notice .link-act { font-size: inherit; font-weight: 600; }
+.msg.sys { display: block; }
 .msg-row { display: flex; align-items: flex-end; gap: 6px; min-width: 0; }
 .msg.mine .msg-row { justify-content: flex-end; }
 .msg-av { flex: none; width: 28px; }
@@ -2212,3 +2226,58 @@ html[data-honey="off"] body::before, html[data-honey="off"] body::after { displa
 .known-account b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .known-account small { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .known-account.on { border-color: var(--accent); background: var(--accent-soft); }
+
+/* The clear button sits on the "Printed at the top" heading line. */
+.report-details legend { display: inline-flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.report-details .legend-clear { justify-self: auto; }
+
+/* With a background pattern showing, controls that were see-through get their own surface so they stay easy to read. */
+html:not([data-honey="off"]) .m3-seg,
+html:not([data-honey="off"]) .lm,
+html:not([data-honey="off"]) .range-summary,
+html:not([data-honey="off"]) .logbook-tools .sort-btn,
+html:not([data-honey="off"]) .view-toggle { background-color: var(--surface); }
+html:not([data-honey="off"]) .lm { margin: 0 var(--gutter); padding: 14px; border-radius: var(--radius); }
+html:not([data-honey="off"]) .range-summary { display: inline-block; padding: 4px 12px; border-radius: var(--radius-pill); }
+html:not([data-honey="off"]) .logbook-tools .sort-btn { border-radius: 50%; }
+html:not([data-honey="off"]) .lm-dow, html:not([data-honey="off"]) .lm .hint { background: none; }
+
+/* The tick on a picked friend or group must stay icon-sized. */
+.invite-row > svg { width: 18px; height: 18px; flex: none; }
+
+.clock-status { display: flex; align-items: center; gap: 8px; }
+.clock-status svg { width: 18px; height: 18px; flex: none; color: var(--accent-text); }
+
+/* Photo viewer: space the Vibe / Pass / Comment buttons apart. */
+.viewer-foot .post-actions { gap: 8px; padding: 6px 4px 8px; }
+.viewer-foot .post-actions .act { flex: 1 1 0; justify-content: center; min-width: 0; padding-inline: 10px; }
+.viewer-foot .post-actions .act .label, .viewer-foot .post-actions .act > span { display: inline; }
+
+/* The top bar stays put on a MacBook: no elastic over-scroll that drags the sticky bar with the page. */
+html { overscroll-behavior-y: none; }
+
+/* Switches: the hidden checkbox sits inside its own row, so tapping a switch never scrolls the menu to wherever the checkbox used to be. */
+.switch-row, .seg label, .cover-opt, .theme-slider label, .m3-seg label, .theme-slider { position: relative; }
+.switch-row input, .seg input, .cover-opt input, .theme-slider input, .m3-seg input { top: 0; left: 0; width: 1px; height: 1px; margin: 0; }
+
+/* Feed tabs (Following / For you): the chosen one is always highlighted, so it is clear where you are. */
+.profile-tablist:not(:has(> .ind)) button[aria-selected="true"],
+.profile-tablist:not(:has(> .ind)) button[aria-selected="true"]:hover { background: var(--accent-soft); color: var(--accent-text); font-weight: 700; }
+
+/* New entry: tap-to-reuse suggestions */
+.suggest { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; margin-top: 6px; }
+.suggest > small { color: var(--muted); font-weight: 600; }
+.suggest button { max-width: 100%; min-width: 0; border: 1px solid var(--line); background: var(--surface-2); color: var(--text); border-radius: var(--radius-pill); padding: 4px 12px; font-size: calc(13px * var(--ts)); cursor: pointer; }
+.suggest button:hover { background: var(--accent-soft); color: var(--accent-text); }
+.suggest button span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Square corners: every rounded thing in the app, including pills, buttons, avatars, switches, dots and search and text fields. */
+:root[data-corners="square"] { --radius-pill: 4px; --radius-btn: 6px; }
+:root[data-corners="square"] *:not(#splash):not(#splash *) { border-radius: 4px !important; }
+:root[data-corners="square"] *:not(#splash):not(#splash *)::before,
+:root[data-corners="square"] *:not(#splash):not(#splash *)::after { border-radius: 3px !important; }
+:root[data-corners="square"] :is(.post, .profile, .composer, .stat, .sheet, .menu, .search, .sheet-search, input, textarea, select) { border-radius: 6px !important; }
+:root[data-corners="square"] input[type="search"] { -webkit-appearance: none; appearance: none; }
+
+/* "Show older" under a long list of notifications */
+.notes-more { display: flex; justify-content: center; padding: 10px 0 4px; list-style: none; }

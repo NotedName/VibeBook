@@ -7,6 +7,7 @@ import { newestFirst } from "../entries";
 import { dateDir, useSortedEntries, useSortMode } from "../sorting";
 import SortMenu from "../SortMenu";
 import SharedHoursCard from "../SharedHoursCard";
+import SharedStatusCard from "../SharedStatusCard";
 import SharedScheduleCard from "../SharedScheduleCard";
 import { useCanSee } from "../audience";
 import { useRepostedEntries } from "../reposts";
@@ -77,6 +78,7 @@ export default function PersonPage({ uid }: { uid: string }) {
             <UsersIcon />{mutual.length} mutual friend{mutual.length === 1 ? "" : "s"}
           </button>
         )}
+        {!hidden && <SharedStatusCard uid={uid} audience={p.statusAudience} />}
         {!hidden && <SharedHoursCard uid={uid} audience={p.hoursAudience} />}
         {!hidden && <SharedScheduleCard uid={uid} audience={p.scheduleAudience} />}
         {rel === "incoming" && <p className="hint pad-b">{p.displayName} sent you a friend request.</p>}

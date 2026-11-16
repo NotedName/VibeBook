@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useSyncExternalStore } from "react";
 import {
-  collection, deleteDoc, doc, limit, onSnapshot, orderBy, query, serverTimestamp, setDoc, updateDoc, writeBatch, type Timestamp,
+  collection, deleteDoc, doc, getDocs, limit, onSnapshot, orderBy, query, serverTimestamp, setDoc, Timestamp, updateDoc, where, writeBatch,
+  type QueryDocumentSnapshot,
 } from "firebase/firestore";
 import { db } from "./firebase";
 import { clip } from "./text";
@@ -72,7 +73,72 @@ export const removeNotes = (uid: string, ids: string[]) => {
   return batch.commit();
 };
 
-const MAX_NOTES = 100;
+/** How many of the newest notifications are kept live (read from the server) at once. */
+const MAX_NOTES = 60;
+/** Read notifications older than this are deleted from the account. */
+const READ_KEEP_MS = 30 * 864e5;
+/** Anything older than this is deleted, read or not. */
+const ANY_KEEP_MS = 90 * 864e5;
+/** Cleaning up runs at most this often per device. */
+const PRUNE_EVERY_MS = 12 * 36e5;
+const PRUNE_PAGE = 200;
+
+const toNote = (d: QueryDocumentSnapshot): Note => {
+  const x = d.data();
+  const t = x.createdAt as Timestamp | null;
+  return {
+    id: d.id, type: x.type, actorUid: x.actorUid, createdAt: t ? t.toMillis() : Date.now(), read: x.read === true,
+    ownerUid: x.ownerUid, entryId: x.entryId, photoId: x.photoId, title: x.title, groupId: x.groupId, groupName: x.groupName,
+  } as Note;
+};
+
+/**
+ * Culling: old notifications are removed for good so the list the server has to load stays small. Read ones go after
+ * 30 days, any after 90. It runs once per device every 12 hours, a page at a time, and is best effort.
+ */
+export async function pruneNotes(uid: string): Promise<void> {
+  const stamp = `vibebook.notesPruned.${uid}`;
+  try { if (Date.now() - Number(localStorage.getItem(stamp) ?? 0) < PRUNE_EVERY_MS) return; } catch { /* storage blocked: just run */ }
+  try {
+    const now = Date.now();
+    const old = await getDocs(query(
+      collection(db, "users", uid, "notifications"),
+      where("createdAt", "<", Timestamp.fromMillis(now - READ_KEEP_MS)), orderBy("createdAt", "asc"), limit(PRUNE_PAGE),
+    ));
+    const stale = old.docs.filter((d) => d.data().read === true || (d.data().createdAt as Timestamp).toMillis() < now - ANY_KEEP_MS).map((d) => d.id);
+    await removeNotes(uid, stale);
+    // A full page means there may be more: leave the stamp alone so the next start carries on.
+    if (old.size < PRUNE_PAGE) { try { localStorage.setItem(stamp, String(now)); } catch { /* not remembered */ } }
+  } catch { /* best effort */ }
+}
+
+type NotesSnap = { notes: Note[]; ready: boolean };
+const EMPTY: NotesSnap = { notes: [], ready: false };
+type NotesStore = { snap: NotesSnap; subs: Set<() => void>; stop: () => void };
+const stores = new Map<string, NotesStore>();
+
+/** One live query per person, shared by everything that shows notifications (the bell, the side column, the invite list). */
+function subscribeNotes(uid: string, cb: () => void): () => void {
+  let st = stores.get(uid);
+  if (!st) {
+    const made: NotesStore = { snap: EMPTY, subs: new Set(), stop: () => {} };
+    const emit = (snap: NotesSnap) => { made.snap = snap; made.subs.forEach((f) => f()); };
+    made.stop = onSnapshot(
+      query(collection(db, "users", uid, "notifications"), orderBy("createdAt", "desc"), limit(MAX_NOTES)),
+      (snap) => emit({ notes: snap.docs.map(toNote), ready: true }),
+      () => emit({ notes: [], ready: true }),
+    );
+    stores.set(uid, made);
+    st = made;
+    void pruneNotes(uid);
+  }
+  st.subs.add(cb);
+  const mine = st;
+  return () => {
+    mine.subs.delete(cb);
+    if (mine.subs.size === 0) { mine.stop(); if (stores.get(uid) === mine) stores.delete(uid); }
+  };
+}
 
 /** Live notifications for the signed-in person, newest first. */
 export function useNotes(uid: string): Note[] {
@@ -81,24 +147,8 @@ export function useNotes(uid: string): Note[] {
 
 /** Same as useNotes, plus `ready`: false until the server has answered the first time (so a list can show a skeleton). */
 export function useNotesState(uid: string): { notes: Note[]; ready: boolean } {
-  const [notes, setNotes] = useState<Note[]>([]);
-  const [ready, setReady] = useState(false);
-  useEffect(
-    () => onSnapshot(
-      query(collection(db, "users", uid, "notifications"), orderBy("createdAt", "desc"), limit(MAX_NOTES)),
-      (snap) => { setReady(true); setNotes(snap.docs.map((d) => {
-        const x = d.data();
-        const t = x.createdAt as Timestamp | null;
-        return {
-          id: d.id, type: x.type, actorUid: x.actorUid, createdAt: t ? t.toMillis() : Date.now(), read: x.read === true,
-          ownerUid: x.ownerUid, entryId: x.entryId, photoId: x.photoId, title: x.title, groupId: x.groupId, groupName: x.groupName,
-        } as Note;
-      })); },
-      () => { setNotes([]); setReady(true); },
-    ),
-    [uid],
-  );
-  return { notes, ready };
+  const subscribe = useCallback((cb: () => void) => subscribeNotes(uid, cb), [uid]);
+  return useSyncExternalStore(subscribe, () => stores.get(uid)?.snap ?? EMPTY);
 }
 
 /** More than this many of one kind collapse into a single notification. */

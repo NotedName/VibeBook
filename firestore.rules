@@ -21,6 +21,7 @@ service cloud.firestore {
     function friendsAudience(p) { return p.get('friendsAudience', p.get('friendsVisible', true) == false ? 'private' : 'everyone'); }
     function hoursAudience(p) { return p.get('hoursAudience', p.get('hoursVisible', false) == true ? 'everyone' : 'private'); }
     function scheduleAudience(p) { return p.get('scheduleAudience', 'private'); }
+    function statusAudience(p) { return p.get('statusAudience', 'private'); }
     function reachOk(owner) {
       let path = /databases/$(database)/documents/users/$(request.auth.uid)/reach/$(owner);
       return exists(path)
@@ -228,7 +229,8 @@ service cloud.firestore {
     match /users/{uid}/hours/{docId} {
       allow read: if isOwner(uid)
         || (docId == 'shared' && canSee(uid, hoursAudience(profileOf(uid))))
-        || (docId == 'schedule' && canSee(uid, scheduleAudience(profileOf(uid))));
+        || (docId == 'schedule' && canSee(uid, scheduleAudience(profileOf(uid))))
+        || (docId == 'status' && canSee(uid, statusAudience(profileOf(uid))));
       allow delete: if isOwner(uid);
       allow create, update: if isOwner(uid) && (
         (docId == 'goal'
@@ -277,6 +279,11 @@ service cloud.firestore {
           && request.resource.data.get('requiredMinutes', 1) is number
           && request.resource.data.get('requiredMinutes', 1) > 0
           && request.resource.data.get('requiredMinutes', 1) <= 600000)
+        || (docId == 'status'
+          && request.resource.data.keys().hasOnly(['since', 'onBreak', 'breakEndsAt'])
+          && request.resource.data.since is number
+          && request.resource.data.onBreak is bool
+          && request.resource.data.get('breakEndsAt', 0) is number)
         || (docId == 'schedule'
           && request.resource.data.keys().hasOnly(['workDays', 'hoursPerDay', 'daysOff', 'daysOn', 'startTime', 'endTime', 'breakMinutes', 'breakAt'])
           && request.resource.data.get('breakAt', '00:00') is string && request.resource.data.get('breakAt', '00:00').size() == 5
@@ -559,6 +566,7 @@ service cloud.firestore {
         && request.resource.data.get('friendsAudience', 'everyone') in ['private', 'friends', 'fof', 'everyone']
         && request.resource.data.get('hoursAudience', 'private') in ['private', 'friends', 'fof', 'everyone']
         && request.resource.data.get('scheduleAudience', 'private') in ['private', 'friends', 'fof', 'everyone']
+        && request.resource.data.get('statusAudience', 'private') in ['private', 'friends', 'fof', 'everyone']
         && request.resource.data.get('privateProfile', false) is bool
         && request.resource.data.get('deactivated', false) is bool
         && (!('deactivatedAt' in request.resource.data) || request.resource.data.deactivatedAt is timestamp);

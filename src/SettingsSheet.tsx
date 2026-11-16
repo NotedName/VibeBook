@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import ConfirmDialog from "./ConfirmDialog";
 import { ACCENTS, HONEY_STYLES, resetAppearance, TEXT_SIZES, useAppearance, type ThemeMode } from "./theme";
-import { PHOTO_QUALITY, resetPreferences, usePreferences } from "./preferences";
+import { buildPhotoZip } from "./photoExport";
+import { PHOTO_QUALITY, resetPreferences, START_PAGES, usePreferences } from "./preferences";
 import { ACTIVITY_SHOWN, useActivityState } from "./activity";
 import { ago } from "./notifications";
 import { useProfile, useSession } from "./session";
-import { personHash, setFriendsAudience, setHoursAudience, setPrivateProfile, setScheduleAudience } from "./profiles";
+import { personHash, setFriendsAudience, setHoursAudience, setPrivateProfile, setScheduleAudience, setStatusAudience } from "./profiles";
 import { AUDIENCES, VISIBILITY, type Audience } from "./types";
 import { BrandName } from "./Logo";
 import { TermsContent } from "./Terms";
@@ -192,6 +193,21 @@ function Appearance() {
   );
 }
 
+function EntrySuggestionsSetting() {
+  const p = usePreferences();
+  return <Switch device label="Suggestions" checked={p.entrySuggestions} onChange={p.setEntrySuggestions}
+    hint="When writing a new entry, show your 5 most recent activities and skills to tap and reuse." />;
+}
+
+function StartPageSetting() {
+  const p = usePreferences();
+  return (
+    <Choice device name="start-page" legend="Open the app on" value={p.startPage} onChange={p.setStartPage} className="four"
+      options={START_PAGES.map((x) => ({ id: x.id, label: x.label }))}
+      hint="Where VibeBook opens when you launch it. Links to a specific page still go there." />
+  );
+}
+
 function Media() {
   const p = usePreferences();
   return (
@@ -245,6 +261,13 @@ const SCHEDULE_HINT: Record<Audience, string> = {
   everyone: "Shows your work days and hours a day. Days off stay private.",
 };
 
+const STATUS_HINT: Record<Audience, string> = {
+  private: "Hidden from others.",
+  friends: "Shows that you are clocked in or on a break, and when you resume. Only while the clock is running.",
+  fof: "Shows that you are clocked in or on a break, and when you resume. Only while the clock is running.",
+  everyone: "Shows that you are clocked in or on a break, and when you resume. Only while the clock is running.",
+};
+
 function Privacy() {
   const { me, uid, notify } = useSession();
   const p = usePreferences();
@@ -264,6 +287,8 @@ function Privacy() {
         hint={HOURS_HINT[me.hoursAudience]} onChange={(a) => save(setHoursAudience(uid, a))} />
       <Choice name="schedule-audience" legend="Who can see my schedule" value={me.scheduleAudience} options={AUDIENCES} className="four"
         hint={SCHEDULE_HINT[me.scheduleAudience]} onChange={(a) => save(setScheduleAudience(uid, a))} />
+      <Choice name="status-audience" legend="Who can see when I'm clocked in" value={me.statusAudience} options={AUDIENCES} className="four"
+        hint={STATUS_HINT[me.statusAudience]} onChange={(a) => save(setStatusAudience(uid, a))} />
     </>
   );
 }
@@ -280,13 +305,17 @@ function About() {
   return (
     <>
       <div className="about-brand brand"><BrandName /></div>
-      <p>VibeBook keeps your OJT entries: log what you did each day and look back on it any time.</p>
+      <p>VibeBook is your OJT logbook and a small community around it: log what you did, track your hours, and share your progress with the people you choose.</p>
       <ul className="about-list">
-        <li>Daily entries with photos, skills and a description.</li>
-        <li>Copy an entry straight into your daily report.</li>
-        <li>Share with only you, friends, the public or groups.</li>
+        <li>Daily entries with photos, video or GIF links, skills and a description, shown by day, week or month, with the hours for each day and week.</li>
+        <li>Clock in and out with breaks, required hours with a progress bar, and your usual work days and schedule.</li>
+        <li>Export your logbook as a Word or PDF report with your school details on every page, and back up your entries or download all your photos.</li>
+        <li>Share each entry with only you, friends, the public or groups; follow people, vibe or pass, comment and repost.</li>
+        <li>Groups, and private messages with end-to-end encryption.</li>
+        <li>You decide who sees your friends, hours, schedule and when you are clocked in, or make the whole profile private.</li>
+        <li>Make it yours: light, dark or AMOLED, accent colour and backgrounds, text size, square corners, and the page the app opens on. Add it to your home screen to use it like an app.</li>
       </ul>
-      <p className="hint">Entries, photos and profile are saved to your account. Display settings are saved per device.</p>
+      <p className="hint">Entries, photos, hours and profile are saved to your account. Display settings are saved per device.</p>
       <details className="about-terms">
         <summary>Terms and Conditions</summary>
         <TermsContent />
@@ -387,6 +416,21 @@ function DataAccount({ onNavigate, onAskReset }: { onNavigate: () => void; onAsk
     setBusy(false);
   }
 
+  async function downloadPhotos() {
+    setBusy(true);
+    setStatus("Collecting your photos…");
+    try {
+      const { zip, count } = await buildPhotoZip(uid, (done, total) => setStatus(`Collecting your photos… entry ${done} of ${total}`));
+      if (count === 0) { setStatus("You have no photos on your entries yet."); setBusy(false); return; }
+      const day = new Date().toLocaleDateString("en-CA");
+      const result = await saveFile(zip, `vibebook-photos-${day}.zip`, "application/zip", "Photos");
+      setStatus(result === "saved" ? `Saved ${count} ${count === 1 ? "photo" : "photos"}.` : result === "cancelled" ? "" : "Could not save the photos file.");
+    } catch {
+      setStatus("Could not collect your photos. Check your connection and try again.");
+    }
+    setBusy(false);
+  }
+
   async function chosen(file: File | undefined) {
     if (!file) return;
     if (file.size > 200 * 1024 * 1024) return setStatus("That file is too big to be a VibeBook backup.");
@@ -425,6 +469,11 @@ function DataAccount({ onNavigate, onAskReset }: { onNavigate: () => void; onAsk
           onChange={(e) => { void chosen(e.target.files?.[0]); e.target.value = ""; }} />
         <p className="hint">Restoring overwrites entries with the same ID; nothing is deleted. Sharing settings of entries you already have stay as they are.</p>
         {status && <p className="hint set-status" role="status">{status}</p>}
+      </Section>
+
+      <Section title="Photos">
+        <button type="button" className="btn" disabled={busy} onClick={downloadPhotos}><DownloadIcon />Download all photos</button>
+        <p className="hint">One .zip with every photo on your entries, archived ones too, named by date and title.</p>
       </Section>
 
       <Section title="Archive">
@@ -495,6 +544,8 @@ export default function SettingsSheet({ onClose }: { onClose: () => void }) {
           {category === "appearance" && <Appearance />}
           {category === "preferences" && (
             <>
+              <Section title="Start page"><StartPageSetting /></Section>
+              <Section title="New entry"><EntrySuggestionsSetting /></Section>
               <Section title="Photos"><Media /></Section>
               <Section title="Notifications"><Notifications /></Section>
               <Section title="Accessibility"><Accessibility /></Section>

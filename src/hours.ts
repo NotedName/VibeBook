@@ -14,6 +14,7 @@ import { EMPTY_DETAILS, type ReportDetails } from "./reportDocs";
  *            after the planned length; planUsed: the planned break has been taken (or skipped), so its time slot is not taken out again;
  *  - shared: { minutes, requiredMinutes? }  a summary the people in your hoursAudience can read (Settings > Privacy). Kept in
  *            step with your entries by HoursCard; deleted when you choose only me;
+ *  - status: { since, onBreak, breakEndsAt? }  present only while the clock is running, for the people in your statusAudience (Settings > Privacy): when you clocked in, whether you are on a break and when it ends. Kept in step by HoursCard; deleted when you clock out or choose only me;
  *  - schedule: { workDays, hoursPerDay, daysOff, daysOn, startTime, endTime, breakMinutes, breakAt }  the usual week and single dates the people in your scheduleAudience can read. Kept in step by
  *            saveAvailability; deleted when you choose only me;
  *  - report: the names and school lines printed at the top of exported reports (see reportDocs.ts).
@@ -53,6 +54,36 @@ export function useSharedHours(uid: string, enabled: boolean): SharedHours | nul
 export const publishHours = (uid: string, minutes: number, requiredMinutes: number | null) =>
   setDoc(doc(db, "users", uid, "hours", "shared"),
     requiredMinutes ? { minutes: Math.max(0, Math.round(minutes)), requiredMinutes: Math.round(requiredMinutes) } : { minutes: Math.max(0, Math.round(minutes)) });
+
+/** Whether someone is clocked in right now: `since` is when the clock started (epoch ms). On a break, `breakEndsAt` is when they resume (null: not known). */
+export type SharedStatus = { since: number; onBreak: boolean; breakEndsAt: number | null };
+const statusRef = (uid: string) => doc(db, "users", uid, "hours", "status");
+
+/** Whether someone (in your status audience) is clocked in. null: not clocked in or not shared; undefined while loading. */
+export function useSharedStatus(uid: string, enabled: boolean): SharedStatus | null | undefined {
+  const [state, setState] = useState<SharedStatus | null | undefined>(undefined);
+  useEffect(() => {
+    if (!enabled) { setState(null); return; }
+    setState(undefined);
+    return onSnapshot(
+      statusRef(uid),
+      (snap) => {
+        const d = snap.data();
+        setState(snap.exists() && typeof d?.since === "number"
+          ? { since: d.since, onBreak: d.onBreak === true, breakEndsAt: typeof d.breakEndsAt === "number" ? d.breakEndsAt : null }
+          : null);
+      },
+      () => setState(null),
+    );
+  }, [uid, enabled]);
+  return state;
+}
+
+/** Saves what your status audience sees while the clock runs. */
+export const publishStatus = (uid: string, s: SharedStatus) =>
+  setDoc(statusRef(uid), { since: s.since, onBreak: s.onBreak, ...(s.onBreak && s.breakEndsAt !== null ? { breakEndsAt: s.breakEndsAt } : {}) });
+/** Removes it (clocked out, or no longer shared). */
+export const clearStatus = (uid: string) => deleteDoc(statusRef(uid));
 
 /** What people in your schedule audience can read: the usual week, the single dates that differ from it, and the daily times. */
 export type SharedSchedule = Availability;

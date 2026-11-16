@@ -646,3 +646,11 @@ body:has(.overlay, .lightbox) .tab-new { visibility: hidden; }
 /* Wider layouts still hide it on pages it does not belong to (Shell.tsx adds .off there). */
 @media (min-width: 600px) { .tab-new.off { display: none; } }
 @media (max-width: 599.98px) { .tabs { grid-template-columns: repeat(5, 1fr) !important; } }
+
+/* ---------- phones: reading downwards hides the top and bottom bars, scrolling up brings them back (like Facebook) ---------- */
+@media (max-width: 599.98px) {
+  .topbar { transition: top .3s var(--ease); }
+  .tabs { transition: transform .3s var(--ease); }
+  html[data-scroll="down"] .topbar:not(:focus-within) { top: calc(-70px - var(--safe-top)); }
+  html[data-scroll="down"] .tabs:not(:focus-within) { transform: translateY(calc(100% + 30px + env(safe-area-inset-bottom, 0px))); }
+}

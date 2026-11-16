@@ -4,7 +4,7 @@ import {
 import {
   acceptChat, blockPerson, calledBy, deleteChatForMe, editMessage, failureReason, isUnread, markRead, MESSAGE_MAX, PAGE, PIN_MAX, pinMessage,
   replyRefOf, SEARCH_WINDOW, sendMessage, setReaction, snippetOf, unblockPerson, unpinMessage, unrestrictPerson, unsendMessage, useBlockedBy, useChatExtras, useChatSettings, useMessages,
-  type Message, type Outgoing, type Reaction,
+  type Message, type Notice, type Outgoing, type Reaction,
 } from "../messages";
 import { RateLimitError } from "../rateLimit";
 import { copyText } from "../report";
@@ -32,7 +32,7 @@ import {
   AlertIcon, ArrowLeftIcon, CameraIcon, CheckIcon, ChevronDownIcon, ChevronUpIcon, CloseIcon, ForwardIcon, ImageIcon, InfoIcon, MoreIcon, PinIcon, SearchIcon, SendIcon,
   SmileIcon,
 } from "../icons";
-import { LinesSkeleton } from "../Skeleton";
+import { LoadingImg, MessagesSkeleton, NameSkeleton } from "../Skeleton";
 
 const GAP = 30 * 60_000; // a pause this long starts a new group, with its own time label
 const MAX_PENDING = 6;   // pictures waiting to be sent
@@ -68,11 +68,31 @@ type BubblesProps = {
   q: string; activeId: string; onPhoto: (src: string) => void;
   /** people's names as this chat calls them (nicknames included) */
   nameOf: (uid: string) => string;
+  /** the other person's own name, for the lines about changes to the chat */
+  realName: string;
   reactions: Map<string, Reaction[]>; pinned: Set<string>; flash: string;
   /** false when nothing can be written (a request, a block, locked keys): no menu, no reacting */
   canAct: boolean;
   onMenu: (m: Message) => void; onReact: (m: Message, emoji: string) => void; onJump: (id: string) => void;
 };
+
+/**
+ * The line the chat shows when something about it changes. Names are the people's real ones (a nickname line that used the nickname
+ * would read "Bo set their own nickname to Bo"). A pin links to the pinned message.
+ */
+function NoticeLine({ m, notice, me, realName, onJump }: { m: Message; notice: Notice; me: string; realName: string; onJump: (id: string) => void }) {
+  const actor = m.from === me ? "You" : realName;
+  if (notice.k === "emoji") return <>{actor} changed the chat emoji to <span className="chat-notice-emoji">{notice.emoji}</span></>;
+  if (notice.k === "nick") {
+    // whose nickname: yours, theirs, or (when the person changed their own) "your own" / "their own"
+    const whose = notice.who === m.from ? (m.from === me ? "your own" : "their own") : notice.who === me ? "your" : `${realName}'s`;
+    return notice.nick ? <>{actor} set {whose} nickname to <b>{notice.nick}</b></> : <>{actor} removed {whose} nickname</>;
+  }
+  return (
+    <><PinIcon />{actor} {notice.k === "pin" ? "pinned" : "unpinned"}{" "}
+      <button type="button" className="link-act" onClick={() => onJump(notice.mid)}>a message</button></>
+  );
+}
 
 /** Whether the device thinks it is online (a message waiting to send says "Waiting for connection" while it is not). */
 function useOnline(): boolean {
@@ -82,7 +102,7 @@ function useOnline(): boolean {
   );
 }
 
-function Bubbles({ messages, loading, me, other, otherSeenAt, q, activeId, onPhoto, nameOf, reactions, pinned, flash, canAct, onMenu, onReact, onJump }: BubblesProps) {
+function Bubbles({ messages, loading, me, other, otherSeenAt, q, activeId, onPhoto, nameOf, realName, reactions, pinned, flash, canAct, onMenu, onReact, onJump }: BubblesProps) {
   const [timeFor, setTimeFor] = useState("");
   const byId = useMemo(() => new Map(messages.map((m) => [m.id, m])), [messages]);
   // Long press (touch) opens the message menu; a right click or the ... button does the same on a computer.
@@ -111,7 +131,7 @@ function Bubbles({ messages, loading, me, other, otherSeenAt, q, activeId, onPho
     primed.current = true;
   });
   const lastMine = useMemo(() => {
-    for (let i = messages.length - 1; i >= 0; i--) if (messages[i].from === me) return messages[i].id;
+    for (let i = messages.length - 1; i >= 0; i--) if (messages[i].from === me && !messages[i].sys) return messages[i].id;
     return "";
   }, [messages, me]);
 
@@ -123,12 +143,21 @@ function Bubbles({ messages, loading, me, other, otherSeenAt, q, activeId, onPho
         const mine = m.from === me;
         const sep = !prev || m.at - prev.at > GAP || dayOf(prev.at) !== dayOf(m.at);
         const nextSep = !!next && (next.at - m.at > GAP || dayOf(next.at) !== dayOf(m.at));
-        const starts = !prev || sep || prev.from !== m.from;
-        const ends = !next || nextSep || next.from !== m.from;
+        // a line about the chat (a pin, a new emoji) splits a run of messages from the same person
+        const starts = !prev || sep || prev.from !== m.from || !!prev.sys;
+        const ends = !next || nextSep || next.from !== m.from || !!next.sys;
         const pos = starts && ends ? "solo" : starts ? "first" : ends ? "last" : "mid";
         const big = !m.image && !m.gif && isBigEmoji(m.text);
         const seen = otherSeenAt > 0 && otherSeenAt >= m.at;
         if (primed.current && !known.current.has(m.id) && m.at >= newest.current) animated.current.add(m.id);
+        if (m.sys) {
+          return (
+            <div key={m.id} className={`msg sys${animated.current.has(m.id) ? " enter" : ""}${m.pending ? " pending" : ""}`} data-mid={m.id}>
+              {sep && <p className="chat-sep">{sepLabel(m.at)}</p>}
+              <p className="chat-notice"><NoticeLine m={m} notice={m.sys} me={me} realName={realName} onJump={onJump} /></p>
+            </div>
+          );
+        }
         return (
           <div key={m.id} className={`msg ${mine ? "mine" : "theirs"} ${pos}${animated.current.has(m.id) ? " enter" : ""}${m.pending ? " pending" : ""}${flash === m.id ? " flash" : ""}`} data-mid={m.id}>
             {sep && <p className="chat-sep">{sepLabel(m.at)}</p>}
@@ -150,7 +179,7 @@ function Bubbles({ messages, loading, me, other, otherSeenAt, q, activeId, onPho
                     <img src={m.image} alt="Photo" />
                   </button>
                 )}
-                {m.gif && <img className="msg-gif" src={m.gif} alt="GIF" referrerPolicy="no-referrer" />}
+                {m.gif && <LoadingImg className="msg-gif" src={m.gif} alt="GIF" referrerPolicy="no-referrer" />}
                 {m.text !== "" && (
                   <div className={`bubble ${mine ? "mine" : "theirs"}${big ? " big" : ""}`} title={timeLabel(m.at)}
                     onClick={() => setTimeFor((t) => (t === m.id ? "" : m.id))}>
@@ -386,7 +415,7 @@ export default function ThreadPage({ uid: other }: { uid: string }) {
   const [failed, setFailed] = useState<Failed[]>(() => outboxes.get(other) ?? []);
   // Reply, react, forward, pin, edit, unsend and report. Messages are kept by id so a refreshed copy (or one that was just
   // unsent) is always the current one.
-  const { reactions, pins } = useChatExtras(s.uid, other);
+  const { reactions, pins, pinsReady } = useChatExtras(s.uid, other);
   const [menuId, setMenuId] = useState("");
   const [forwardId, setForwardId] = useState("");
   const [reportId, setReportId] = useState("");
@@ -418,7 +447,8 @@ export default function ThreadPage({ uid: other }: { uid: string }) {
   const menuMsg = byId.get(menuId);
   const replying = byId.get(replyId) ?? null;
   const editing = byId.get(editId) ?? null;
-  const latest = messages[messages.length - 1];
+  // the newest real message: a line about the chat (a pin, a new emoji) is never the inbox preview
+  const latest = useMemo(() => [...messages].reverse().find((m) => !m.sys), [messages]);
   const tell = (what: string) => (err: unknown) =>
     s.notify(err instanceof RateLimitError ? err.message : `Could not ${what}. If you just updated the app, deploy the Firestore rules first.`);
 
@@ -550,6 +580,8 @@ export default function ThreadPage({ uid: other }: { uid: string }) {
 
   const realName = p === undefined ? "…" : p.displayName || "VibeBook member";
   const name = calledBy(settings, other, realName);
+  const nameLoading = p === undefined || !settings.loaded; // show a grey bar instead of "…" while who this is (or what they are called here) is unknown
+  const olderLoading = hasMore && !loading && messages.length < count; // older messages are on their way
 
   return (
     <div className={`chat${over ? " drop-over" : ""}`} ref={frame} {...bind}>
@@ -572,10 +604,10 @@ export default function ThreadPage({ uid: other }: { uid: string }) {
       ) : (
         <header className="chat-bar">
           <a className="chat-back" href="#/messages" aria-label="Back to messages"><ArrowLeftIcon /></a>
-          <button type="button" className="chat-who" aria-haspopup="dialog" aria-label={`${name}, chat info`} onClick={() => setInfoOpen(true)}>
+          <button type="button" className="chat-who" aria-haspopup="dialog" aria-label={nameLoading ? "Chat info" : `${name}, chat info`} onClick={() => setInfoOpen(true)}>
             <Avatar profile={p} size="md" />
             <span className="chat-who-text">
-              <b>{name}</b>
+              <b>{nameLoading ? <NameSkeleton /> : name}</b>
               {p?.username && <span>@{p.username}</span>}
             </span>
           </button>
@@ -593,14 +625,15 @@ export default function ThreadPage({ uid: other }: { uid: string }) {
         <div className="chat-body" ref={body} onScroll={onScroll} aria-live="polite">
           <div className="chat-stream">
             {error && <p className="error note" role="alert">{error}</p>}
-            {loading && <LinesSkeleton label="Loading messages" />}
-            {hasMore && !loading && (
+            {loading && <MessagesSkeleton />}
+            {olderLoading && <div className="chat-more-sk"><MessagesSkeleton count={2} label="Loading earlier messages" /></div>}
+            {hasMore && !loading && !olderLoading && (
               <button type="button" className="btn small chat-more" onClick={loadEarlier}>Load earlier messages</button>
             )}
             {!hasMore && !loading && !error && (
               <div className="chat-intro">
                 <Avatar profile={p} size="lg" />
-                <b>{name}</b>
+                <b>{nameLoading ? <NameSkeleton /> : name}</b>
                 {p?.username && <span>@{p.username}</span>}
                 <a className="btn small" href={personHash(other, p)}>View profile</a>
                 {messages.length === 0 && <p className="hint">No messages yet. Say hello.</p>}
@@ -608,14 +641,14 @@ export default function ThreadPage({ uid: other }: { uid: string }) {
             )}
             <Bubbles messages={messages} loading={loading} me={s.uid} other={p} otherSeenAt={prefs.receipts ? chat?.otherSeenAt ?? 0 : 0}
               q={finding ? q : ""} activeId={finding ? activeId : ""} onPhoto={setViewer}
-              nameOf={(uid) => (uid === s.uid ? "You" : name)} reactions={reactions} pinned={pinnedIds} flash={flash} canAct={canCompose}
+              nameOf={(uid) => (uid === s.uid ? "You" : name)} realName={realName} reactions={reactions} pinned={pinnedIds} flash={flash} canAct={canCompose}
               onMenu={(m) => setMenuId(m.id)} onReact={react} onJump={jump} />
             {failed.map((f) => (
               <div key={f.key} className="msg mine solo failed" role="group" aria-label="Message not sent">
                 <div className="msg-row">
                   <div className="msg-col">
                     {f.out.image && <img className="msg-gif" src={f.out.image} alt="Photo not sent" />}
-                    {f.out.gif && <img className="msg-gif" src={f.out.gif} alt="GIF not sent" referrerPolicy="no-referrer" />}
+                    {f.out.gif && <LoadingImg className="msg-gif" src={f.out.gif} alt="GIF not sent" referrerPolicy="no-referrer" />}
                     {f.out.text && <div className="bubble mine">{f.out.text}</div>}
                   </div>
                 </div>
@@ -681,7 +714,7 @@ export default function ThreadPage({ uid: other }: { uid: string }) {
       )}
       {infoOpen && (
         <ChatInfoSheet uid={other} profile={p} friend={open} settings={settings} messages={messages} hasMore={hasMore}
-          pins={pins} canUnpin={canCompose} onUnpin={(id) => unpinMessage(s.uid, other, id).catch(tell("unpin the message"))}
+          pins={pins} pinsReady={pinsReady} canUnpin={canCompose} onUnpin={(id) => unpinMessage(s.uid, other, id).catch(tell("unpin the message"))}
           onJump={(id) => { setInfoOpen(false); jump(id); }}
           onLoadOlder={() => setCount((n) => n + SEARCH_WINDOW)} onPhoto={setViewer}
           onClose={() => setInfoOpen(false)} onSearch={() => { setInfoOpen(false); openSearch(); }} />

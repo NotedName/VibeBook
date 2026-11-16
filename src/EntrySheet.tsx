@@ -1,6 +1,8 @@
 import FormError from "./FormError";
 import { ThumbsSkeleton } from "./Skeleton";
-import { defaultVisibility } from "./preferences";
+import { defaultVisibility, usePreferences } from "./preferences";
+import { collection, getDocs, limit, orderBy, query } from "firebase/firestore";
+import { db } from "./firebase";
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { addEntry, DESC_MAX, loadPhotos, MAX_PHOTOS, SKILL_MAX, SKILL_WORDS_MAX, SKILLS_INPUT_MAX, SKILLS_MAX, TITLE_MAX, updateEntry, type Entry, type Photo } from "./entries";
 import { nowStr, todayStr } from "./report";
@@ -54,6 +56,27 @@ export default function EntrySheet({ uid, entry, defaultGroupId, defaultDate, on
   const [editing, setEditing] = useState<number | null>(null); // index in files of the photo being edited
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  // Tap-to-reuse suggestions from your 5 most recent activities and skills (new entries only; Settings > Preferences turns them off).
+  const suggestionsOn = usePreferences().entrySuggestions && !entry;
+  const [recent, setRecent] = useState<{ activities: string[]; skills: string[] }>({ activities: [], skills: [] });
+  useEffect(() => {
+    if (!suggestionsOn) return;
+    let live = true;
+    getDocs(query(collection(db, "users", uid, "entries"), orderBy("date", "desc"), limit(40))).then((snap) => {
+      const rows = snap.docs.map((d) => d.data() as { date?: string; time?: string; title?: string; skills?: string[]; hoursOnly?: boolean; archived?: boolean })
+        .sort((a, b) => `${b.date}${b.time}`.localeCompare(`${a.date}${a.time}`));
+      const activities: string[] = [], skills: string[] = [];
+      for (const r of rows) {
+        if (r.hoursOnly) continue;
+        const t = (r.title ?? "").trim();
+        if (t && activities.length < 5 && !activities.some((x) => x.toLowerCase() === t.toLowerCase())) activities.push(t);
+        for (const k of r.skills ?? []) if (skills.length < 5 && !skills.some((x) => x.toLowerCase() === k.toLowerCase())) skills.push(k);
+      }
+      if (live) setRecent({ activities, skills });
+    }).catch(() => {});
+    return () => { live = false; };
+  }, [suggestionsOn, uid]);
+  const addSkill = (k: string) => setSkills(skillList.some((x) => x.toLowerCase() === k.toLowerCase()) ? skills : [...skillList, k].join(", "));
   const titleRef = useRef<HTMLInputElement>(null);
   const descRef = useRef<HTMLTextAreaElement>(null);
   const skillList = skills.split(",").map((x) => x.trim()).filter(Boolean);
@@ -203,10 +226,22 @@ export default function EntrySheet({ uid, entry, defaultGroupId, defaultDate, on
             <input ref={titleRef} value={title} onChange={(e) => setTitle(e.target.value)} required
               maxLength={TITLE_MAX} placeholder="e.g. Set up a new PC in the engineering office" />
           </label>
+          {suggestionsOn && recent.activities.length > 0 && (
+            <div className="suggest" aria-label="Recent activities">
+              <small>Recent</small>
+              {recent.activities.map((a) => <button key={a} type="button" title={a} onClick={() => setTitle(a.slice(0, TITLE_MAX))}><span>{a}</span></button>)}
+            </div>
+          )}
           <LinkNotice text={title} where="activity" />
           <label><span className="lbl-head">Skills acquired <small className={skillsOver ? "count-warn" : "count"}>{skillList.length}/{SKILLS_MAX} skills</small></span>
             <input value={skills} onChange={(e) => setSkills(e.target.value)} maxLength={SKILLS_INPUT_MAX}
               placeholder="e.g. Networking, Excel, Teamwork" />
+            {suggestionsOn && recent.skills.length > 0 && (
+              <span className="suggest" aria-label="Recent skills">
+                <small>Recent</small>
+                {recent.skills.map((k) => <button key={k} type="button" title={k} onClick={(e) => { e.preventDefault(); addSkill(k); }}><span>{k}</span></button>)}
+              </span>
+            )}
             <small className={skillsOver ? "count-warn" : "count"}>Separate with commas. Up to {SKILL_WORDS_MAX} words and {SKILL_MAX} letters each.</small>
           </label>
           <label><span className="lbl-head">Video link <small>(optional)</small></span>

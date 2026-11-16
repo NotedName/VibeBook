@@ -45,7 +45,7 @@ const CONTRAST_KEY = "vibebook-contrast";
 const LINKS_KEY = "vibebook-underline-links";
 const CORNERS_KEY = "vibebook-square-corners";
 const SIZE_KEY = "vibebook-text-size";
-// The honeycomb background is an option in the Material 3 look (off by default). The key was renamed so everyone starts from "None" once.
+// The honeycomb background is an option in the Material 3 look (Classic by default).
 const HONEY_KEY = "vibebook-background";
 const SYSTEM_LIGHT_KEY = "vibebook-system-light"; // the device's last settled answer, read by index.html before first paint
 const lightQuery = window.matchMedia("(prefers-color-scheme: light)");
@@ -90,7 +90,7 @@ function load(): Appearance {
     underlineLinks: read(LINKS_KEY) === "on",
     squareCorners: read(CORNERS_KEY) === "on",
     textSize: Number.isInteger(size) && size >= 0 && size < TEXT_SIZES.length ? size : DEFAULT_TEXT_SIZE,
-    honey: HONEY_STYLES.some((h) => h.id === read(HONEY_KEY)) ? (read(HONEY_KEY) as HoneyStyle) : "off",
+    honey: HONEY_STYLES.some((h) => h.id === read(HONEY_KEY)) ? (read(HONEY_KEY) as HoneyStyle) : "classic",
   };
 }
 
@@ -167,7 +167,7 @@ function subscribe(listener: () => void) {
 
 /** Back to the defaults: follow the device, purple accent, default text size, no extras. */
 export const resetAppearance = () => update({
-  mode: "system", textSize: DEFAULT_TEXT_SIZE, honey: "off", accent: "purple", customAccent: DEFAULT_CUSTOM,
+  mode: "system", textSize: DEFAULT_TEXT_SIZE, honey: "classic", accent: "purple", customAccent: DEFAULT_CUSTOM,
   bold: false, contrast: false, underlineLinks: false, squareCorners: false,
 });
 

@@ -83,13 +83,16 @@ const NONE: Engagement = { up: [], down: [], comments: [] };
 const keyOf = (e: Pick<Entry, "ownerUid" | "id">) => `${e.ownerUid}/${e.id}`;
 const ms = (t: unknown) => (t && typeof (t as Timestamp).toMillis === "function" ? (t as Timestamp).toMillis() : Date.now());
 
+/** Two live queries per entry, so no more than this many entries are followed at once. */
+const ENGAGEMENT_MAX = 40;
+
 /**
  * Follows the reactions and comments of these entries, but only while `enabled` (a date sort needs
  * none of it). One live query each per entry, so it is meant for the few dozen entries a page shows.
  */
 export function useEngagement(entries: Entry[], enabled: boolean): Map<string, Engagement> {
   const key = useMemo(
-    () => (enabled ? [...new Set(entries.filter((e) => e.ownerUid).map(keyOf))].sort().join(",") : ""),
+    () => (enabled ? [...new Set(entries.filter((e) => e.ownerUid).map(keyOf))].sort().slice(0, ENGAGEMENT_MAX).join(",") : ""),
     [entries, enabled],
   );
   const [data, setData] = useState<Record<string, Engagement>>({});

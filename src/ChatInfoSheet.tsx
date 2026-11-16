@@ -6,6 +6,7 @@ import { useSession } from "./session";
 import {
   calledBy, DEFAULT_EMOJI, isUnread, NICK_MAX, setChatEmoji, setNickname, type ChatSettings, type Message, type Pin,
 } from "./messages";
+import { NameSkeleton, RowsSkeleton } from "./Skeleton";
 import { muteLabel, useChatCommands } from "./chatCommands";
 import Avatar from "./Avatar";
 import EmojiPicker from "./EmojiPicker";
@@ -28,6 +29,8 @@ type Props = {
   pins: Pin[];
   /** pins can be removed (nothing can be written in a blocked chat or a request) */
   canUnpin: boolean;
+  /** false while the pins are still being read (the list shows a placeholder, not "nothing pinned") */
+  pinsReady?: boolean;
   onUnpin: (id: string) => void;
   /** close this panel and scroll the chat to that message */
   onJump: (id: string) => void;
@@ -45,7 +48,7 @@ const TITLE: Record<View, string> = { main: "Chat info", emoji: "Emoji", nicknam
  * buttons (Profile, Mute, Search) and this chat's settings: the quick emoji, nicknames, photos and GIFs shared here, read
  * receipts, mute, archive, block and delete. The emoji and nicknames are shared with the other person; the rest is yours.
  */
-export default function ChatInfoSheet({ uid, profile, friend, settings, messages, hasMore, pins, canUnpin, onUnpin, onJump, onLoadOlder, onPhoto, onSearch, onClose }: Props) {
+export default function ChatInfoSheet({ uid, profile, friend, settings, messages, hasMore, pins, pinsReady = true, canUnpin, onUnpin, onJump, onLoadOlder, onPhoto, onSearch, onClose }: Props) {
   const s = useSession();
   const prefs = usePreferences();
   const [view, setView] = useState<View>("main");
@@ -110,7 +113,7 @@ export default function ChatInfoSheet({ uid, profile, friend, settings, messages
                 <h3>Messages</h3>
                 <button type="button" className="action-row" onClick={() => setView("pins")}>
                   <i><PinIcon /></i>
-                  <span>Pinned messages<small>{pins.length > 0 ? `${pins.length} pinned in this chat` : "Press and hold a message, then choose Pin"}</small></span>
+                  <span>Pinned messages<small>{!pinsReady && pins.length === 0 ? <NameSkeleton /> : pins.length > 0 ? `${pins.length} pinned in this chat` : "Press and hold a message, then choose Pin"}</small></span>
                   <ChevronRightIcon />
                 </button>
               </section>
@@ -185,7 +188,7 @@ export default function ChatInfoSheet({ uid, profile, friend, settings, messages
 
           {view === "emoji" && <EmojiView uid={uid} current={settings.emoji} friend={friend} onDone={back} />}
           {view === "nicknames" && <NicknamesView uid={uid} profile={profile} realName={realName} settings={settings} friend={friend} />}
-          {view === "pins" && <PinsView pins={pins} me={s.uid} name={name} canUnpin={canUnpin} onUnpin={onUnpin} onJump={onJump} />}
+          {view === "pins" && <PinsView pins={pins} ready={pinsReady} me={s.uid} name={name} canUnpin={canUnpin} onUnpin={onUnpin} onJump={onJump} />}
           {view === "media" && <MediaView media={media} hasMore={hasMore} onLoadOlder={onLoadOlder} onPhoto={onPhoto} />}
           {view === "mute" && (
             <MuteChoices prefs={mine} muted={muted}
@@ -203,6 +206,7 @@ const enterOn = (v: "auto" | "on" | "off") => (v === "auto" ? !window.matchMedia
 function EmojiView({ uid, current, friend, onDone }: { uid: string; current: string; friend: boolean; onDone: () => void }) {
   const s = useSession();
   function pick(emoji: string) {
+    if (emoji === current) { onDone(); return; } // nothing changed, so nothing to announce
     setChatEmoji(s.uid, uid, emoji).then(
       () => s.notify(emoji === DEFAULT_EMOJI ? "Emoji set back to the thumbs up" : `Emoji changed to ${emoji}`),
       () => s.notify("Could not change the emoji. If you just updated the app, deploy the Firestore rules first."),
@@ -248,6 +252,7 @@ function NicknameRow({ who, profile, realName, current, enabled, other }: {
   const [busy, setBusy] = useState(false);
 
   function save(value: string) {
+    if (value.trim() === current) { setEditing(false); return; } // nothing changed, so nothing to announce
     setBusy(true);
     setNickname(s.uid, chatWith, who, value).then(
       () => { setEditing(false); s.notify(value.trim() ? "Nickname saved" : "Nickname removed"); },
@@ -312,9 +317,10 @@ function MediaView({ media, hasMore, onLoadOlder, onPhoto }: { media: Message[];
 }
 
 /** Every pinned message of this chat, newest pin first. "Show in chat" closes this panel and scrolls to it; either of you can unpin. */
-function PinsView({ pins, me, name, canUnpin, onUnpin, onJump }: {
-  pins: Pin[]; me: string; name: string; canUnpin: boolean; onUnpin: (id: string) => void; onJump: (id: string) => void;
+function PinsView({ pins, ready, me, name, canUnpin, onUnpin, onJump }: {
+  pins: Pin[]; ready: boolean; me: string; name: string; canUnpin: boolean; onUnpin: (id: string) => void; onJump: (id: string) => void;
 }) {
+  if (!ready && pins.length === 0) return <RowsSkeleton />;
   if (pins.length === 0) {
     return <p className="note">Nothing is pinned yet. Press and hold a message (or tap its ⋯ button on a computer) and choose Pin. Either of you can pin and unpin, and you both see the pins here.</p>;
   }

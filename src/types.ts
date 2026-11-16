@@ -41,6 +41,8 @@ export type Profile = {
   hoursAudience: Audience;
   /** Who can see which days this person works. Defaults to only me. Settings > Privacy. */
   scheduleAudience: Audience;
+  /** Who can see when this person is clocked in, on a break, and when they resume. Defaults to only me. Settings > Privacy. */
+  statusAudience: Audience;
   /**
    * Private profile (Settings > Privacy): only friends see this person's entries, hours, schedule and friends list.
    * Everyone else sees their name, photo and username, and can send a friend request. Defaults to off.

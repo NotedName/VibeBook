@@ -11,6 +11,8 @@
     <meta name="format-detection" content="telephone=no" />
     <title>VibeBook</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/icon-180.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -33,15 +35,19 @@
         var light = mode === "light" || (mode !== "dark" && mode !== "amoled" && sysLight);
         root.setAttribute("data-theme", light ? "light" : "dark");
         if (amoled && !light) root.setAttribute("data-amoled", "on");
-        try { var hn = localStorage.getItem("vibebook-background"); if (hn) root.setAttribute("data-honey", hn); } catch (e) {}
+        try { var hn = localStorage.getItem("vibebook-background"); root.setAttribute("data-honey", hn || "classic"); } catch (e) {}
         if (size !== null && /^[0-4]$/.test(size)) root.setAttribute("data-text-size", size);
         // Accent colour and the extra appearance options (src/theme.ts has the full list and validates them).
         var accent = localStorage.getItem("vibebook-accent");
         if (accent && /^(blue|teal|green|orange|red|pink|custom)$/.test(accent)) {
           root.setAttribute("data-accent", accent);
+          // The splash screen is tinted with the chosen accent too (same colours as the presets in src/theme.ts).
+          var presets = { blue: "#2f6fd6", teal: "#0b7f7a", green: "#2a7d46", orange: "#b85a12", red: "#c93a45", pink: "#c2408f" };
+          if (presets[accent]) root.style.setProperty("--sp-base", presets[accent]);
           var custom = localStorage.getItem("vibebook-accent-custom");
           if (accent === "custom" && custom && /^#[0-9a-f]{6}$/i.test(custom)) {
             root.style.setProperty("--accent", custom);
+            root.style.setProperty("--sp-base", custom);
             var ch = [1, 3, 5].map(function (i) { var c = parseInt(custom.slice(i, i + 2), 16) / 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); });
             root.style.setProperty("--accent-ink", 0.2126 * ch[0] + 0.7152 * ch[1] + 0.0722 * ch[2] > 0.4 ? "#141414" : "#ffffff");
           }
@@ -58,16 +64,17 @@
       /* Splash screen. It lives here, outside React, so it paints before the app bundle has downloaded.
          src/splash.ts fades it out once the app is ready. */
       #splash {
-        --sp-bg: #151219; --sp-text: #e6e0e9; --sp-accent: #cdb8e6; --sp-glow: rgba(126, 73, 179, .5);
+        --sp-bg: #151219; --sp-text: #e6e0e9; 
+        --sp-accent: color-mix(in srgb, var(--sp-base, #7e49b3) 45%, #fff); --sp-glow: color-mix(in srgb, var(--sp-base, #7e49b3) 50%, transparent);
         --sp-ease: cubic-bezier(.22, 1, .36, 1);
         position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; overflow: hidden;
         background: var(--sp-bg); color: var(--sp-text);
         transition: opacity .55s var(--sp-ease), transform .55s var(--sp-ease), visibility 0s linear .55s;
       }
       @media (prefers-color-scheme: light) {
-        html:not([data-theme="dark"]) #splash { --sp-bg: #fdf7ff; --sp-text: #1d1b20; --sp-accent: #6a3a9c; --sp-glow: rgba(126, 73, 179, .3); }
+        html:not([data-theme="dark"]) #splash { --sp-bg: #fdf7ff; --sp-text: #1d1b20; --sp-accent: color-mix(in srgb, var(--sp-base, #7e49b3) 85%, #000); --sp-glow: color-mix(in srgb, var(--sp-base, #7e49b3) 30%, transparent); }
       }
-      html[data-theme="light"] #splash { --sp-bg: #fdf7ff; --sp-text: #1d1b20; --sp-accent: #6a3a9c; --sp-glow: rgba(126, 73, 179, .3); }
+      html[data-theme="light"] #splash { --sp-bg: #fdf7ff; --sp-text: #1d1b20; --sp-accent: color-mix(in srgb, var(--sp-base, #7e49b3) 85%, #000); --sp-glow: color-mix(in srgb, var(--sp-base, #7e49b3) 30%, transparent); }
       html[data-theme="dark"][data-amoled="on"] #splash { --sp-bg: #000000; }
       #splash.out { opacity: 0; visibility: hidden; transform: scale(1.04); pointer-events: none; }
 

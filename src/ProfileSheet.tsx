@@ -121,7 +121,7 @@ export default function ProfileSheet({ profile, suggestedName = "", onClose }: P
     if (problem) { setError(problem); return; }
     setBusy(true); setError("");
     try {
-      await saveProfile(uid, { displayName: name, username: normalizeUsername(username), headline, workplace, bio, avatar, cover, coverPhoto, friendsAudience: profile?.friendsAudience ?? "everyone", hoursAudience: profile?.hoursAudience ?? "private", scheduleAudience: profile?.scheduleAudience ?? "private", privateProfile: profile?.privateProfile ?? false });
+      await saveProfile(uid, { displayName: name, username: normalizeUsername(username), headline, workplace, bio, avatar, cover, coverPhoto, friendsAudience: profile?.friendsAudience ?? "everyone", hoursAudience: profile?.hoursAudience ?? "private", scheduleAudience: profile?.scheduleAudience ?? "private", statusAudience: profile?.statusAudience ?? "private", privateProfile: profile?.privateProfile ?? false });
       notify(setup ? "Welcome to VibeBook" : "Profile saved");
       onClose();
     } catch (err) {

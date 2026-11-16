@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { addEntry, type Entry } from "./entries";
 import { clockTime, longDay, nowStr, todayStr } from "./report";
-import { breakComesAt, breakEndsAt, breakMinutesOf, clockIn, discardClock, editClockStart, endBreak, isOnBreak, publishHours, runningMinutes, startBreak, useHoursGoal, useRunningClock } from "./hours";
+import { breakComesAt, breakEndsAt, breakMinutesOf, clockIn, discardClock, editClockStart, endBreak, isOnBreak, clearStatus, publishHours, publishStatus, runningMinutes, startBreak, useHoursGoal, useRunningClock } from "./hours";
 import { availableDaysIn, planOf, projectFinish } from "./availability";
 import AvailabilitySheet from "./AvailabilitySheet";
 import { formatHM, spanMinutes, sumMinutes, weekEnd, weekStart } from "./weeks";
@@ -65,6 +65,18 @@ export default function HoursCard({ entries, loading = false }: { entries: Entry
     if (!sharing || !goal.ready) return;
     publishHours(s.uid, spent, required).catch(() => {});
   }, [sharing, goal.ready, s.uid, spent, required]);
+  // Likewise for the status (clocked in / on a break / back at): it exists only while the clock runs.
+  const sharingStatus = !!s.me && s.me.statusAudience !== "private";
+  const onBreakNow = !!clock && isOnBreak(clock, now, plan);
+  const resumeAt = clock && onBreakNow ? breakEndsAt(clock, now, plan) : null;
+  const sinceMs = clock ? new Date(`${clock.date}T${clock.time}`).getTime() : NaN;
+  const clockKnown = clock !== undefined;
+  const clockRunning = !!clock;
+  useEffect(() => {
+    if (!sharingStatus || !clockKnown) return;
+    if (!clockRunning || Number.isNaN(sinceMs)) { clearStatus(s.uid).catch(() => {}); return; }
+    publishStatus(s.uid, { since: sinceMs, onBreak: onBreakNow, breakEndsAt: resumeAt }).catch(() => {});
+  }, [sharingStatus, clockKnown, clockRunning, s.uid, sinceMs, onBreakNow, resumeAt]);
   const pct = required ? Math.min(100, Math.round((spent / required) * 100)) : 0;
   const left = required === null ? 0 : required - spent;
   const projection = required === null ? null : projectFinish(left, todayStr(), todayMinutes, a);

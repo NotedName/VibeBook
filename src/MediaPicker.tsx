@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { gifSearchEnabled, parseGif, searchGifs, STICKER_PACKS, type GifResult, type Media } from "./stickers";
 import { CloseIcon } from "./icons";
 import EmojiPicker from "./EmojiPicker";
+import { GifGridSkeleton } from "./Skeleton";
 
 /** Panel for adding an emoji to the text, or choosing a sticker or a GIF to attach to a comment. */
 export default function MediaPicker({ onPick, onEmoji }: { onPick: (media: Media) => void; onEmoji: (emoji: string) => void }) {
@@ -69,6 +70,7 @@ export function GifTab({ onPick }: { onPick: (media: Media) => void }) {
             placeholder="Search GIFs" aria-label="Search GIFs"
             onKeyDown={(e) => e.key === "Enter" && e.preventDefault()} />
           {error && <p className="error">{error}</p>}
+          {results === null && !error && <GifGridSkeleton />}
           {results?.length === 0 && !error && <p className="hint">No GIFs found.</p>}
           <div className="gif-grid">
             {results?.map((g) => (

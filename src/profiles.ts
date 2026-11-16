@@ -112,6 +112,7 @@ function toProfile(uid: string, d: Stored): Profile {
     friendsAudience: isAudience(d.friendsAudience) ? d.friendsAudience : d.friendsVisible === false ? "private" : "everyone",
     hoursAudience: isAudience(d.hoursAudience) ? d.hoursAudience : d.hoursVisible === true ? "everyone" : "private",
     scheduleAudience: isAudience(d.scheduleAudience) ? d.scheduleAudience : "private",
+    statusAudience: isAudience(d.statusAudience) ? d.statusAudience : "private",
     privateProfile: d.privateProfile === true,
     deactivated: d.deactivated === true,
   };
@@ -122,7 +123,7 @@ export { toProfile };
 export function maskIfDeactivated(p: Profile): Profile {
   return !p.deactivated ? p : {
     ...p, displayName: "Deactivated account", username: "", headline: "", workplace: "", bio: "", avatar: "", coverPhoto: "",
-    friendsAudience: "private", hoursAudience: "private", scheduleAudience: "private", privateProfile: true,
+    friendsAudience: "private", hoursAudience: "private", scheduleAudience: "private", statusAudience: "private", privateProfile: true,
   };
 }
 
@@ -162,6 +163,7 @@ export async function saveProfile(uid: string, p: Omit<Profile, "uid" | "deactiv
     friendsAudience: p.friendsAudience,
     hoursAudience: p.hoursAudience,
     scheduleAudience: p.scheduleAudience,
+    statusAudience: p.statusAudience,
     privateProfile: p.privateProfile,
   };
   if (clean.username) {
@@ -197,7 +199,7 @@ export async function saveProfile(uid: string, p: Omit<Profile, "uid" | "deactiv
   return saved;
 }
 
-type AudienceField = "friendsAudience" | "hoursAudience" | "scheduleAudience";
+type AudienceField = "friendsAudience" | "hoursAudience" | "scheduleAudience" | "statusAudience";
 
 async function saveAudience(uid: string, field: AudienceField, audience: Audience): Promise<void> {
   await updateDoc(doc(db, "profiles", uid), { [field]: audience });
@@ -228,6 +230,13 @@ export async function setScheduleAudience(uid: string, audience: Audience): Prom
   await saveAudience(uid, "scheduleAudience", audience);
   await syncSchedule(uid, audience !== "private");
   logActivity(uid, `Showed your schedule to ${AUDIENCE_WORDS[audience]}`);
+}
+
+/** Settings > Privacy: who can see when you are clocked in or on a break. Choosing only me deletes the status (users/{uid}/hours/status). */
+export async function setStatusAudience(uid: string, audience: Audience): Promise<void> {
+  await saveAudience(uid, "statusAudience", audience);
+  if (audience === "private") await deleteDoc(doc(db, "users", uid, "hours", "status"));
+  logActivity(uid, `Showed when you are clocked in to ${AUDIENCE_WORDS[audience]}`);
 }
 
 /**

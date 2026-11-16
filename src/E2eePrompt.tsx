@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { createKeys, generatePassphrase, MIN_PASSPHRASE, retryE2ee, unlockKeys, useE2ee } from "./e2ee";
 import { EyeIcon, EyeOffIcon, LockIcon } from "./icons";
+import { ComposerSkeleton } from "./Skeleton";
 
 function reason(err: unknown): string {
   return err instanceof Error ? err.message : "Something went wrong. Try again.";
@@ -106,7 +107,7 @@ export default function E2eePrompt() {
   const [starting, setStarting] = useState(false);
 
   if (phase === "ready") return null;
-  if (phase === "loading") return <p className="hint chat-locked">Checking your encryption keys…</p>;
+  if (phase === "loading") return <ComposerSkeleton />;
   if (phase === "error") {
     return (
       <div className="e2ee-card">

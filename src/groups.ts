@@ -451,3 +451,41 @@ export function useMyGroups(uid: string): MyGroups {
 
   return useMemo(() => ({ list, ids: new Set(ids ?? []), ready, error }), [list, ids, ready, error]);
 }
+
+/** Owner only: notifies every member that the group was deleted, removes memberships/invites/requests/posts, and deletes the group document. */
+export async function deleteGroup(ownerUid: string, group: Pick<Group, "id" | "name" | "ownerUid">): Promise<void> {
+  if (group.ownerUid !== ownerUid) throw new Error("Only the group owner can delete this group.");
+  const memberUids = await loadMembers(group.id);
+  await Promise.all(
+    memberUids
+      .filter((uid) => uid !== ownerUid)
+      .map((uid) => pushNote(uid, ownerUid, `group_deleted_${group.id}`, "group_deleted", { groupId: group.id, groupName: group.name })),
+  );
+
+  const [membersSnap, invitesSnap, requestsSnap, bansSnap, postsSnap] = await Promise.all([
+    getDocs(query(collection(db, "groupMembers"), where("groupId", "==", group.id))),
+    getDocs(query(collection(db, "groupInvites"), where("groupId", "==", group.id))),
+    getDocs(collection(db, "groups", group.id, "requests")),
+    getDocs(collection(db, "groups", group.id, "bans")),
+    getDocs(collection(db, "groups", group.id, "posts")),
+  ]);
+
+  const refs = [
+    ...membersSnap.docs.map((d) => d.ref),
+    ...invitesSnap.docs.map((d) => d.ref),
+    ...requestsSnap.docs.map((d) => d.ref),
+    ...bansSnap.docs.map((d) => d.ref),
+    ...postsSnap.docs.map((d) => d.ref),
+    doc(db, "groups", group.id),
+  ];
+
+  for (let i = 0; i < refs.length; i += 200) {
+    const batch = writeBatch(db);
+    refs.slice(i, i + 200).forEach((r) => batch.delete(r));
+    await batch.commit();
+  }
+
+  cache.delete(group.id);
+  editListeners.forEach((f) => f());
+  logActivity(ownerUid, `Deleted the group “${group.name}”`);
+}

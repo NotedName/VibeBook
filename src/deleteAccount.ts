@@ -38,6 +38,7 @@ export async function deleteAccount(user: User, password: string): Promise<void>
   await deleteAll(query(collection(db, "friendRequests"), where("from", "==", uid)));
   await deleteAll(query(collection(db, "friendRequests"), where("to", "==", uid)));
   await deleteAll(query(collection(db, "usernames"), where("uid", "==", uid)));
+  await deleteDoc(doc(db, "presence", uid)).catch(() => {});
   await deleteDoc(doc(db, "profiles", uid));
 
   await deleteUser(user);

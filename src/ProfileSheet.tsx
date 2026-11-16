@@ -1,7 +1,7 @@
 import FormError from "./FormError";
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent, type ReactNode } from "react";
 import {
-  BIO_MAX, HEADLINE_MAX, NAME_MAX, UsernameTakenError, fetchMyUsername, normalizeUsername, pendingUsername, saveProfile, suggestUsername, deactivateAccount,
+  BIO_MAX, HEADLINE_MAX, NAME_MAX, UsernameTakenError, fetchMyUsername, normalizeUsername, pendingUsername, saveProfile, suggestUsername,
   usernameProblem,
 } from "./profiles";
 import UsernameField from "./UsernameField";
@@ -11,9 +11,6 @@ import { useSession } from "./session";
 import Avatar from "./Avatar";
 import PhotoEditor from "./PhotoEditor";
 import { CloseIcon, ImageIcon, CameraIcon, EditIcon, TrashIcon } from "./icons";
-import { signOut } from "firebase/auth";
-import { auth } from "./firebase";
-import ConfirmDialog from "./ConfirmDialog";
 import { canAutoFocus } from "./focus";
 import { useScrollLock } from "./scrollLock";
 import { DropHint, useImageDrop } from "./imageDrop";
@@ -59,7 +56,6 @@ export default function ProfileSheet({ profile, suggestedName = "", onClose }: P
   // the photo being cropped and adjusted, and which one it is for
   const [editing, setEditing] = useState<{ kind: "avatar" | "cover"; file: File } | null>(null);
   const [error, setError] = useState("");
-  const [confirmOff, setConfirmOff] = useState(false);
   const nameRef = useRef<HTMLInputElement>(null);
   // A picture dragged onto the photo or the cover opens the same editor as choosing one (computers only).
   const notPicture = () => notify("Drop a picture file.");
@@ -121,7 +117,7 @@ export default function ProfileSheet({ profile, suggestedName = "", onClose }: P
     if (problem) { setError(problem); return; }
     setBusy(true); setError("");
     try {
-      await saveProfile(uid, { displayName: name, username: normalizeUsername(username), headline, workplace, bio, avatar, cover, coverPhoto, friendsAudience: profile?.friendsAudience ?? "everyone", hoursAudience: profile?.hoursAudience ?? "private", scheduleAudience: profile?.scheduleAudience ?? "private", statusAudience: profile?.statusAudience ?? "private", privateProfile: profile?.privateProfile ?? false });
+      await saveProfile(uid, { displayName: name, username: normalizeUsername(username), headline, workplace, bio, avatar, cover, coverPhoto, friendsAudience: profile?.friendsAudience ?? "everyone", hoursAudience: profile?.hoursAudience ?? "private", scheduleAudience: profile?.scheduleAudience ?? "private", statusAudience: profile?.statusAudience ?? "private", privateProfile: profile?.privateProfile ?? false, activeStatus: profile?.activeStatus ?? true });
       notify(setup ? "Welcome to VibeBook" : "Profile saved");
       onClose();
     } catch (err) {
@@ -199,13 +195,6 @@ export default function ProfileSheet({ profile, suggestedName = "", onClose }: P
 
           {error && error !== NAME_MISSING && <FormError>{error}</FormError>}
 
-          {!locked && (
-            <section className="deactivate-section" aria-label="Deactivate account">
-              <h3>Deactivate account</h3>
-              <p className="hint">Hides your profile, entries and name from everyone until you sign in again and reactivate. Nothing is deleted, and your account ID stays yours.</p>
-              <button type="button" className="btn danger" onClick={() => setConfirmOff(true)}>Deactivate my account</button>
-            </section>
-          )}
         </div>
 
         <div className="sheet-actions">
@@ -213,16 +202,6 @@ export default function ProfileSheet({ profile, suggestedName = "", onClose }: P
           <button type="submit" className="btn primary" disabled={busy}>{busy ? "Saving…" : setup ? "Continue" : "Save profile"}</button>
         </div>
       </form>
-      {confirmOff && (
-        <ConfirmDialog title="Deactivate your account?" confirmLabel="Deactivate" danger onCancel={() => setConfirmOff(false)}
-          onConfirm={() => {
-            setConfirmOff(false);
-            deactivateAccount(uid).then(() => signOut(auth), () => notify("Could not deactivate your account. If you just updated the app, deploy the Firestore rules first."));
-          }}>
-          <p>Other people will see “Deactivated account” in place of your name and photo, and your entries and profile are hidden. Your friendships, chats and data are kept, and your account ID does not change.</p>
-          <p>To come back, sign in again and choose Reactivate. You will be signed out now.</p>
-        </ConfirmDialog>
-      )}
       {editing && (
         <PhotoEditor file={editing.file} onCancel={() => setEditing(null)} onApply={applyEdit}
           fixedRatio={editing.kind === "avatar" ? 1 : 3} outSide={editing.kind === "avatar" ? 512 : 1200}

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { calledBy, isUnread, useChatSettings, type Conversation } from "./messages";
+import { usePresence } from "./activeStatus";
 import { ago } from "./notifications";
 import { useProfile, useSession } from "./session";
 import Avatar from "./Avatar";
@@ -15,6 +16,7 @@ export default function ChatRow({ chat, uid, q = "" }: { chat: Conversation; uid
   const p = useProfile(chat.other);
   const s = useSession();
   const settings = useChatSettings(uid, chat.other);
+  const presence = usePresence(chat.other);
   const [menu, setMenu] = useState(false);
   const name = calledBy(settings, chat.other, nameOf(p));
   const unread = isUnread(chat, uid) && !chat.blocked;
@@ -23,7 +25,7 @@ export default function ChatRow({ chat, uid, q = "" }: { chat: Conversation; uid
   return (
     <li className="chat-item">
       <a className={`chat-row${unread ? " unread" : ""}`} href={threadHash(chat.other)}>
-        <Avatar profile={p} size="md" />
+        <Avatar profile={p} size="md" active={presence.status === "active"} />
         <span className="chat-row-text">
           <b><Highlight text={name} q={q} /></b>
           <span>{chat.blocked ? "You blocked this person" : <>{chat.lastFrom === uid ? "You: " : ""}<Highlight text={chat.lastText} q={q} /></>}</span>

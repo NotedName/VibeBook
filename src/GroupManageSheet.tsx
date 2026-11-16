@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import {
-  approveRequest, cleanQuestions, declineRequest, GROUP_DESC_MAX, GROUP_NAME_MAX, saveGroupChanges, useJoinRequests,
+  approveRequest, cleanQuestions, declineRequest, deleteGroup, GROUP_DESC_MAX, GROUP_NAME_MAX, saveGroupChanges, useJoinRequests,
 } from "./groups";
 import { syncEntryPrivacy } from "./entryPrivacy";
 import type { Group, GroupPrivacy, GroupRole, JoinRequest } from "./types";
@@ -12,7 +12,8 @@ import Avatar from "./Avatar";
 import { coverBanner, squareAvatar } from "./image";
 import { DropHint, useImageDrop } from "./imageDrop";
 import PhotoEditor from "./PhotoEditor";
-import { CameraIcon, CloseIcon, ImageIcon } from "./icons";
+import { CameraIcon, CloseIcon, ImageIcon, TrashIcon } from "./icons";
+import ConfirmDialog from "./ConfirmDialog";
 import { GroupAvatar } from "./GroupRow";
 import { useAction } from "./MemberManage";
 import { useScrollLock } from "./scrollLock";
@@ -186,7 +187,11 @@ function Details({ group, onDirty }: { group: Group; onDirty: (dirty: boolean) =
 
 /** Admins and moderators manage a group here: its details and who is waiting to join. Roles and removals are in the Members popup. */
 export default function GroupManageSheet({ group, myRole, onClose }: Props) {
+  const s = useSession();
   const isAdmin = myRole === "admin";
+  const isOwner = group.ownerUid === s.uid;
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const dirty = useRef(false);
   const onDirty = useCallback((d: boolean) => { dirty.current = d; }, []);
   // Closing with unsaved changes asks first, so a stray tap outside the sheet does not throw an edit away.
@@ -217,8 +222,41 @@ export default function GroupManageSheet({ group, myRole, onClose }: Props) {
           </p>
           <Requests group={group} />
           {isAdmin && <section className="manage-section"><h3>Details</h3><Details group={group} onDirty={onDirty} /></section>}
+          {isOwner && (
+            <section className="manage-section deactivate-section" aria-label="Delete group">
+              <h3>Delete group</h3>
+              <p className="hint">Permanently deletes this group and notifies all members. Members' own entries remain on their profiles.</p>
+              <button type="button" className="btn danger" disabled={deleting} onClick={() => setConfirmDelete(true)}>
+                <TrashIcon />{deleting ? "Deleting…" : "Delete group"}
+              </button>
+            </section>
+          )}
         </div>
       </div>
+      {confirmDelete && (
+        <ConfirmDialog
+          title={`Delete “${group.name}”?`}
+          confirmLabel="Delete group"
+          danger
+          typeToConfirm="delete"
+          onCancel={() => setConfirmDelete(false)}
+          onConfirm={async () => {
+            setConfirmDelete(false);
+            setDeleting(true);
+            try {
+              await deleteGroup(s.uid, group);
+              s.notify(`Deleted “${group.name}”`);
+              onClose();
+              window.location.hash = "#/groups";
+            } catch {
+              s.notify("Could not delete the group. Try again.");
+              setDeleting(false);
+            }
+          }}
+        >
+          <p>Everyone in this group will receive a notification that it was deleted, and the group feed will be removed permanently.</p>
+        </ConfirmDialog>
+      )}
     </div>
   );
 }

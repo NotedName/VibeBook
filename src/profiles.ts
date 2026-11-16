@@ -11,6 +11,15 @@ import { syncEntryPrivacy } from "./entryPrivacy";
 export const NAME_MAX = 60;
 export const HEADLINE_MAX = 80;
 export const BIO_MAX = 300;
+export const NOTE_MAX = 60;
+export const NOTE_TTL_MS = 24 * 60 * 60 * 1000;
+
+/** Returns the profile's active 24-hour note text, or "" if none / expired. */
+export function activeNoteText(p: Pick<Profile, "note" | "noteAt"> | null | undefined, now = Date.now()): string {
+  if (!p?.note || !p.noteAt) return "";
+  if (now - p.noteAt >= NOTE_TTL_MS) return "";
+  return p.note;
+}
 
 // ---- Usernames -------------------------------------------------------------------------------
 // A username is the person's unique identifier and the last part of their profile link
@@ -114,7 +123,10 @@ function toProfile(uid: string, d: Stored): Profile {
     scheduleAudience: isAudience(d.scheduleAudience) ? d.scheduleAudience : "private",
     statusAudience: isAudience(d.statusAudience) ? d.statusAudience : "private",
     privateProfile: d.privateProfile === true,
+    activeStatus: d.activeStatus !== false,
     deactivated: d.deactivated === true,
+    note: typeof d.note === "string" ? d.note : "",
+    noteAt: typeof d.noteAt === "number" ? d.noteAt : 0,
   };
 }
 export { toProfile };
@@ -123,7 +135,8 @@ export { toProfile };
 export function maskIfDeactivated(p: Profile): Profile {
   return !p.deactivated ? p : {
     ...p, displayName: "Deactivated account", username: "", headline: "", workplace: "", bio: "", avatar: "", coverPhoto: "",
-    friendsAudience: "private", hoursAudience: "private", scheduleAudience: "private", statusAudience: "private", privateProfile: true,
+    friendsAudience: "private", hoursAudience: "private", scheduleAudience: "private", statusAudience: "private", privateProfile: true, activeStatus: false,
+    note: "", noteAt: 0,
   };
 }
 
@@ -165,6 +178,7 @@ export async function saveProfile(uid: string, p: Omit<Profile, "uid" | "deactiv
     scheduleAudience: p.scheduleAudience,
     statusAudience: p.statusAudience,
     privateProfile: p.privateProfile,
+    activeStatus: p.activeStatus,
   };
   if (clean.username) {
     const problem = usernameProblem(clean.username);
@@ -251,6 +265,31 @@ export async function setPrivateProfile(uid: string, on: boolean): Promise<void>
   logActivity(uid, on ? "Made your profile private" : "Made your profile public");
 }
 
+/**
+ * Settings > Privacy: shows friends and people you message when you're active or recently active.
+ * Turning it off also removes your presence document (presence/{uid}) right away.
+ */
+export async function setActiveStatus(uid: string, on: boolean): Promise<void> {
+  await updateDoc(doc(db, "profiles", uid), { activeStatus: on });
+  const cached = await fetchProfile(uid).catch(() => null);
+  if (cached) primeProfile({ ...cached, activeStatus: on });
+  if (!on) await deleteDoc(doc(db, "presence", uid)).catch(() => {});
+  logActivity(uid, on ? "Turned on your active status" : "Turned off your active status");
+}
+
+/** Shares or clears a 24-hour disappearing note shown at the top of Messages and on your profile. */
+export async function setProfileNote(uid: string, raw: string): Promise<void> {
+  const note = clip(raw.trim(), NOTE_MAX);
+  const noteAt = note ? Date.now() : 0;
+  await updateDoc(doc(db, "profiles", uid), {
+    note: note || deleteField(),
+    noteAt: note ? noteAt : deleteField(),
+  });
+  const cached = await fetchProfile(uid).catch(() => null);
+  if (cached) primeProfile({ ...cached, note, noteAt });
+  logActivity(uid, note ? "Updated your 24-hour note" : "Cleared your 24-hour note");
+}
+
 /** Finds people whose name or username starts with every word typed ("@" in front is ignored). */
 export async function searchProfiles(text: string, selfUid: string): Promise<Profile[]> {
   const tokens = text.toLowerCase().split(/\s+/).map((t) => t.replace(/^@/, "")).filter(Boolean);
@@ -275,6 +314,7 @@ export async function searchProfiles(text: string, selfUid: string): Promise<Pro
  */
 export async function deactivateAccount(uid: string): Promise<void> {
   await updateDoc(doc(db, "profiles", uid), { deactivated: true, deactivatedAt: serverTimestamp() });
+  await deleteDoc(doc(db, "presence", uid)).catch(() => {});
   cache.delete(uid);
   await syncEntryPrivacy(uid).catch(() => {});
   logActivity(uid, "Deactivated your account");

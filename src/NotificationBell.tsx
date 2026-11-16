@@ -45,6 +45,7 @@ function What({ item }: { item: NoteItem }) {
       break;
     case "group_request": body = <>asked to join <b className="note-title">{n.groupName || "your group"}</b></>; break;
     case "group_approved": body = <>approved your request to join <b className="note-title">{n.groupName || "a group"}</b></>; break;
+    case "group_deleted": body = <>deleted the group <b className="note-title">{n.groupName || "a group"}</b></>; break;
     case "like": body = n.photoId ? <>vibed a photo in {t}</> : <>vibed {t}</>; break;
     case "comment": body = n.photoId ? <>commented on a photo in {t}</> : <>commented on {t}</>; break;
     case "reply": body = <>replied to your comment on {t}</>; break;

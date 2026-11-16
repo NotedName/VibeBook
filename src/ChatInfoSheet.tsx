@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { personHash } from "./profiles";
+import { personHash, setActiveStatus } from "./profiles";
+import { usePresence } from "./activeStatus";
 import { usePreferences } from "./preferences";
 import { useScrollLock } from "./scrollLock";
 import { useSession } from "./session";
@@ -52,6 +53,7 @@ export default function ChatInfoSheet({ uid, profile, friend, settings, messages
   const s = useSession();
   const prefs = usePreferences();
   const [view, setView] = useState<View>("main");
+  const presence = usePresence(uid);
   const realName = profile === undefined ? "…" : profile?.displayName || "VibeBook member";
   const name = calledBy(settings, uid, realName);
   const chat = s.chats.all.find((c) => c.other === uid);
@@ -89,11 +91,14 @@ export default function ChatInfoSheet({ uid, profile, friend, settings, messages
           {view === "main" && (
             <>
               <div className="chat-info-who">
-                <Avatar profile={profile} size="lg" />
+                <Avatar profile={profile} size="lg" active={presence.status === "active"} />
                 <b>{name}</b>
                 {name !== realName && <span>{realName}</span>}
                 {profile?.username && <span>@{profile.username}</span>}
-                <small>{blocked ? "Blocked" : restricted ? "Restricted" : friend ? "Friends on VibeBook" : "Not friends yet"}</small>
+                <small>
+                  {presence.label && <><span className={presence.status === "active" ? "chat-active-now" : undefined}>{presence.label}</span> · </>}
+                  {blocked ? "Blocked" : restricted ? "Restricted" : friend ? "Friends on VibeBook" : "Not friends yet"}
+                </small>
               </div>
 
               <div className="chat-info-actions">
@@ -139,6 +144,18 @@ export default function ChatInfoSheet({ uid, profile, friend, settings, messages
 
               <section className="chat-info-section" aria-label="Privacy and notifications">
                 <h3>Privacy &amp; notifications</h3>
+                {s.me && (
+                  <label className="switch-row">
+                    <span>Active status<small>
+                      {s.me.activeStatus
+                        ? "On: friends and people you message can see when you're active"
+                        : "Off: you won't see when others are active either"}
+                    </small></span>
+                    <input type="checkbox" role="switch" checked={s.me.activeStatus}
+                      onChange={(e) => void setActiveStatus(s.uid, e.target.checked).catch(() => s.notify("Could not save that. Try again."))} />
+                    <i className="switch" aria-hidden="true" />
+                  </label>
+                )}
                 <label className="switch-row">
                   <span>Read receipts<small>
                     {mine.receipts

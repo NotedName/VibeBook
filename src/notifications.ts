@@ -13,7 +13,7 @@ import { interactionWeight, noteInteraction } from "./closeFriends";
  * and deletes it. Writing one is best effort: if it fails, the like or comment itself still went through.
  */
 export type NoteType =
-  | "friend_request" | "friend_accept" | "follow" | "group_invite" | "group_request" | "group_approved"
+  | "friend_request" | "friend_accept" | "follow" | "group_invite" | "group_request" | "group_approved" | "group_deleted"
   | "like" | "comment" | "reply" | "comment_like" | "repost";
 
 export type Note = {
@@ -203,7 +203,7 @@ export function noteHref(item: NoteItem): string {
   const n = item.notes[0];
   switch (n.type) {
     case "friend_request": return "#/people";
-    case "group_invite": return "#/groups";
+    case "group_invite": case "group_deleted": return "#/groups";
     case "group_request": case "group_approved": return n.groupId ? `#/g/${encodeURIComponent(n.groupId)}` : "#/groups";
     case "follow": case "friend_accept": return item.compiled ? "#/people" : `#/u/${encodeURIComponent(n.actorUid)}`;
     default: return n.ownerUid && n.entryId ? `#/p/${encodeURIComponent(n.ownerUid)}/${encodeURIComponent(n.entryId)}` : "#/feed";

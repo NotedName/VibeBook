@@ -568,6 +568,7 @@ service cloud.firestore {
         && request.resource.data.get('scheduleAudience', 'private') in ['private', 'friends', 'fof', 'everyone']
         && request.resource.data.get('statusAudience', 'private') in ['private', 'friends', 'fof', 'everyone']
         && request.resource.data.get('privateProfile', false) is bool
+        && request.resource.data.get('activeStatus', true) is bool
         && request.resource.data.get('deactivated', false) is bool
         && (!('deactivatedAt' in request.resource.data) || request.resource.data.deactivatedAt is timestamp);
       allow delete: if signedIn() && request.auth.uid == uid;
@@ -984,6 +985,22 @@ service cloud.firestore {
         && request.resource.data.iv is string && request.resource.data.iv.size() <= 64
         && request.resource.data.ct is string && request.resource.data.ct.size() <= 400
         && request.resource.data.createdAt == request.time;
+    }
+
+    // Active status: one lightweight document per person at presence/{uid}, holding whether they are currently online
+    // and when they were last active. Readable only when the owner has Active Status turned on (default true) and their
+    // profile is open to the reader. Deleted when the owner turns Active Status off.
+    match /presence/{uid} {
+      allow read: if isOwner(uid)
+        || (signedIn()
+            && !profileDeactivated(uid)
+            && profileOf(uid).get('activeStatus', true) == true
+            && (isFriend(request.auth.uid, uid) || !profileLocked(uid)));
+      allow create, update: if isOwner(uid)
+        && request.resource.data.keys().hasOnly(['online', 'lastActive'])
+        && request.resource.data.online is bool
+        && request.resource.data.lastActive == request.time;
+      allow delete: if isOwner(uid);
     }
   }
 }

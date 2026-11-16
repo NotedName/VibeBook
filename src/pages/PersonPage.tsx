@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSlideOnChange } from "../slide";
 import { useProfile, useSession } from "../session";
+import { usePresence } from "../activeStatus";
 import ProfileTabs, { type ProfileTab } from "../ProfileTabs";
 import { useSharedEntries } from "../feed";
 import { newestFirst } from "../entries";
@@ -28,6 +29,7 @@ export default function PersonPage({ uid }: { uid: string }) {
   // A private profile shows its entries, hours, schedule and friends only to friends. Your own profile seen "as someone
   // else" counts as a stranger's. Nothing is queried for it, since firestore.rules would refuse.
   const hidden = p?.privateProfile === true && !friend;
+  const presence = usePresence(hidden ? undefined : uid);
   const sources = useMemo(() => (p === undefined || hidden ? [] : [{ uid, friend }]), [uid, friend, p, hidden]);
   const [mode, setMode] = useSortMode("person");
   const dir = dateDir(mode);
@@ -64,6 +66,12 @@ export default function PersonPage({ uid }: { uid: string }) {
   return (
     <>
       <ProfileHeader profile={hidden ? { ...p, headline: "", workplace: "", bio: "" } : p}>
+        {!hidden && presence.label && (
+          <p className={`profile-presence${presence.status === "active" ? " online" : ""}`}>
+            {presence.status === "active" && <i className="presence-dot" aria-hidden="true" />}
+            {presence.label}
+          </p>
+        )}
         <div className="profile-actions">
           <RelationButtons uid={uid} />
           {!hidden && (

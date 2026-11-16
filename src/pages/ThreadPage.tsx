@@ -12,6 +12,7 @@ import ConfirmDialog from "../ConfirmDialog";
 import { ForwardSheet, MessageActions, ReactionChips, ReplyQuote, ReportMessageSheet } from "../MessageTools";
 import { personHash } from "../profiles";
 import { useProfile, useSession } from "../session";
+import { usePresence } from "../activeStatus";
 import { chatPhoto } from "../image";
 import { insertEmoji } from "../emoji";
 import { useMessagingFrame } from "../msgFrame";
@@ -388,6 +389,7 @@ export default function ThreadPage({ uid: other }: { uid: string }) {
 
   const keysReady = useE2ee().phase === "ready";
   const settings = useChatSettings(s.uid, other);
+  const presence = usePresence(other);
   const prefs = s.chats.prefsOf(other);
   const blocked = s.chats.blocked.has(other);
   const blockedBy = useBlockedBy(s.uid, other);
@@ -605,10 +607,12 @@ export default function ThreadPage({ uid: other }: { uid: string }) {
         <header className="chat-bar">
           <a className="chat-back" href="#/messages" aria-label="Back to messages"><ArrowLeftIcon /></a>
           <button type="button" className="chat-who" aria-haspopup="dialog" aria-label={nameLoading ? "Chat info" : `${name}, chat info`} onClick={() => setInfoOpen(true)}>
-            <Avatar profile={p} size="md" />
+            <Avatar profile={p} size="md" active={presence.status === "active"} />
             <span className="chat-who-text">
               <b>{nameLoading ? <NameSkeleton /> : name}</b>
-              {p?.username && <span>@{p.username}</span>}
+              {presence.label
+                ? <span className={presence.status === "active" ? "chat-active-now" : undefined}>{presence.label}</span>
+                : p?.username ? <span>@{p.username}</span> : null}
             </span>
           </button>
           <button type="button" className="icon-btn" aria-label="Chat info and options" title="Chat info, search and options" aria-haspopup="dialog" onClick={() => setInfoOpen(true)}><InfoIcon /></button>
@@ -632,9 +636,11 @@ export default function ThreadPage({ uid: other }: { uid: string }) {
             )}
             {!hasMore && !loading && !error && (
               <div className="chat-intro">
-                <Avatar profile={p} size="lg" />
+                <Avatar profile={p} size="lg" active={presence.status === "active"} />
                 <b>{nameLoading ? <NameSkeleton /> : name}</b>
-                {p?.username && <span>@{p.username}</span>}
+                {presence.label
+                  ? <span className={presence.status === "active" ? "chat-active-now" : undefined}>{presence.label}</span>
+                  : p?.username ? <span>@{p.username}</span> : null}
                 <a className="btn small" href={personHash(other, p)}>View profile</a>
                 {messages.length === 0 && <p className="hint">No messages yet. Say hello.</p>}
               </div>

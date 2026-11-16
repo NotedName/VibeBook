@@ -14,6 +14,7 @@ import { syncEntryPrivacy } from "./entryPrivacy";
 import { useGroupAlerts } from "./groupAlerts";
 import { useConversations } from "./messages";
 import { startE2ee } from "./e2ee";
+import { useActivePresence } from "./activeStatus";
 import { SessionProvider, type Session } from "./session";
 import type { Profile } from "./types";
 import { ArrowLeftIcon, BookIcon, CloseIcon, FeedIcon, GroupsIcon, PlusIcon, SettingsIcon, UsersIcon } from "./icons";
@@ -120,6 +121,7 @@ export default function Shell({ user }: { user: User }) {
   const { alerts: groupAlerts, markSeen: markGroupSeen } = useGroupAlerts(uid, groupIdList);
   const invites = useMemo(() => allInvites.filter((i) => !groups.ids.has(i.groupId)), [allInvites, groups.ids]);
   const [me, setMe] = useState<Profile | null | undefined>(undefined);
+  useActivePresence(uid, !!me && !me.deactivated && me.activeStatus !== false);
   const [profileError, setProfileError] = useState("");
   const [route, setRoute] = useState<Route>(() => parse(location.hash));
   // Pages visited inside the app, so Back never leaves it: only offered when there is somewhere in the app to go.

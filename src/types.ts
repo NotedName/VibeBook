@@ -49,10 +49,19 @@ export type Profile = {
    */
   privateProfile: boolean;
   /**
-   * Account deactivated (Profile > Deactivate account). The account and its uid stay; other people see a blank
+   * Active status (Settings > Privacy): shows friends and people you message when you're active or recently active.
+   * Defaults to on. While off, others cannot see your active status and you cannot see theirs.
+   */
+  activeStatus: boolean;
+  /**
+   * Account deactivated (Settings > Data & account > Deactivate account). The account and its uid stay; other people see a blank
    * "Deactivated account" instead of the profile, and signing in again offers to reactivate it.
    */
   deactivated: boolean;
+  /** Short 24-hour disappearing note shown at the top of Messages and on your profile. */
+  note?: string;
+  /** Unix ms timestamp when `note` was posted; expires after 24 hours. */
+  noteAt?: number;
 };
 
 export type FriendRequest = { id: string; from: string; to: string };

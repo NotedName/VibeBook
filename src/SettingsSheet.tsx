@@ -6,12 +6,12 @@ import { PHOTO_QUALITY, resetPreferences, START_PAGES, usePreferences } from "./
 import { ACTIVITY_SHOWN, useActivityState } from "./activity";
 import { ago } from "./notifications";
 import { useProfile, useSession } from "./session";
-import { personHash, setFriendsAudience, setHoursAudience, setPrivateProfile, setScheduleAudience, setStatusAudience } from "./profiles";
+import { deactivateAccount, personHash, setActiveStatus, setFriendsAudience, setHoursAudience, setPrivateProfile, setScheduleAudience, setStatusAudience } from "./profiles";
 import { AUDIENCES, VISIBILITY, type Audience } from "./types";
 import { BrandName } from "./Logo";
 import { TermsContent } from "./Terms";
 import {
-  AmoledIcon, ArchiveIcon, CheckIcon, CloseIcon, DatabaseIcon, DownloadIcon, GlobeIcon, InfoIcon, LockIcon, LogOutIcon, MoonIcon, MonitorIcon,
+  AmoledIcon, ArchiveIcon, CheckIcon, CloseIcon, DatabaseIcon, DownloadIcon, EyeOffIcon, GlobeIcon, InfoIcon, LockIcon, LogOutIcon, MoonIcon, MonitorIcon,
   PaletteIcon, SettingsIcon, ShieldIcon, SunIcon, ToggleIcon, TrashIcon, UploadIcon, UsersIcon,
 } from "./icons";
 import { useScrollLock } from "./scrollLock";
@@ -275,6 +275,9 @@ function Privacy() {
   if (!me) return null;
   return (
     <>
+      <Switch label="Active status" checked={me.activeStatus}
+        hint="Show friends and people you message when you're active or recently active. You won't see their active status while this is turned off."
+        onChange={(on) => save(setActiveStatus(uid, on))} />
       <Switch label="Private profile" checked={me.privateProfile}
         hint="Only friends see your entries, hours, schedule and friends. Everyone else sees your name and photo and can send a friend request."
         onChange={(on) => save(setPrivateProfile(uid, on))} />
@@ -398,6 +401,7 @@ function DataAccount({ onNavigate, onAskReset }: { onNavigate: () => void; onAsk
   const [status, setStatus] = useState("");
   const [pending, setPending] = useState<{ backup: BackupFile; name: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [confirmDeactivate, setConfirmDeactivate] = useState(false);
   const [showLog, setShowLog] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
 
@@ -487,10 +491,30 @@ function DataAccount({ onNavigate, onAskReset }: { onNavigate: () => void; onAsk
         <p className="hint">Signed in as {user.email}</p>
         <div className="set-pair">
           <button type="button" className="btn" onClick={() => signOut(auth)}><LogOutIcon />Sign out</button>
+          <button type="button" className="btn" onClick={() => setConfirmDeactivate(true)}><EyeOffIcon />Deactivate account</button>
           <button type="button" className="btn danger-ghost" aria-expanded={deleting} onClick={() => setDeleting(!deleting)}><TrashIcon />Delete my account…</button>
         </div>
         {deleting && <DeleteAccount />}
       </Section>
+
+      {confirmDeactivate && (
+        <ConfirmDialog
+          title="Deactivate your account?"
+          confirmLabel="Deactivate"
+          danger
+          onCancel={() => setConfirmDeactivate(false)}
+          onConfirm={() => {
+            setConfirmDeactivate(false);
+            deactivateAccount(uid).then(
+              () => signOut(auth),
+              () => notify("Could not deactivate your account. If you just updated the app, deploy the Firestore rules first."),
+            );
+          }}
+        >
+          <p>Other people will see “Deactivated account” in place of your name and photo, and your entries and profile are hidden. Your friendships, chats and data are kept, and your account ID does not change.</p>
+          <p>To come back, sign in again and choose Reactivate. You will be signed out now.</p>
+        </ConfirmDialog>
+      )}
 
       <Section title="Activity">
         <details className="about-terms" onToggle={(e) => e.currentTarget.open && setShowLog(true)}>

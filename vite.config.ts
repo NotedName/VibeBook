@@ -7,6 +7,21 @@ const host = process.env.TAURI_DEV_HOST;
 export default defineConfig({
   plugins: [react()],
   clearScreen: false,
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes("node_modules")) {
+            if (id.includes("firebase")) return "vendor-firebase";
+            if (id.includes("react") || id.includes("react-dom")) return "vendor-react";
+            if (id.includes("docx")) return "vendor-docx";
+            if (id.includes("pdf-lib")) return "vendor-pdf";
+            return "vendor";
+          }
+        },
+      },
+    },
+  },
   server: {
     port: 5173,
     strictPort: true,

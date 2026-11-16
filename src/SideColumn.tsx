@@ -1,4 +1,5 @@
 import { useProfile, useSession } from "./session";
+import { usePresence } from "./activeStatus";
 import { useNotes } from "./notifications";
 import { useClosestFriends } from "./closeFriends";
 import { personHash } from "./profiles";
@@ -9,9 +10,10 @@ import GroupMembersCard from "./GroupMembersCard";
 
 function SideFriend({ uid }: { uid: string }) {
   const p = useProfile(uid);
+  const presence = usePresence(uid);
   return (
     <li>
-      <a href={personHash(uid, p)}><Avatar profile={p} size="sm" /><span>{p === undefined ? "…" : p?.displayName || "VibeBook member"}</span></a>
+      <a href={personHash(uid, p)}><Avatar profile={p} size="sm" active={presence.status === "active"} /><span>{p === undefined ? "…" : p?.displayName || "VibeBook member"}</span></a>
     </li>
   );
 }

@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { signOut } from "firebase/auth";
 import { auth } from "./firebase";
 import { useSession } from "./session";
+import { setOffline } from "./activeStatus";
 import Avatar from "./Avatar";
 import { forgetAccount, rememberAccount, setLoginHint, useKnownAccounts } from "./accounts";
 import { initials } from "./report";
@@ -61,7 +62,7 @@ export default function AccountMenu() {
   }
 
   const others = accounts.filter((a) => a.uid !== user.uid);
-  const leave = (hint: string) => { setLoginHint(hint); setOpen(false); signOut(auth); };
+  const leave = (hint: string) => { setLoginHint(hint); setOpen(false); void setOffline(user.uid).finally(() => signOut(auth)); };
 
   return (
     <>

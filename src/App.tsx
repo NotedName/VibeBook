@@ -8,6 +8,8 @@ import VerifyEmail from "./VerifyEmail";
 import Shell from "./Shell";
 import PublicPost from "./PublicPost";
 import { parsePostHash } from "./share";
+import EvaluatorForm from "./EvaluatorForm";
+import { parseEvalHash } from "./evalLink";
 import { hideSplash } from "./splash";
 
 export default function App() {
@@ -27,8 +29,8 @@ export default function App() {
   // The splash stays until there is something real behind it. Signed-in people see the logbook, so Shell
   // hides it once their profile has loaded; every other screen (sign in, verify email) can show right away.
   useEffect(() => {
-    if (action || (user !== undefined && !(user && user.emailVerified))) hideSplash();
-  }, [user, action]);
+    if (action || parseEvalHash(hash) || (user !== undefined && !(user && user.emailVerified))) hideSplash();
+  }, [user, action, hash]);
   // An emailed link (reset password, confirm email) has been handled: drop its code from the address bar.
   const actionDone = useCallback(() => {
     history.replaceState(null, "", `/${location.hash}`);
@@ -37,6 +39,10 @@ export default function App() {
   }, [onVerified]);
 
   if (action) return <AuthAction link={action} onDone={actionDone} />;
+
+  // A supervisor opens an evaluation link without an account.
+  const evaluation = parseEvalHash(hash);
+  if (evaluation) return <EvaluatorForm payload={evaluation} />;
 
   // Until auth answers, the splash screen from index.html is showing; this line is only a fallback.
   if (user === undefined) return <div className="page"><main className="logbook"><ProfileSkeleton /><FeedSkeleton /></main></div>;

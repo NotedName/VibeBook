@@ -66,3 +66,30 @@ export async function setReaction(
   if (next === "vibing" && current !== "vibing") await pushNote(ownerUid, uid, key, "like", { ownerUid, ...note });
   else if (current === "vibing") await dropNote(ownerUid, uid, key);
 }
+
+export type Reactor = { uid: string; type: ReactionType; at: number };
+
+/** Everyone who reacted to one of your entries, newest first. Only the entry's owner is offered this (see EntryCard). */
+export function useReactors(ownerUid: string, entryId: string) {
+  const [list, setList] = useState<Reactor[] | null>(null);
+  const [error, setError] = useState(false);
+  useEffect(
+    () => onSnapshot(
+      reactionsRef(ownerUid, entryId),
+      (snap) => {
+        const out: Reactor[] = [];
+        snap.forEach((d) => {
+          const type: unknown = d.data().type;
+          if (type !== "vibing" && type !== "notvibing") return;
+          const ts = d.data().createdAt as { toMillis?: () => number } | null;
+          out.push({ uid: d.id, type, at: ts?.toMillis ? ts.toMillis() : Date.now() });
+        });
+        setList(out.sort((a, b) => b.at - a.at));
+        setError(false);
+      },
+      () => setError(true),
+    ),
+    [ownerUid, entryId],
+  );
+  return { list, error };
+}

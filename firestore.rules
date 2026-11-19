@@ -180,7 +180,7 @@ service cloud.firestore {
         && request.auth.uid != uid
         && noteId.matches('^' + request.auth.uid + '_.{1,300}$')
         && request.resource.data.keys().hasOnly(['type', 'actorUid', 'ownerUid', 'entryId', 'photoId', 'title', 'groupId', 'groupName', 'createdAt', 'read'])
-        && request.resource.data.type in ['friend_request', 'friend_accept', 'follow', 'group_invite', 'group_request', 'group_approved', 'like', 'comment', 'reply', 'comment_like', 'repost']
+        && request.resource.data.type in ['friend_request', 'friend_accept', 'follow', 'group_invite', 'group_request', 'group_approved', 'group_deleted', 'like', 'comment', 'reply', 'comment_like', 'repost']
         && request.resource.data.actorUid == request.auth.uid
         && request.resource.data.read == false
         && request.resource.data.createdAt == request.time
@@ -264,7 +264,11 @@ service cloud.firestore {
           && request.resource.data.date is string && request.resource.data.date.size() == 10
           && request.resource.data.time is string && request.resource.data.time.size() == 5)
         || (docId == 'report'
-          && request.resource.data.keys().hasOnly(['traineeName', 'course', 'term', 'school', 'department', 'program', 'schoolYear'])
+          && request.resource.data.keys().hasOnly(['traineeName', 'course', 'term', 'school', 'department', 'program', 'schoolYear', 'location', 'company', 'deployed', 'supervisor'])
+          && request.resource.data.get('location', '') is string && request.resource.data.get('location', '').size() <= 120
+          && request.resource.data.get('company', '') is string && request.resource.data.get('company', '').size() <= 120
+          && request.resource.data.get('deployed', '') is string && request.resource.data.get('deployed', '').size() <= 120
+          && request.resource.data.get('supervisor', '') is string && request.resource.data.get('supervisor', '').size() <= 120
           && request.resource.data.get('traineeName', '') is string && request.resource.data.get('traineeName', '').size() <= 120
           && request.resource.data.get('course', '') is string && request.resource.data.get('course', '').size() <= 120
           && request.resource.data.get('term', '') is string && request.resource.data.get('term', '').size() <= 120
@@ -354,9 +358,12 @@ service cloud.firestore {
 
     match /users/{uid}/entries/{entryId} {
       allow read, delete: if isOwner(uid);
+      // createdAt is the real time of posting, set by the server. The "date and time" fields are the time the entry is about, which the owner may change.
       allow create: if isOwner(uid) && entryTextOk(request.resource.data) && entryGifOk(request.resource.data) && discoverOk(request.resource.data)
+        && request.resource.data.get('createdAt', request.time) == request.time
         && getAfter(/databases/$(database)/documents/rate/$(uid)).data.entryAt == request.time;
       allow update: if isOwner(uid)
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['createdAt'])
         && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['title', 'description', 'skills'])
             || entryTextOk(request.resource.data))
         && entryGifOk(request.resource.data)
@@ -599,7 +606,8 @@ service cloud.firestore {
 
       // Only an admin can edit the group's name, description and photos. The owner never changes.
       allow update: if isAdminOf(gid)
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'nameKeys', 'description', 'avatar', 'coverPhoto', 'privacy', 'questions'])
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'nameKeys', 'description', 'avatar', 'coverPhoto', 'cover', 'privacy', 'questions'])
+        && request.resource.data.get('cover', 'amethyst') in ['amethyst', 'dusk', 'steel']
         && privacyOk(request.resource.data)
         && request.resource.data.get('avatar', '').size() <= 120000
         && request.resource.data.get('coverPhoto', '').size() <= 120000
@@ -608,6 +616,10 @@ service cloud.firestore {
         && request.resource.data.name.size() <= 60
         && request.resource.data.description is string
         && request.resource.data.description.size() <= 300;
+
+      // Only the owner can delete the group. The app first notifies the members, then removes memberships, invites,
+      // requests, bans and feed posts, and deletes this document last.
+      allow delete: if signedIn() && resource.data.ownerUid == request.auth.uid;
 
       // Requests to join a private group, named by the requester's uid. Only that person can send one (in their own
       // name, to a private group, with a "why" message of 1 to 300 characters and one answer per question), and only
@@ -708,7 +720,8 @@ service cloud.firestore {
         && resource.data.uid != request.auth.uid
         && isAdminOf(resource.data.groupId);
       allow delete: if signedIn() && (
-        (resource.data.uid == request.auth.uid && groupOwner(resource.data.groupId) != request.auth.uid)
+        groupOwner(resource.data.groupId) == request.auth.uid
+        || (resource.data.uid == request.auth.uid && groupOwner(resource.data.groupId) != request.auth.uid)
         || (resource.data.uid != groupOwner(resource.data.groupId)
             && resource.data.uid != request.auth.uid
             && (isAdminOf(resource.data.groupId)
@@ -728,8 +741,8 @@ service cloud.firestore {
         && inviteId == request.resource.data.groupId + '_' + request.resource.data.to
         && request.resource.data.createdAt == request.time
         && inMyGroup(request.resource.data.groupId);
-      allow read: if signedIn() && (resource.data.from == request.auth.uid || resource.data.to == request.auth.uid);
-      allow delete: if signedIn() && (resource.data.from == request.auth.uid || resource.data.to == request.auth.uid);
+      allow read: if signedIn() && (resource.data.from == request.auth.uid || resource.data.to == request.auth.uid || isAdminOf(resource.data.groupId));
+      allow delete: if signedIn() && (resource.data.from == request.auth.uid || resource.data.to == request.auth.uid || groupOwner(resource.data.groupId) == request.auth.uid);
     }
 
     // A request is one document, named "<fromUid>_<toUid>".

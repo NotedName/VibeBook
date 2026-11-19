@@ -7,7 +7,8 @@ import { useRepostedEntries } from "../reposts";
 import { PullIndicator, usePullToRefresh } from "../PullToRefresh";
 import EntryList from "../EntryList";
 import { FeedSkeleton } from "../Skeleton";
-import { FeedIcon, GlobeIcon } from "../icons";
+import { CloseIcon, FeedIcon, GlobeIcon, SearchIcon } from "../icons";
+import { entryText } from "../report";
 
 type Tab = "following" | "foryou";
 
@@ -19,6 +20,8 @@ type Tab = "following" | "foryou";
 export default function FeedPage() {
   const s = useSession();
   const [tab, setTab] = useState<Tab>("following");
+  const [searching, setSearching] = useState(false);
+  const [q, setQ] = useState("");
   // Followed people with a private profile share nothing with non-friends, so they are not queried.
   const followed = useMemo(() => [...s.following].filter((uid) => !s.friends.has(uid)), [s.following, s.friends]);
   const locked = useLockedProfiles(followed);
@@ -39,6 +42,11 @@ export default function FeedPage() {
     [original, reposts, s.uid],
   );
 
+  // Search covers the entries already loaded in this feed: their activity, skills and description.
+  const needle = q.trim().toLowerCase();
+  const match = useCallback((list: typeof entries) => (needle ? list.filter((e) => entryText(e).toLowerCase().includes(needle)) : list), [needle]);
+  const shownFollowing = useMemo(() => match(entries), [match, entries]);
+
   const followedPeople = useMemo(() => new Set(people), [people]);
   const forYou = useForYou(s.uid, original, followedPeople, tab === "foryou", round);
   const pulling = usePullToRefresh(refresh, tab === "following" ? loading : forYou.loading);
@@ -48,7 +56,16 @@ export default function FeedPage() {
       <PullIndicator {...pulling} />
       <div className="title-row">
         <h1 className="page-title">Feed</h1>
+        <button type="button" className="icon-btn" aria-label={searching ? "Close search" : "Search posts"} title="Search posts" aria-expanded={searching}
+          onClick={() => { setSearching((v) => !v); if (searching) setQ(""); }}>{searching ? <CloseIcon /> : <SearchIcon />}</button>
       </div>
+      {searching && (
+        <div className="search feed-search">
+          <SearchIcon />
+          <input type="search" autoFocus value={q} onChange={(e) => setQ(e.target.value)} enterKeyHint="search"
+            placeholder="Search posts by activity, skill or description" aria-label="Search posts" />
+        </div>
+      )}
       <div className="profile-bar">
         <div className="profile-tabs">
           <div className="profile-tablist" role="tablist" aria-label="Feed sections">
@@ -76,7 +93,8 @@ export default function FeedPage() {
               <p>When your friends or the people you follow share an entry, it shows up here.</p>
             </div>
           )}
-          <EntryList entries={entries} dayHeadings />
+          {needle && entries.length > 0 && shownFollowing.length === 0 && <p className="hint" role="status">No posts match “{q.trim()}”.</p>}
+          <EntryList entries={shownFollowing} dayHeadings />
         </>
       )}
 
@@ -90,7 +108,8 @@ export default function FeedPage() {
               <p>Public entries from people you do not know yet show up here, mixed with those of the people you follow and ordered by the skills you share with them.</p>
             </div>
           )}
-          <EntryList entries={forYou.entries} dayHeadings={false} />
+          {needle && forYou.entries.length > 0 && match(forYou.entries).length === 0 && <p className="hint" role="status">No posts match “{q.trim()}”.</p>}
+          <EntryList entries={match(forYou.entries)} dayHeadings={false} />
         </>
       )}
     </div>

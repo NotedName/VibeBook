@@ -8,6 +8,7 @@ import { chosenVisibility } from "./entryPrivacy";
 import Avatar from "./Avatar";
 import ClampedText from "./ClampedText";
 import { Linkified } from "./links";
+import InteractionsSheet from "./InteractionsSheet";
 import { ArchiveIcon, CheckIcon, CommentIcon, CopyIcon, DownloadIcon, EditIcon, GlobeIcon, GroupsIcon, LockIcon, MoreIcon, RepostIcon, ShareIcon, TrashIcon, UnarchiveIcon, UsersIcon } from "./icons";
 import ShareSheet from "./ShareSheet";
 import { removeRepost, repostId } from "./reposts";
@@ -58,12 +59,13 @@ function FullEntryCard({ entry, onEdit, inGroup, single = false }: Props) {
   const [menu, setMenu] = useState(false);
   const [visOpen, setVisOpen] = useState(false);
   const [sharing, setSharing] = useState(false);
+  const [interactions, setInteractions] = useState(false);
   const reposter = useProfile(entry.repostedBy);
   const menuRef = useRef<HTMLDivElement>(null);
   const groupIds = (entry.groupIds ?? []).filter((id) => s.groups.ids.has(id));
   const vis = VISIBILITY.find((v) => v.id === (entry.visibility ?? "private"))!;
   // An entry in a private group is stored as "private"; say what is really going on.
-  const inPrivateGroup = (entry.groupIds ?? []).some((id) => s.groups.list.some((g) => g.id === id && g.privacy === "private"));
+  const inPrivateGroup = entry.alsoOnProfile !== true && (entry.groupIds ?? []).some((id) => s.groups.list.some((g) => g.id === id && g.privacy === "private"));
 
   // createdAt/updatedAt change once the server confirms a write, which refreshes photos
   // that were still being committed when the first local snapshot arrived.
@@ -148,6 +150,7 @@ function FullEntryCard({ entry, onEdit, inGroup, single = false }: Props) {
         <div className="post-who">
           {mine ? <b>{name}</b> : <a className="post-name" href={personHash(ownerUid, owner)}>{name}</a>}
           <time>{longDay(entry.date)} · {entryWhen(entry)}</time>
+          {entry.createdAt?.toDate && <small className="posted-at" title="The time the entry was really posted. It cannot be changed.">Posted {entry.createdAt.toDate().toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</small>}
           {mine && entry.archived && <span className="archived-tag" title="Only you can see this entry"><ArchiveIcon />Archived</span>}
           {groupIds.length > 0 && <ul className="group-links" aria-label="Shared to groups">{groupIds.map((id) => <GroupLink key={id} id={id} />)}</ul>}
         </div>
@@ -203,6 +206,9 @@ function FullEntryCard({ entry, onEdit, inGroup, single = false }: Props) {
                   ))}
                 </>
               )}
+              {mine && !entry.repostedBy && (
+                <button type="button" role="menuitem" onClick={() => { setMenu(false); setInteractions(true); }}><UsersIcon />View interactions</button>
+              )}
               {mine && onEdit && (
                 <>
                   <button type="button" role="menuitem" onClick={() => { setMenu(false); onEdit(entry); }}><EditIcon />Edit</button>
@@ -253,6 +259,7 @@ function FullEntryCard({ entry, onEdit, inGroup, single = false }: Props) {
         )}
       </div>
 
+      {interactions && <InteractionsSheet ownerUid={ownerUid} entryId={entry.id} onClose={() => setInteractions(false)} />}
       {sharing && <ShareSheet entry={entry} onClose={() => setSharing(false)} />}
       {commenting && <Comments ownerUid={ownerUid} entryId={entry.id} title={entry.title} />}
 

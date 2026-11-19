@@ -1,3 +1,4 @@
+import TimeField from "./TimeField";
 import { useEffect, useState, type FormEvent } from "react";
 import { addEntry, type Entry } from "./entries";
 import { clockTime, longDay, nowStr, todayStr } from "./report";
@@ -6,11 +7,12 @@ import { availableDaysIn, planOf, projectFinish } from "./availability";
 import AvailabilitySheet from "./AvailabilitySheet";
 import { formatHM, spanMinutes, sumMinutes, weekEnd, weekStart } from "./weeks";
 import { useSession } from "./session";
-import { ClockIcon, CoffeeIcon, EditIcon, ListIcon, PlayIcon } from "./icons";
+import { ClockIcon, CoffeeIcon, EditIcon, ListIcon, PlayIcon, PlusIcon } from "./icons";
 import { HoursSkeleton } from "./Skeleton";
 import ConfirmDialog from "./ConfirmDialog";
 import FormError from "./FormError";
 import HoursLogSheet from "./HoursLogSheet";
+import PastHoursSheet from "./PastHoursSheet";
 
 /** A shift this long (or longer) needs the word typed before it can be thrown away. */
 const LONG_SHIFT_MINUTES = 120;
@@ -32,6 +34,7 @@ export default function HoursCard({ entries, loading = false }: { entries: Entry
   const [startTime, setStartTime] = useState("");
   const [error, setError] = useState("");
   const [logOpen, setLogOpen] = useState(false);
+  const [pastOpen, setPastOpen] = useState(false);
   const [confirming, setConfirming] = useState<null | "discard" | "start">(null);
   const [clocking, setClocking] = useState(false);
   // After "No, still on break" the question waits this long (epoch ms) before it is asked again.
@@ -56,7 +59,8 @@ export default function HoursCard({ entries, loading = false }: { entries: Entry
     ? breakMinutesOf(clock, now, plan) - plan.minutes : -1;
   const askWorking = overBreakMin >= 0 && now >= askAfter;
   // What a full week would hold, and how long until the required hours are reached, counting only the days you can work.
-  const weekCapacity = availableDaysIn(thisWeekStart, weekEnd(thisWeekStart), a) * a.hoursPerDay * 60;
+  const weekDays = availableDaysIn(thisWeekStart, weekEnd(thisWeekStart), a);
+  const weekCapacity = weekDays * a.hoursPerDay * 60;
   const todayMinutes = sumMinutes(entries.filter((e) => e.date === todayStr()));
   const required = goal.hours === null ? null : Math.round(goal.hours * 60);
   // Unless your hours are only for you (Settings > Privacy), the summary other people read follows your totals.
@@ -137,6 +141,9 @@ export default function HoursCard({ entries, loading = false }: { entries: Entry
           <button type="button" className="btn small" title="Edit required hours and available days" onClick={() => setDaysOpen(true)}>
             <EditIcon /><span className="lbl">Edit</span>
           </button>
+          <button type="button" className="btn small" title="Add hours for a past date" onClick={() => setPastOpen(true)}>
+            <PlusIcon /><span className="lbl">Past hours</span>
+          </button>
           <button type="button" className="btn small" title="View logged hours" onClick={() => setLogOpen(true)}>
             <ListIcon /><span className="lbl">Logged hours</span>
           </button>
@@ -158,7 +165,12 @@ export default function HoursCard({ entries, loading = false }: { entries: Entry
         </p>
       )}
       {projection === null && required !== null && left > 0 && <p className="hint hours-line">No available days set, so there is no finish date.</p>}
-      <p className="hint hours-line">This week: <b>{formatHM(thisWeek)}</b>{weekCapacity > 0 && <> of {formatHM(weekCapacity)} available</>}</p>
+      <p className="hint hours-line">
+        This week: <b>{formatHM(thisWeek)}</b> logged
+        {weekCapacity > 0
+          ? <> · planned {formatHM(weekCapacity)} ({weekDays} available {weekDays === 1 ? "day" : "days"} × {formatHM(a.hoursPerDay * 60)}){thisWeek > weekCapacity && <> · <b>{formatHM(thisWeek - weekCapacity)} over plan</b></>}</>
+          : <> · no available days this week</>}
+      </p>
       <p className="hint hours-line">Available days: {WEEKDAYS.filter((d) => a.workDays.includes(d.day)).map((d) => d.short).join(" ") || "None"}{a.daysOff.length + a.daysOn.length > 0 ? ` · ${a.daysOff.length + a.daysOn.length} changed` : ""}</p>
 
       <div className="clock-row">
@@ -190,7 +202,7 @@ export default function HoursCard({ entries, loading = false }: { entries: Entry
                   <input type="date" value={startDate} max={todayStr()} required onChange={(e) => setStartDate(e.target.value)} />
                 </label>
                 <label>Started at
-                  <input type="time" value={startTime} required onChange={(e) => setStartTime(e.target.value)} />
+                  <TimeField value={startTime} required onChange={(v) => setStartTime(v)} />
                 </label>
                 <button type="submit" className="btn primary">Save</button>
                 <button type="button" className="btn" onClick={() => setEditingStart(false)}>Cancel</button>
@@ -240,6 +252,7 @@ export default function HoursCard({ entries, loading = false }: { entries: Entry
           </ConfirmDialog>
         );
       })()}
+      {pastOpen && <PastHoursSheet defaultBreak={plan?.minutes ?? 0} onClose={() => setPastOpen(false)} />}
       {logOpen && <HoursLogSheet entries={entries} clock={clock ?? null} plan={plan} onClose={() => setLogOpen(false)} />}
       {daysOpen && <AvailabilitySheet uid={s.uid} hours={goal.hours} value={a} share={!!s.me && s.me.scheduleAudience !== "private"} onClose={() => setDaysOpen(false)} />}
     </section>

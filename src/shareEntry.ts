@@ -42,3 +42,20 @@ export const PLATFORMS: Platform[] = [
   { id: "linkedin", label: "LinkedIn", mark: "in", color: "#0a66c2", href: (u) => `https://www.linkedin.com/sharing/share-offsite/?url=${enc(u)}` },
   { id: "email", label: "Email", mark: "@", color: "#6b6577", href: (u, t) => `mailto:?subject=${enc(t)}&body=${enc(`${t}\n${u}`)}` },
 ];
+
+/**
+ * A shared entry is an ordinary text message ("note", blank line, title, link). The chat recognises it by its last two lines, a title
+ * and a post link, and draws a card for it instead of a link, as Messenger does for shared posts. Older messages work the same way.
+ */
+export function parseSharedEntry(text: string): { note: string; title: string; uid: string; id: string } | null {
+  const lines = text.trim().split("\n");
+  if (lines.length < 2) return null;
+  const link = lines[lines.length - 1].trim();
+  const m = link.match(/#\/p\/([^/\s]+)\/([^/\s]+)$/);
+  if (!m) return null;
+  try {
+    const title = lines[lines.length - 2].trim();
+    if (!title) return null;
+    return { note: lines.slice(0, -2).join("\n").trim(), title, uid: decodeURIComponent(m[1]), id: decodeURIComponent(m[2]) };
+  } catch { return null; }
+}

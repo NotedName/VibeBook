@@ -107,6 +107,8 @@ export async function makePdf(model: ReportModel): Promise<Uint8Array> {
   model.table.rows.forEach((r) => row1(r, regular, false));
   if (model.table.footer) row1(model.table.footer, bold, false);
 
+  if (model.groups.length === 0 && !model.picturesTitle) return await doc.save(); // the Training Plan is the first table only
+
   // Table 2: pictures on the left, descriptions on the right, one row per week. A row that does not fit
   // carries on at the top of the next page under a repeated header, as in the example.
   top += 22;

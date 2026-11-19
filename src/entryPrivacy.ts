@@ -81,7 +81,8 @@ export async function syncEntryPrivacy(uid: string): Promise<void> {
   const ids = [...priv];
   for (let i = 0; i < ids.length; i += 10) {
     const snap = await getDocs(query(entriesOf(uid), where("groupIds", "array-contains-any", ids.slice(i, i + 10))));
-    snap.docs.forEach((d) => inPrivate.set(d.id, { ...d.data(), ref: d.ref }));
+    // an entry the owner also keeps on their profile is not locked, so it is left out here
+    snap.docs.forEach((d) => { if (d.data().alsoOnProfile !== true) inPrivate.set(d.id, { ...d.data(), ref: d.ref }); });
   }
   const locked = await getDocs(query(entriesOf(uid), where("lockedVisibility", "in", ["friends", "public"])));
   const teasers = await getDocs(collection(db, "users", uid, "teasers"));

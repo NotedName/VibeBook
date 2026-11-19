@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useEffect, useMemo } from "react";
 import type { Entry } from "./entries";
 import { runningMinutes, type RunningClock } from "./hours";
@@ -6,10 +7,12 @@ import { clockTime, longDay, todayStr } from "./report";
 import { entryMinutes, formatHM, sumMinutes, weekEnd, weekNumber, weekRange, weekStart, earliestDay } from "./weeks";
 import { useSession } from "./session";
 import { ClockIcon, CloseIcon, EditIcon } from "./icons";
+import PastHoursSheet from "./PastHoursSheet";
 import { useScrollLock } from "./scrollLock";
 
 /** Your own hours, newest first, week by week: when each shift started and ended, how long it was, and whether the start was edited. */
 export default function HoursLogSheet({ entries, clock, plan, onClose }: { entries: Entry[]; clock: RunningClock | null; plan?: BreakPlan | null; onClose: () => void }) {
+  const [editing, setEditing] = useState<Entry | null>(null);
   useScrollLock();
   const s = useSession();
   useEffect(() => {
@@ -71,7 +74,7 @@ export default function HoursLogSheet({ entries, clock, plan, onClose }: { entri
                       )}
                     </div>
                     <span className="log-len">{formatHM(entryMinutes(e))}</span>
-                    <button type="button" className="icon-btn log-edit" aria-label={`Open the ${longDay(e.date)} entry`} onClick={() => s.openEntry(e)}><EditIcon /></button>
+                    <button type="button" className="icon-btn log-edit" aria-label={`Edit the hours for ${longDay(e.date)}`} title="Edit hours" onClick={() => setEditing(e)}><EditIcon /></button>
                   </li>
                 ))}
               </ul>
@@ -79,6 +82,7 @@ export default function HoursLogSheet({ entries, clock, plan, onClose }: { entri
           ))}
         </div>
       </div>
+      {editing && <PastHoursSheet entry={editing} onClose={() => setEditing(null)} />}
     </div>
   );
 }

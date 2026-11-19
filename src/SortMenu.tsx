@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { PERIODS, SORT_KINDS, type SortMode } from "./sorting";
+import { isDefaultSort, PERIODS, SORT_KINDS, type SortMode } from "./sorting";
 import { CheckIcon, SortIcon } from "./icons";
 
 type Props = {
@@ -18,6 +18,7 @@ export default function SortMenu({ mode, onChange }: Props) {
     return () => document.removeEventListener("keydown", onKey);
   }, [open]);
 
+  const label = SORT_KINDS.find((k) => k.id === mode.kind)?.label ?? "";
   const item = (on: boolean, label: string, pick: () => void, hint?: string) => (
     <button key={label} type="button" role="menuitemradio" aria-checked={on} className={on ? "on" : ""} title={hint} onClick={pick}>
       {on ? <CheckIcon /> : <span className="menu-gap" />}{label}
@@ -26,7 +27,8 @@ export default function SortMenu({ mode, onChange }: Props) {
 
   return (
     <div className="post-menu">
-      <button type="button" className="icon-btn menu-btn sort-btn" aria-label="Sort entries" aria-haspopup="menu" aria-expanded={open}
+      <button type="button" className={`icon-btn menu-btn sort-btn${isDefaultSort(mode) ? "" : " sort-active"}`} aria-haspopup="menu" aria-expanded={open}
+        aria-label={isDefaultSort(mode) ? "Sort entries" : `Sort entries. Sorted by ${label}`} title={isDefaultSort(mode) ? "Sort entries" : `Sorted by ${label}`}
         onClick={() => setOpen(!open)}><SortIcon /></button>
       {open && (
         <>
@@ -46,6 +48,7 @@ export default function SortMenu({ mode, onChange }: Props) {
           </div>
         </>
       )}
+      {!isDefaultSort(mode) && <span className="sort-tag" role="status">{label}</span>}
     </div>
   );
 }

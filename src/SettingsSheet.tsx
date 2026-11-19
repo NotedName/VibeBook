@@ -1,3 +1,4 @@
+import TimeField from "./TimeField";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import ConfirmDialog from "./ConfirmDialog";
 import { ACCENTS, HONEY_STYLES, resetAppearance, TEXT_SIZES, useAppearance, type ThemeMode } from "./theme";
@@ -6,6 +7,13 @@ import { PHOTO_QUALITY, resetPreferences, START_PAGES, usePreferences } from "./
 import { ACTIVITY_SHOWN, useActivityState } from "./activity";
 import { ago } from "./notifications";
 import { useProfile, useSession } from "./session";
+import { allowReminders, canNotify } from "./reminder";
+import { CHANGELOG } from "./changelog";
+import Tour from "./Tour";
+import { archiveAllEntries, deleteAllEntries } from "./entries";
+import { discardClock } from "./hours";
+import EmojiPicker from "./EmojiPicker";
+import { DEFAULT_QUICK_EMOJI } from "./preferences";
 import { deactivateAccount, personHash, setActiveStatus, setFriendsAudience, setHoursAudience, setPrivateProfile, setScheduleAudience, setStatusAudience } from "./profiles";
 import { AUDIENCES, VISIBILITY, type Audience } from "./types";
 import { BrandName } from "./Logo";
@@ -195,8 +203,27 @@ function Appearance() {
 
 function EntrySuggestionsSetting() {
   const p = usePreferences();
-  return <Switch device label="Suggestions" checked={p.entrySuggestions} onChange={p.setEntrySuggestions}
-    hint="When writing a new entry, show your 5 most recent activities and skills to tap and reuse." />;
+  const { notify } = useSession();
+  const [asking, setAsking] = useState(false);
+  return (
+    <>
+      <Switch device label="Suggestions" checked={p.entrySuggestions} onChange={p.setEntrySuggestions}
+        hint="Show recent activities and skills as chips when you write an entry. Tap a chip to switch it on or off." />
+      <div className="set-row">
+        <div className="set-row-text">
+          <b>Clear suggestion history</b>
+          <small>Forget the suggestions so far. Your entries stay as they are.</small>
+        </div>
+        <button type="button" className="btn small" onClick={() => setAsking(true)}>Clear</button>
+      </div>
+      {asking && (
+        <ConfirmDialog title="Clear suggestion history?" confirmLabel="Clear" onCancel={() => setAsking(false)}
+          onConfirm={() => { p.clearSuggestions(); setAsking(false); notify("Suggestion history cleared"); }}>
+          <p>New suggestions will come only from entries you write from now on.</p>
+        </ConfirmDialog>
+      )}
+    </>
+  );
 }
 
 function StartPageSetting() {
@@ -218,6 +245,52 @@ function Media() {
 }
 
 const VIS_ICON = { private: <LockIcon />, friends: <UsersIcon />, public: <GlobeIcon /> };
+
+function LogReminder() {
+  const p = usePreferences();
+  const { notify } = useSession();
+  async function toggle(on: boolean) {
+    if (on && !(await allowReminders())) {
+      notify(canNotify() ? "Notifications are blocked for this site. Allow them in your browser or phone settings to get reminders." : "This device cannot show notifications, so reminders will appear inside the app.");
+    }
+    p.setReminderOn(on);
+  }
+  return (
+    <>
+      <Switch device label="Remind me to log my work" checked={p.reminderOn} onChange={toggle}
+        hint="A daily notification with a picture. It is skipped on days you already wrote an entry, and shows while VibeBook is open." />
+      {p.reminderOn && (
+        <label className="reminder-time">Remind me at
+          <TimeField value={p.reminderTime} required onChange={(v) => v && p.setReminderTime(v)} />
+        </label>
+      )}
+    </>
+  );
+}
+
+function QuickReactSetting() {
+  const p = usePreferences();
+  const [open, setOpen] = useState(false);
+  const current = p.quickEmoji || DEFAULT_QUICK_EMOJI;
+  return (
+    <>
+      <div className="set-row">
+        <div className="set-row-text">
+          <b>Quick reaction</b>
+          <small>The emoji the quick-react button sends on a message. It applies to this device only.</small>
+        </div>
+        <button type="button" className="btn small quick-pick" aria-expanded={open} aria-label={`Quick reaction is ${current}. Change it`} onClick={() => setOpen((v) => !v)}>
+          <span className="quick-current">{current}</span>Change
+        </button>
+      </div>
+      {open && <EmojiPicker onPick={(e) => { p.setQuickEmoji(e === DEFAULT_QUICK_EMOJI ? "" : e); setOpen(false); }} />}
+      <div className="set-row">
+        <small className="hint">Original: {DEFAULT_QUICK_EMOJI}</small>
+        <button type="button" className="btn small" disabled={!p.quickEmoji} onClick={() => { p.setQuickEmoji(""); setOpen(false); }}>Reset to original</button>
+      </div>
+    </>
+  );
+}
 
 function Notifications() {
   const p = usePreferences();
@@ -304,7 +377,8 @@ function Accessibility() {
   );
 }
 
-function About() {
+function About({ uid }: { uid: string }) {
+  const [tour, setTour] = useState(false);
   return (
     <>
       <div className="about-brand brand"><BrandName /></div>
@@ -319,6 +393,17 @@ function About() {
         <li>Make it yours: light, dark or AMOLED, accent colour and backgrounds, text size, square corners, and the page the app opens on. Add it to your home screen to use it like an app.</li>
       </ul>
       <p className="hint">Entries, photos, hours and profile are saved to your account. Display settings are saved per device.</p>
+      <button type="button" className="btn" onClick={() => setTour(true)}>Show the tour</button>
+      {tour && <Tour uid={uid} all onClose={() => setTour(false)} />}
+      <section className="whats-new" aria-label="What's new">
+        <h3>What's new</h3>
+        {CHANGELOG.map((r, i) => (
+          <details key={r.date} open={i === 0}>
+            <summary><b>{r.title}</b><small>{new Date(`${r.date}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</small></summary>
+            <ul className="about-list">{r.changes.map((c) => <li key={c}>{c}</li>)}</ul>
+          </details>
+        ))}
+      </section>
       <details className="about-terms">
         <summary>Terms and Conditions</summary>
         <TermsContent />
@@ -403,6 +488,7 @@ function DataAccount({ onNavigate, onAskReset }: { onNavigate: () => void; onAsk
   const [deleting, setDeleting] = useState(false);
   const [confirmDeactivate, setConfirmDeactivate] = useState(false);
   const [showLog, setShowLog] = useState(false);
+  const [bulk, setBulk] = useState<"clock" | "archive" | "delete" | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
 
   async function download() {
@@ -461,6 +547,23 @@ function DataAccount({ onNavigate, onAskReset }: { onNavigate: () => void; onAsk
     setBusy(false);
   }
 
+  async function runBulk() {
+    const what = bulk; setBulk(null);
+    if (!what) return;
+    setBusy(true);
+    try {
+      if (what === "clock") { await discardClock(uid); setStatus("The hours timer was reset."); notify("Hours timer reset"); }
+      else if (what === "archive") {
+        const n = await archiveAllEntries(uid, (d, t) => setStatus(`Archiving… ${d} of ${t}`));
+        setStatus(n === 0 ? "There were no entries to archive." : `Archived ${n} ${n === 1 ? "entry" : "entries"}.`); if (n) notify("All entries archived");
+      } else {
+        const n = await deleteAllEntries(uid, (d, t) => setStatus(`Deleting… ${d} of ${t}`));
+        setStatus(n === 0 ? "There were no entries to delete." : `Deleted ${n} ${n === 1 ? "entry" : "entries"}.`); if (n) notify("All entries deleted");
+      }
+    } catch { setStatus("That did not finish. Check your connection and try again."); }
+    setBusy(false);
+  }
+
   const archivedChats = chats.archived.length;
   return (
     <>
@@ -474,6 +577,30 @@ function DataAccount({ onNavigate, onAskReset }: { onNavigate: () => void; onAsk
         <p className="hint">Restoring overwrites entries with the same ID; nothing is deleted. Sharing settings of entries you already have stay as they are.</p>
         {status && <p className="hint set-status" role="status">{status}</p>}
       </Section>
+
+      <Section title="Logbook data">
+        <div className="set-row">
+          <div className="set-row-text"><b>Reset hours timer</b><small>Stops the running clock and forgets this shift. Logged hours stay.</small></div>
+          <button type="button" className="btn small" disabled={busy} onClick={() => setBulk("clock")}>Reset</button>
+        </div>
+        <div className="set-row">
+          <div className="set-row-text"><b>Archive all entries</b><small>Moves every entry to your archive. Nothing is deleted.</small></div>
+          <button type="button" className="btn small" disabled={busy} onClick={() => setBulk("archive")}>Archive</button>
+        </div>
+        <div className="set-row">
+          <div className="set-row-text"><b>Delete all entries</b><small>Removes every entry, photo, comment and reaction. This cannot be undone.</small></div>
+          <button type="button" className="btn small danger" disabled={busy} onClick={() => setBulk("delete")}>Delete</button>
+        </div>
+      </Section>
+      {bulk && (
+        <ConfirmDialog
+          title={bulk === "clock" ? "Reset the hours timer?" : bulk === "archive" ? "Archive all entries?" : "Delete all entries?"}
+          confirmLabel={bulk === "clock" ? "Reset timer" : bulk === "archive" ? "Archive all" : "Delete all"} danger={bulk !== "clock"}
+          typeToConfirm={bulk === "clock" ? "reset timer" : bulk === "archive" ? "archive all" : "delete all"}
+          onCancel={() => setBulk(null)} onConfirm={() => void runBulk()}>
+          <p>{bulk === "clock" ? "The running shift is discarded. Hours you already logged are kept." : bulk === "archive" ? "Every entry moves to your archive and leaves your profile and feed." : "Every entry is deleted for good, with its photos, comments and reactions. Download a backup first if you may need them."}</p>
+        </ConfirmDialog>
+      )}
 
       <Section title="Photos">
         <button type="button" className="btn" disabled={busy} onClick={downloadPhotos}><DownloadIcon />Download all photos</button>
@@ -538,6 +665,7 @@ function DataAccount({ onNavigate, onAskReset }: { onNavigate: () => void; onAsk
 }
 
 export default function SettingsSheet({ onClose }: { onClose: () => void }) {
+  const { uid } = useSession();
   const [category, setCategory] = useState<Category>("appearance");
   const [askReset, setAskReset] = useState(false);
 
@@ -571,7 +699,9 @@ export default function SettingsSheet({ onClose }: { onClose: () => void }) {
               <Section title="Start page"><StartPageSetting /></Section>
               <Section title="New entry"><EntrySuggestionsSetting /></Section>
               <Section title="Photos"><Media /></Section>
+              <Section title="Messages"><QuickReactSetting /></Section>
               <Section title="Notifications"><Notifications /></Section>
+              <Section title="Log reminder"><LogReminder /></Section>
               <Section title="Accessibility"><Accessibility /></Section>
             </>
           )}
@@ -582,7 +712,7 @@ export default function SettingsSheet({ onClose }: { onClose: () => void }) {
             </>
           )}
           {category === "data" && <DataAccount onNavigate={onClose} onAskReset={() => setAskReset(true)} />}
-          {category === "about" && <About />}
+          {category === "about" && <About uid={uid} />}
         </div>
         </div>
         <div className="sheet-actions">

@@ -15,6 +15,8 @@ import { useGroupAlerts } from "./groupAlerts";
 import { useConversations } from "./messages";
 import { startE2ee } from "./e2ee";
 import { useActivePresence } from "./activeStatus";
+import { useLogReminder } from "./reminder";
+import Tour, { tourDue } from "./Tour";
 import { SessionProvider, type Session } from "./session";
 import type { Profile } from "./types";
 import { ArrowLeftIcon, BookIcon, CloseIcon, FeedIcon, GroupsIcon, PlusIcon, SettingsIcon, UsersIcon } from "./icons";
@@ -28,6 +30,7 @@ import MyLogbook from "./pages/MyLogbook";
 import FeedPage from "./pages/FeedPage";
 import GroupsPage from "./pages/GroupsPage";
 import GroupPage from "./pages/GroupPage";
+import { NetworkBanner } from "./network";
 import PeoplePage from "./pages/PeoplePage";
 import ArchivedPage from "./pages/ArchivedPage";
 import ArchivedChatsPage from "./pages/ArchivedChatsPage";
@@ -91,7 +94,7 @@ function useScrollDirection() {
   }, []);
 }
 
-/** Position of a page's tab in the tab bar (Feed, Groups, People, Logbook), -1 for anything else. */
+/** Position of a page's tab in the tab bar (Feed, Groups, Friends, Logbook), -1 for anything else. */
 const tabOrder = (hash: string): number =>
   hash.startsWith("#/feed") ? 0 : hash.startsWith("#/groups") || hash.startsWith("#/g/") ? 1 : hash.startsWith("#/people") || hash.startsWith("#/u/") ? 2 : hash.startsWith("#/me") ? 3 : -1;
 
@@ -123,6 +126,7 @@ export default function Shell({ user }: { user: User }) {
   const [me, setMe] = useState<Profile | null | undefined>(undefined);
   useActivePresence(uid, !!me && !me.deactivated && me.activeStatus !== false);
   const [profileError, setProfileError] = useState("");
+  const [waiting, setWaiting] = useState(false); // the server cannot be reached and nothing is cached yet
   const [route, setRoute] = useState<Route>(() => parse(location.hash));
   // Pages visited inside the app, so Back never leaves it: only offered when there is somewhere in the app to go.
   const trail = useRef<string[]>([location.hash]);
@@ -141,16 +145,26 @@ export default function Shell({ user }: { user: User }) {
   useEffect(
     () => onSnapshot(
       doc(db, "profiles", uid),
-      (snap) => { setMe(snap.exists() ? toProfile(uid, snap.data() as Partial<Profile>) : null); setProfileError(""); },
-      () => setProfileError("Could not load your profile. If you just updated the app, deploy the Firestore rules first (npm run deploy)."),
+      (snap) => {
+        // A profile that is simply missing from this device's cache while there is no connection is not "no profile":
+        // wait for the server instead of asking the person to create one.
+        if (!snap.exists() && snap.metadata.fromCache) { setWaiting(true); return; }
+        setWaiting(false);
+        setMe(snap.exists() ? toProfile(uid, snap.data() as Partial<Profile>) : null);
+        setProfileError("");
+      },
+      (err) => {
+        if (err.code === "unavailable" || !navigator.onLine) setWaiting(true);
+        else setProfileError("Could not load your profile. If you just updated the app, deploy the Firestore rules first (npm run deploy).");
+      },
     ),
     [uid],
   );
 
   // Profile answered (or failed): there is something to show, so let the splash screen go.
   useEffect(() => {
-    if (me !== undefined || profileError) hideSplash();
-  }, [me, profileError]);
+    if (me !== undefined || profileError || waiting) hideSplash();
+  }, [me, profileError, waiting]);
 
   useEffect(() => {
     // Moving between pages is a shared-axis slide (Material 3): the old page slips out toward one side and fades, the new one arrives from
@@ -192,6 +206,8 @@ export default function Shell({ user }: { user: User }) {
   const closeEntry = useCallback(() => setEntrySheet(null), []);
   const closeProfile = useCallback(() => setEditingProfile(false), []);
   const closeSettings = useCallback(() => setSettingsOpen(false), []);
+  useLogReminder(uid, notify);
+  const [tourOpen, setTourOpen] = useState(() => tourDue(uid));
   const entrySaved = useCallback((message: string) => { setEntrySheet(null); notify(message); }, [notify]);
 
   const session = useMemo<Session>(() => ({
@@ -202,7 +218,7 @@ export default function Shell({ user }: { user: User }) {
   }), [social, groups, invites, reposts, groupAlerts, markGroupSeen, chats, user, uid, me, notify]);
 
   if (profileError) return <p className="center error">{profileError}</p>;
-  if (me === undefined) return <div className="page"><main className="logbook"><ProfileSkeleton /><FeedSkeleton /></main></div>;
+  if (me === undefined) return <div className="page"><main className="logbook">{waiting && <NetworkBanner />}<ProfileSkeleton /><FeedSkeleton /></main></div>;
   if (me?.deactivated) return <DeactivatedGate uid={uid} name={me.displayName} />;
 
   const isMe = route.name === "person" && (route.handle === uid || route.handle.toLowerCase() === me?.username);
@@ -244,7 +260,7 @@ export default function Shell({ user }: { user: User }) {
               <i><PlusIcon /></i><span>New</span>
             </button>
           )}
-          {tab("#/people", active.name === "people" || active.name === "person", <UsersIcon />, "People", incomingCount)}
+          {tab("#/people", active.name === "people" || active.name === "person", <UsersIcon />, "Friends", incomingCount)}
           {tab("#/me", active.name === "me" || active.name === "archived", <BookIcon />, "Logbook")}
         </nav>
       </header>
@@ -278,6 +294,7 @@ export default function Shell({ user }: { user: User }) {
         <EntrySheet key={entrySheet.entry?.id ?? "new"} uid={uid} entry={entrySheet.entry}
           defaultGroupId={entrySheet.groupId} defaultDate={entrySheet.date} onClose={closeEntry} onSaved={entrySaved} />
       )}
+      {tourOpen && me && me.username && !editingProfile && <Tour uid={uid} onClose={() => setTourOpen(false)} />}
       {(me === null || editingProfile || !me.username) && (
         <ProfileSheet profile={me} suggestedName={user.displayName ?? ""} onClose={closeProfile} />
       )}

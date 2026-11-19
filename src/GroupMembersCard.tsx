@@ -47,7 +47,7 @@ export default function GroupMembersCard({ gid }: { gid: string }) {
       {!list && !error && <RowsSkeleton />}
       {list && group && <RoleTiers members={list} ownerUid={group.ownerUid} list="tier-list" render={(m) => <Row key={m.uid} uid={m.uid} />} />}
       {managing && list && group && createPortal(
-        <GroupMembersSheet gid={gid} members={list} error={error} ownerUid={group.ownerUid} myRole={myRole} startManaging
+        <GroupMembersSheet gid={gid} group={group} members={list} error={error} ownerUid={group.ownerUid} myRole={myRole} startManaging
           onClose={() => setManaging(false)} />,
         document.body,
       )}

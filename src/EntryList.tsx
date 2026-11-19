@@ -17,21 +17,29 @@ type Props = {
   weeks?: { origin: string };
   /** Show the hours under each day without the week headings (the Days view of your logbook). */
   dayHours?: boolean;
+  /**
+   * Every entry that counts as hours, including shifts saved by Clock out (hours only, not listed in the logbook).
+   * Day and week totals are added up from these, so they match the Hours card whatever is listed or filtered.
+   */
+  hoursSource?: Entry[];
+  /** Someone else's logbook: week and day headings without hours (their hours are shared only through Privacy settings). */
+  hideHours?: boolean;
 };
 
 /** Entries in the order given, under week and day headings when they run by date. */
-export default function EntryList({ entries, onEdit, inGroup, dayHeadings = true, weeks, dayHours }: Props) {
+export default function EntryList({ entries, onEdit, inGroup, dayHeadings = true, weeks, dayHours, hoursSource, hideHours }: Props) {
   let lastDay = "";
   let lastWeek = "";
-  const byWeek = new Map<string, Entry[]>();
-  const byDay = new Map<string, Entry[]>();
-  if ((weeks || dayHours) && dayHeadings) {
-    entries.forEach((e) => {
-      const day = stampOf(e).slice(0, 10);
-      byDay.set(day, [...(byDay.get(day) ?? []), e]);
-      const wk = weekStart(day);
-      byWeek.set(wk, [...(byWeek.get(wk) ?? []), e]);
-    });
+  const minutesByDay = new Map<string, number>();
+  const minutesByWeek = new Map<string, number>();
+  if ((weeks || dayHours) && dayHeadings && !hideHours) {
+    for (const e of hoursSource ?? entries.filter((x) => !x.repostedBy)) {
+      const m = sumMinutes([e]);
+      if (m <= 0) continue;
+      minutesByDay.set(e.date, (minutesByDay.get(e.date) ?? 0) + m);
+      const wk = weekStart(e.date);
+      minutesByWeek.set(wk, (minutesByWeek.get(wk) ?? 0) + m);
+    }
   }
   return (
     <div className={`entries${dayHeadings ? "" : " flat"}`}>
@@ -42,13 +50,13 @@ export default function EntryList({ entries, onEdit, inGroup, dayHeadings = true
         const wk = weekStart(day);
         const weekHeader = !!weeks && dayHeadings && wk !== lastWeek;
         lastWeek = wk;
-        const dayMinutes = sumMinutes(byDay.get(day) ?? []);
+        const dayMinutes = minutesByDay.get(day) ?? 0;
         return (
           <Fragment key={`${e.repostedBy ?? ""}-${e.ownerUid}-${e.id}`}>
             {weekHeader && weeks && (
               <div className="week-label" role="heading" aria-level={2}>
                 <span>Week {weekNumber(wk, weeks.origin)}<small>{weekRange(wk)}</small></span>
-                <b>{formatHM(sumMinutes(byWeek.get(wk) ?? []))}</b>
+                {!hideHours && <b>{formatHM(minutesByWeek.get(wk) ?? 0)}</b>}
               </div>
             )}
             {header && (

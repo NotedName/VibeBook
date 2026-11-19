@@ -1,3 +1,4 @@
+import TimeField from "./TimeField";
 import { useEffect, useState } from "react";
 import { addHolidays, cleanExceptions, defaultTimes, HOLIDAY_NAME_MAX, holidayOn, isAvailable, isTime, removeHoliday, shiftMinutes, toggleDate, toMinutes, toTime, type Availability } from "./availability";
 import { MAX_REQUIRED_HOURS, saveAvailability, setRequiredHours } from "./hours";
@@ -151,10 +152,10 @@ export default function AvailabilitySheet({ uid, hours, value, share, onClose }:
             <legend>Daily schedule</legend>
             <div className="time-row two">
               <label><span className="cap">From</span>
-                <input type="time" value={times.start} onChange={(e) => setTimes((t) => ({ ...t, start: e.target.value }))} />
+                <TimeField value={times.start} onChange={(v) => setTimes((t) => ({ ...t, start: v }))} />
               </label>
               <label><span className="cap">To</span>
-                <input type="time" value={times.end} onChange={(e) => setTimes((t) => ({ ...t, end: e.target.value }))} />
+                <TimeField value={times.end} onChange={(v) => setTimes((t) => ({ ...t, end: v }))} />
               </label>
             </div>
 
@@ -184,7 +185,7 @@ export default function AvailabilitySheet({ uid, hours, value, share, onClose }:
                   ))}
                 </div>
                 <label><span className="cap">Or pick a time</span>
-                  <input type="time" value={times.at} onChange={(e) => setTimes((t) => ({ ...t, at: e.target.value }))} />
+                  <TimeField value={times.at} onChange={(v) => setTimes((t) => ({ ...t, at: v }))} />
                 </label>
               </>
             )}
@@ -222,7 +223,7 @@ export default function AvailabilitySheet({ uid, hours, value, share, onClose }:
             <p className="hint">Tap a date to switch it, e.g. a holiday or a Saturday you will work.
               {exceptions > 0 && <> {exceptions} {exceptions === 1 ? "date" : "dates"} changed. <button type="button" className="link-btn" onClick={() => setA((cur) => ({ ...cur, daysOff: [], daysOn: [] }))}>Clear all changes</button></>}
             </p>
-            <p className="hint">A date you change goes back to your usual week once the day has passed.</p>
+            <p className="hint">A date you change stays marked, past days too, so you can see every day you were off.</p>
           </fieldset>
 
           <fieldset className="setting">

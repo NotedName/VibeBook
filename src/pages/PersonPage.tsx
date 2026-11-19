@@ -5,7 +5,7 @@ import { usePresence } from "../activeStatus";
 import ProfileTabs, { type ProfileTab } from "../ProfileTabs";
 import { useSharedEntries } from "../feed";
 import { newestFirst } from "../entries";
-import { dateDir, useSortedEntries, useSortMode } from "../sorting";
+import { dateDir, LOGBOOK_VIEWS, useLogbookView, useSortedEntries, useSortMode } from "../sorting";
 import SortMenu from "../SortMenu";
 import SharedHoursCard from "../SharedHoursCard";
 import SharedStatusCard from "../SharedStatusCard";
@@ -20,6 +20,10 @@ import { LockIcon, UsersIcon } from "../icons";
 import EntryList from "../EntryList";
 import { FeedSkeleton, ProfileSkeleton } from "../Skeleton";
 import { resolveUserRef } from "../profiles";
+import { NetworkUnavailable, useOnline } from "../network";
+import Segmented from "../Segmented";
+import LogbookMonth from "../LogbookMonth";
+import { earliestDay } from "../weeks";
 import { useMutualFriends } from "../friendList";
 
 export default function PersonPage({ uid }: { uid: string }) {
@@ -32,6 +36,7 @@ export default function PersonPage({ uid }: { uid: string }) {
   const presence = usePresence(hidden ? undefined : uid);
   const sources = useMemo(() => (p === undefined || hidden ? [] : [{ uid, friend }]), [uid, friend, p, hidden]);
   const [mode, setMode] = useSortMode("person");
+  const [view, setView] = useLogbookView("person");
   const dir = dateDir(mode);
   const { entries: original, loading, error } = useSharedEntries(sources, 100, dir);
   const who = useMemo(() => (p === undefined || hidden ? [] : [uid]), [uid, p, hidden]);
@@ -42,24 +47,28 @@ export default function PersonPage({ uid }: { uid: string }) {
   const reposts = useRepostedEntries(who, 15, dir, 0, "stub");
   const [tab, setTab] = useState<ProfileTab>("notes");
   const feedRef = useRef<HTMLDivElement>(null);
-  useSlideOnChange(feedRef, (["notes", "reposts", "likes"] as const).indexOf(tab));
+  useSlideOnChange(feedRef, (["notes", "reposts", "likes"] as const).indexOf(tab) * 10 + LOGBOOK_VIEWS.findIndex((v) => v.id === view));
   const pool = useMemo(
     () => [...(tab === "reposts" ? reposts : [...original, ...privatePosts])].sort(dir === "asc" ? (a, b) => -newestFirst(a, b) : newestFirst),
     [tab, original, privatePosts, reposts, dir],
   );
   const entries = useSortedEntries(pool, mode);
+  const monthOn = tab === "notes" && view === "months";
+  const weekOrigin = useMemo(() => earliestDay(original), [original]);
+  const online = useOnline();
   const rel = s.relationOf(uid);
   const [friendsOpen, setFriendsOpen] = useState<"all" | "mutual" | null>(null);
   const canSeeFriends = useCanSee(uid, p ? p.friendsAudience : "private");
   const { mutual } = useMutualFriends(uid, s.friends, uid !== s.uid && canSeeFriends === true && !hidden);
 
   if (p === undefined) return <><ProfileSkeleton /><FeedSkeleton /></>;
+  if (p === null && !online) return <NetworkUnavailable back={{ href: "#/people", label: "Back to friends" }} />;
   if (p === null) {
     return (
       <div className="empty">
         <h2>Profile not found</h2>
         <p>This person may not have set up VibeBook yet.</p>
-        <a className="btn" href="#/people">Back to people</a>
+        <a className="btn" href="#/people">Back to friends</a>
       </div>
     );
   }
@@ -100,8 +109,12 @@ export default function PersonPage({ uid }: { uid: string }) {
       {!hidden && <ProfileTabs tab={tab} onChange={setTab}>
         {entries.length > 1 && <SortMenu mode={mode} onChange={setMode} />}
       </ProfileTabs>}
+      {!hidden && tab === "notes" && (
+        <Segmented className="view-toggle" label="Logbook view" value={view} options={LOGBOOK_VIEWS} onChange={setView} />
+      )}
       {friendsOpen && <FriendsSheet uid={uid} initialView={friendsOpen} onClose={() => setFriendsOpen(null)} />}
-      {!hidden && <div className="feed" ref={feedRef}>
+      {!hidden && monthOn && <LogbookMonth entries={original} />}
+      {!hidden && <div className="feed" ref={feedRef} style={monthOn ? { display: "none" } : undefined}>
         {error && <p className="error note" role="alert">{error}</p>}
         {loading && entries.length === 0 && <FeedSkeleton />}
         {tab === "reposts" && entries.length === 0 && (
@@ -116,7 +129,8 @@ export default function PersonPage({ uid }: { uid: string }) {
             <p>{friend ? `${p.displayName} has not shared any entries with friends yet.` : `${p.displayName} has no public entries. Entries shared with friends show up once you are friends.`}</p>
           </div>
         )}
-        <EntryList entries={entries} dayHeadings={mode.kind === "newest" || mode.kind === "oldest"} />
+        <EntryList entries={entries} dayHeadings={mode.kind === "newest" || mode.kind === "oldest"} hideHours
+          weeks={tab === "notes" && view === "weeks" ? { origin: weekOrigin } : undefined} />
       </div>}
     </>
   );
@@ -125,19 +139,22 @@ export default function PersonPage({ uid }: { uid: string }) {
 /** What #/u/<handle> opens: the handle is a username (or a uid, from links made before usernames), turned into a uid first. */
 export function PersonRoute({ handle }: { handle: string }) {
   const [uid, setUid] = useState<string | null | undefined>(undefined);
+  const [failed, setFailed] = useState(false);
+  const online = useOnline();
   useEffect(() => {
     let live = true;
-    setUid(undefined);
-    resolveUserRef(handle).then((u) => live && setUid(u), () => live && setUid(null));
+    setUid(undefined); setFailed(false);
+    resolveUserRef(handle).then((u) => live && setUid(u), () => { if (live) { setFailed(true); setUid(null); } });
     return () => { live = false; };
-  }, [handle]);
+  }, [handle, online]);
   if (uid === undefined) return <><ProfileSkeleton /><FeedSkeleton /></>;
+  if (uid === null && (failed || !online)) return <NetworkUnavailable back={{ href: "#/people", label: "Back to friends" }} />;
   if (uid === null) {
     return (
       <div className="empty">
         <h2>Profile not found</h2>
         <p>No one has the username @{handle.replace(/^@/, "")}. They may have changed it.</p>
-        <a className="btn" href="#/people">Back to people</a>
+        <a className="btn" href="#/people">Back to friends</a>
       </div>
     );
   }

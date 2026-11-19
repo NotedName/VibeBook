@@ -6,14 +6,19 @@ import { formatHM, sumMinutes, weekEnd, weekOfMonthLabel, weekStart } from "./we
  * of Dates / Activity/ies / Skill/s Acquired, then "Pictures taken during the Week" with the descriptions beside them.
  * This file only builds that content; reportWord.ts and reportPdf.ts draw it.
  */
-export type ReportKind = "daily" | "weekly" | "period";
+export type ReportKind = "daily" | "weekly" | "period" | "plan";
 
 /** Printed at the top of every report. Blank lines are left out (except the trainee's own two). `program` is the course. */
 export type ReportDetails = {
   traineeName: string; term: string;
   school: string; department: string; program: string; schoolYear: string;
+  /** the line under the school name, e.g. "Meycauayan City, Bulacan" */
+  location: string;
+  /** where the trainee is deployed, and the first day there (YYYY-MM-DD); the supervisor's name for the DTR */
+  company: string; deployed: string; supervisor: string;
 };
-export const EMPTY_DETAILS: ReportDetails = { traineeName: "", term: "", school: "", department: "", program: "", schoolYear: "" };
+export const DEFAULT_LOCATION = "Meycauayan City, Bulacan";
+export const EMPTY_DETAILS: ReportDetails = { traineeName: "", term: "", school: "", department: "", program: "", schoolYear: "", location: DEFAULT_LOCATION, company: "", deployed: "", supervisor: "" };
 
 /** Capitals on the first letter of every word, so the printed text is uniform. The other letters are left as typed (BSIT stays BSIT). */
 export const capitalizeWords = (s: string) => s.replace(/(^|[\s\-/(])(\p{L})/gu, (_, before: string, letter: string) => before + letter.toUpperCase());
@@ -95,6 +100,7 @@ const paragraphsOf = (text: string) => text.split(/\n+/).map((p) => p.trim()).fi
 export function reportFileName(kind: ReportKind, from: string, to: string): string {
   if (kind === "daily") return `OJT_Daily_Report_${from}`;
   if (kind === "weekly") return `OJT_Weekly_Report_${from}_to_${to}`;
+  if (kind === "plan") return `OJT_Training_Plan_${from}_to_${to}`;
   return `OJT_Report_${from}_to_${to}`;
 }
 

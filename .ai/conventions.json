@@ -1,0 +1,21 @@
+{
+  "$comment": "Machine-readable rules for VibeBook. Any AI assistant or script that edits this project must read this file first and follow every rule marked mustFollow. Add a rule here whenever the owner asks for a lasting convention.",
+  "version": 1,
+  "updated": "2026-11-18",
+  "rules": [
+    { "id": "design.material3", "mustFollow": true, "rule": "All UI follows Android Material Design 3. Use the tokens and components in src/material.css (loaded last). Do not invent a one-off look for a screen.", "where": ["src/material.css"] },
+    { "id": "design.expressive-motion", "mustFollow": true, "rule": "Motion follows Material 3 Expressive: springy, slightly bouncy, natural. Use --spring-fast, --spring-slow and --ease-emphasized. Always honor prefers-reduced-motion.", "where": ["src/material.css"] },
+    { "id": "design.shape", "mustFollow": true, "rule": "Buttons, icon buttons, chips and tabs are rounded squares (--radius-btn, 12px). Inputs, selects, textareas and search bars use --radius-field (12px). Only avatars and dots are round.", "where": ["src/material.css"] },
+    { "id": "design.menus", "mustFollow": true, "rule": "Menus are Material 3: 48px rows, state layers (hover for mouse only, focus and press for all), no hover wash left after a tap.", "where": ["src/material.css"] },
+    { "id": "design.responsive", "mustFollow": true, "rule": "Layouts must work from 280px (folded cover screen) to large tablets and unfolded foldables. Controls share width with grid/auto-fit and never overflow sideways.", "where": ["src/material.css"] },
+    { "id": "docs.updates-section", "mustFollow": true, "rule": "Every visible change gets one short plain line in the newest release in src/changelog.ts (shown in Settings > About > What's new). Newest first.", "where": ["src/changelog.ts", "AGENTS.md"] },
+    { "id": "docs.copy-style", "mustFollow": true, "rule": "UI text and descriptions are short and concise: one short sentence, plain words, say what the person can do. No jargon or file names in the UI.", "where": ["src"] },
+    { "id": "onboarding.tour", "mustFollow": true, "rule": "When a feature people will notice is added, add a step for it to src/tourSteps.ts and bump TOUR_VERSION so returning users see it. The tour always has a Skip button.", "where": ["src/tourSteps.ts", "src/Tour.tsx"] },
+    { "id": "exports.match-source", "mustFollow": true, "rule": "Exported OJT documents must match the school's original documents (Times New Roman, tight spacing, header lines in the body, same wording and table layout). Aim for at least 80% visual match. The source documents are the reference.", "where": ["src/formDocs.ts", "src/formWord.ts", "src/formPdf.ts"] },
+    { "id": "privacy.evaluations", "mustFollow": true, "rule": "Evaluation forms are filled in by the supervisor from a link. The answers are never sent to or stored in the database and the intern never sees them.", "where": ["src/evalLink.ts", "src/EvaluatorForm.tsx"] },
+    { "id": "prefs.device-local", "mustFollow": true, "rule": "Per-device preferences (quick reaction, suggestion clearing, reminders) live in src/preferences.ts and are never stored on the server.", "where": ["src/preferences.ts"] },
+    { "id": "safety.destructive-actions", "mustFollow": true, "rule": "Bulk or irreversible actions (delete all, archive all, reset timer) need a ConfirmDialog with typeToConfirm.", "where": ["src/SettingsSheet.tsx", "src/ConfirmDialog.tsx"] },
+    { "id": "backend.firestore-rules", "mustFollow": true, "rule": "Any new collection, field or notification type needs a change in firestore.rules, and the release note must say the rules need deploying.", "where": ["firestore.rules"] },
+    { "id": "build.check", "mustFollow": true, "rule": "Run `npx tsc --noEmit` and `npm run build` before handing the project back.", "where": ["package.json"] }
+  ]
+}

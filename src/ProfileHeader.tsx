@@ -1,12 +1,14 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { shareBase } from "./platform";
 import type { Profile } from "./types";
-import { personHash } from "./profiles";
+import { activeNoteText, personHash } from "./profiles";
 import { copyText } from "./report";
 import { useSession } from "./session";
 import Avatar from "./Avatar";
 import ImageViewer from "./ImageViewer";
 import { CopyIcon, EditIcon, EyeIcon, MoreIcon } from "./icons";
+import NoteSheet from "./NoteSheet";
+import NoteViewSheet from "./NoteViewSheet";
 
 type Kind = "avatar" | "cover";
 
@@ -23,6 +25,9 @@ type Props = {
 export default function ProfileHeader({ profile, children, editable = false, onEditProfile, onViewAs }: Props) {
   const [viewing, setViewing] = useState<Kind | null>(null);
   const [more, setMore] = useState(false);
+  const [noteOpen, setNoteOpen] = useState(false);
+  const [noteView, setNoteView] = useState(false);
+  const note = activeNoteText(profile);
   useEffect(() => {
     if (!more) return;
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && setMore(false);
@@ -75,6 +80,17 @@ export default function ProfileHeader({ profile, children, editable = false, onE
             {profile.headline && <div className="role">{profile.headline}</div>}
           </div>
         </div>
+        {editable ? (
+          <button type="button" className={`profile-note${note ? " has-note" : ""}`} onClick={() => setNoteOpen(true)}
+            aria-label={note ? `Your note: ${note}. Change it` : "Add a note that disappears after 24 hours"}>
+            <span className="profile-note-text">{note || "Add a note"}</span>
+            <small>{note ? "Visible for 24 hours" : "Disappears after 24 hours"}</small>
+          </button>
+        ) : note && (
+          <button type="button" className="profile-note has-note" onClick={() => setNoteView(true)} aria-label={`${profile.displayName}'s note: ${note}. Open to reply`}>
+            <span className="profile-note-text">{note}</span><small>Tap to reply</small>
+          </button>
+        )}
         {(profile.workplace || profile.bio) && (
           <div className="about">
             {profile.workplace && <div className="workplace">{profile.workplace}</div>}
@@ -83,6 +99,8 @@ export default function ProfileHeader({ profile, children, editable = false, onE
         )}
         {children}
       </div>
+      {noteView && <NoteViewSheet uid={profile.uid} onClose={() => setNoteView(false)} />}
+      {noteOpen && <NoteSheet initial={note} onClose={() => setNoteOpen(false)} />}
       {viewing && (viewing === "avatar" ? profile.avatar : profile.coverPhoto) && (
         <ImageViewer src={viewing === "avatar" ? profile.avatar : profile.coverPhoto}
           label={viewing === "avatar" ? `${profile.displayName}'s profile photo` : `${profile.displayName}'s cover photo`} onClose={() => setViewing(null)} />

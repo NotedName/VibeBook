@@ -1,12 +1,13 @@
+import TimeField from "./TimeField";
 import FormError from "./FormError";
 import { ThumbsSkeleton } from "./Skeleton";
 import { defaultVisibility, usePreferences } from "./preferences";
 import { collection, getDocs, limit, orderBy, query } from "firebase/firestore";
 import { db } from "./firebase";
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from "react";
-import { addEntry, DESC_MAX, loadPhotos, MAX_PHOTOS, SKILL_MAX, SKILL_WORDS_MAX, SKILLS_INPUT_MAX, SKILLS_MAX, TITLE_MAX, updateEntry, type Entry, type Photo } from "./entries";
+import { ACTIVITIES_MAX, ACTIVITY_MAX, ACTIVITY_WORDS_MAX, addEntry, DESC_MAX, splitList, loadPhotos, MAX_PHOTOS, SKILL_MAX, SKILL_WORDS_MAX, SKILLS_INPUT_MAX, SKILLS_MAX, TITLE_MAX, updateEntry, type Entry, type Photo } from "./entries";
 import { nowStr, todayStr } from "./report";
-import { CameraIcon, CloseIcon, EditIcon, ImageIcon } from "./icons";
+import { CameraIcon, CheckIcon, CloseIcon, EditIcon, ImageIcon } from "./icons";
 import { useSession } from "./session";
 import { chosenVisibility } from "./entryPrivacy";
 import { parseVideo, VIDEO_URL_MAX } from "./video";
@@ -37,7 +38,10 @@ export default function EntrySheet({ uid, entry, defaultGroupId, defaultDate, on
   // Clock out, not here, so an entry being edited keeps the date and time it already has.
   const [date, setDate] = useState(entry?.date ?? defaultDate ?? todayStr());
   const [time, setTime] = useState(entry?.time ?? nowStr());
-  const [title, setTitle] = useState(entry?.title ?? "");
+  const [clockInTime, setClockInTime] = useState(entry?.clockIn ?? "");
+  const [clockOutTime, setClockOutTime] = useState(entry?.clockOut ?? "");
+  const hasHours = !!(entry?.clockIn && entry?.clockOut);
+  const [title, setTitle] = useState(entry?.hoursOnly && entry.title === "Hours logged" ? "" : entry?.title ?? "");
   const [skills, setSkills] = useState(entry?.skills.join(", ") ?? "");
   const [description, setDescription] = useState(entry?.description ?? "");
   const [videoUrl, setVideoUrl] = useState(entry?.videoUrl ?? "");
@@ -57,29 +61,41 @@ export default function EntrySheet({ uid, entry, defaultGroupId, defaultDate, on
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   // Tap-to-reuse suggestions from your 5 most recent activities and skills (new entries only; Settings > Preferences turns them off).
-  const suggestionsOn = usePreferences().entrySuggestions && !entry;
+  const prefs = usePreferences();
+  const suggestionsOn = prefs.entrySuggestions && !entry;
+  const clearedAt = prefs.suggestionsClearedAt;
   const [recent, setRecent] = useState<{ activities: string[]; skills: string[] }>({ activities: [], skills: [] });
   useEffect(() => {
     if (!suggestionsOn) return;
     let live = true;
     getDocs(query(collection(db, "users", uid, "entries"), orderBy("date", "desc"), limit(40))).then((snap) => {
-      const rows = snap.docs.map((d) => d.data() as { date?: string; time?: string; title?: string; skills?: string[]; hoursOnly?: boolean; archived?: boolean })
+      const rows = snap.docs.map((d) => d.data() as { date?: string; time?: string; title?: string; skills?: string[]; hoursOnly?: boolean; archived?: boolean; createdAt?: { toMillis?: () => number } | null })
         .sort((a, b) => `${b.date}${b.time}`.localeCompare(`${a.date}${a.time}`));
       const activities: string[] = [], skills: string[] = [];
       for (const r of rows) {
         if (r.hoursOnly) continue;
-        const t = (r.title ?? "").trim();
-        if (t && activities.length < 5 && !activities.some((x) => x.toLowerCase() === t.toLowerCase())) activities.push(t);
-        for (const k of r.skills ?? []) if (skills.length < 5 && !skills.some((x) => x.toLowerCase() === k.toLowerCase())) skills.push(k);
+        // "Clear suggestions" in Settings: only entries written since then are used.
+        const made = r.createdAt?.toMillis?.();
+        if (clearedAt && made !== undefined && made <= clearedAt) continue;
+        for (const t of splitList(r.title ?? "")) if (activities.length < 8 && !activities.some((x) => x.toLowerCase() === t.toLowerCase())) activities.push(t);
+        for (const k of r.skills ?? []) if (skills.length < 8 && !skills.some((x) => x.toLowerCase() === k.toLowerCase())) skills.push(k);
       }
       if (live) setRecent({ activities, skills });
     }).catch(() => {});
     return () => { live = false; };
-  }, [suggestionsOn, uid]);
-  const addSkill = (k: string) => setSkills(skillList.some((x) => x.toLowerCase() === k.toLowerCase()) ? skills : [...skillList, k].join(", "));
+  }, [suggestionsOn, uid, clearedAt]);
+  /** Tapping a suggestion switches it on or off: it is added to the comma list, or taken out of it. */
+  const toggleIn = (list: string[], item: string) => {
+    const has = list.some((x) => x.toLowerCase() === item.toLowerCase());
+    return (has ? list.filter((x) => x.toLowerCase() !== item.toLowerCase()) : [...list, item]).join(", ");
+  };
+  const isOn = (list: string[], item: string) => list.some((x) => x.toLowerCase() === item.toLowerCase());
   const titleRef = useRef<HTMLInputElement>(null);
   const descRef = useRef<HTMLTextAreaElement>(null);
   const skillList = skills.split(",").map((x) => x.trim()).filter(Boolean);
+  const actList = splitList(title);
+  const actsOver = actList.length > ACTIVITIES_MAX
+    || actList.some((x) => x.length > ACTIVITY_MAX || x.split(/\s+/).length > ACTIVITY_WORDS_MAX);
   const skillsOver = skillList.length > SKILLS_MAX
     || skillList.some((x) => x.length > SKILL_MAX || x.split(/\s+/).length > SKILL_WORDS_MAX);
 
@@ -132,9 +148,11 @@ export default function EntrySheet({ uid, entry, defaultGroupId, defaultDate, on
       setError(VIDEO_ERROR);
       return;
     }
+    if (hasHours && clockInTime === clockOutTime) { setError("Time out must be different from Time in."); return; }
     setBusy(true);
     const input = {
-      date, time, clockIn: entry?.clockIn ?? "", clockOut: entry?.clockOut ?? "", ...(entry?.breakMinutes ? { breakMinutes: entry.breakMinutes } : {}), title: title.trim(), description: description.trim(), visibility, groupIds,
+      // An entry with hours is sorted by when its shift started, so its time follows Time in.
+      date, time: hasHours ? clockInTime : time, clockIn: hasHours ? clockInTime : entry?.clockIn ?? "", clockOut: hasHours ? clockOutTime : entry?.clockOut ?? "", ...(entry?.breakMinutes ? { breakMinutes: entry.breakMinutes } : {}), title: splitList(title).join(", "), description: description.trim(), visibility, groupIds, ...(entry?.alsoOnProfile ? { alsoOnProfile: true } : {}),
       videoUrl: videoUrl.trim(), gif,
       skills: skills.split(",").map((s) => s.trim()).filter(Boolean),
     };
@@ -212,24 +230,39 @@ export default function EntrySheet({ uid, entry, defaultGroupId, defaultDate, on
 
           </div>
           <div className="es-fields">
-          {!entry && (
-            <div className="row">
-              <label>Date
-                <input type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
+          <div className="row">
+            <label>Date it happened
+              <input type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
+            </label>
+            {!hasHours && (
+              <label>Time it happened
+                <TimeField value={time} required onChange={(v) => setTime(v)} />
               </label>
-              <label>Time
-                <input type="time" value={time} onChange={(e) => setTime(e.target.value)} required />
+            )}
+          </div>
+          <p className="hint">The date and time are when this happened, and you can change them. The time it is posted is recorded by VibeBook and cannot be changed.</p>
+          {hasHours && (
+            <div className="row">
+              <label>Time in
+                <TimeField value={clockInTime} required onChange={(v) => setClockInTime(v)} />
+              </label>
+              <label>Time out
+                <TimeField value={clockOutTime} required onChange={(v) => setClockOutTime(v)} />
               </label>
             </div>
           )}
-          <label>Activity
+          <label><span className="lbl-head">Activity <small className={actsOver ? "count-warn" : "count"}>{actList.length}/{ACTIVITIES_MAX} activities</small></span>
             <input ref={titleRef} value={title} onChange={(e) => setTitle(e.target.value)} required
-              maxLength={TITLE_MAX} placeholder="e.g. Set up a new PC in the engineering office" />
+              maxLength={TITLE_MAX} placeholder="e.g. Set up a PC, Install software, Label cables" />
+            <small className={actsOver ? "count-warn" : "count"}>Separate with commas. Up to {ACTIVITY_WORDS_MAX} words and {ACTIVITY_MAX} letters each.</small>
           </label>
           {suggestionsOn && recent.activities.length > 0 && (
             <div className="suggest" aria-label="Recent activities">
               <small>Recent</small>
-              {recent.activities.map((a) => <button key={a} type="button" title={a} onClick={() => setTitle(a.slice(0, TITLE_MAX))}><span>{a}</span></button>)}
+              {recent.activities.map((a) => (
+                <button key={a} type="button" title={a} aria-pressed={isOn(actList, a)} className={isOn(actList, a) ? "on" : ""}
+                  onClick={() => setTitle(toggleIn(actList, a).slice(0, TITLE_MAX))}>{isOn(actList, a) && <CheckIcon />}<span>{a}</span></button>
+              ))}
             </div>
           )}
           <LinkNotice text={title} where="activity" />
@@ -239,7 +272,10 @@ export default function EntrySheet({ uid, entry, defaultGroupId, defaultDate, on
             {suggestionsOn && recent.skills.length > 0 && (
               <span className="suggest" aria-label="Recent skills">
                 <small>Recent</small>
-                {recent.skills.map((k) => <button key={k} type="button" title={k} onClick={(e) => { e.preventDefault(); addSkill(k); }}><span>{k}</span></button>)}
+                {recent.skills.map((k) => (
+                  <button key={k} type="button" title={k} aria-pressed={isOn(skillList, k)} className={isOn(skillList, k) ? "on" : ""}
+                    onClick={(e) => { e.preventDefault(); setSkills(toggleIn(skillList, k)); }}>{isOn(skillList, k) && <CheckIcon />}<span>{k}</span></button>
+                ))}
               </span>
             )}
             <small className={skillsOver ? "count-warn" : "count"}>Separate with commas. Up to {SKILL_WORDS_MAX} words and {SKILL_MAX} letters each.</small>

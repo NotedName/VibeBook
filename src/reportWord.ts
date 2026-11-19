@@ -75,7 +75,7 @@ export async function makeWord(model: ReportModel): Promise<Uint8Array> {
     sections: [{
       properties: { page: { size: { width: 12240, height: 15840 }, margin: { top: 1440, bottom: 1440, left: 1440, right: 1440, header: 540 } } },
       headers: { default: pageHeader },
-      children: [title, ...info, para("", { after: 120 }), t1, para("", { after: 240 }), para(model.picturesTitle), t2],
+      children: model.groups.length === 0 && !model.picturesTitle ? [title, ...info, para("", { after: 120 }), t1] : [title, ...info, para("", { after: 120 }), t1, para("", { after: 240 }), para(model.picturesTitle), t2],
     }],
   });
   const blob = await Packer.toBlob(doc);

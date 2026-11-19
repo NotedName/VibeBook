@@ -1,3 +1,4 @@
+/* Owner's lasting design rules for this file (Material Design 3, Expressive motion, shapes, menus): see /.ai/conventions.json. */
 /* ---------- Material 3 components (the Android 17 look) ----------
    Replaces the old soft-UI (neumorphic) layer. Tone does the work of depth: cards are filled containers one step lighter than the page,
    with no outline and no shadow; buttons are fully rounded; fields are outlined; menus and dialogs are a step above the cards.
@@ -233,3 +234,428 @@ hr, .sheet-head, .sheet-actions, .lm-day-panel { border-color: var(--line); }
 }
 .username-field:has(input[aria-invalid="true"]) { border-color: var(--danger); }
 .username-field:has(input[aria-invalid="true"]):focus-within { box-shadow: 0 0 0 1px var(--danger); }
+
+/* ---------- encrypted-chat passphrase prompt ---------- */
+/* Chats stay unreadable (blurred, not selectable, not clickable) until the passphrase has opened them. */
+.e2ee-blur { filter: blur(9px); opacity: .7; pointer-events: none; user-select: none; -webkit-user-select: none; transition: filter .25s var(--ease); }
+.e2ee-card { background: var(--surface-2); border: 0; border-radius: var(--radius-lg); padding: 20px; box-shadow: var(--shadow-lift); position: relative; z-index: 3; }
+.e2ee-card label { color: var(--muted); font-weight: 500; }
+.e2ee-card input:not([type="checkbox"]) {
+  width: 100%; min-height: 48px; padding: 10px 14px; background: none; color: var(--text); font-weight: 400;
+  font-size: max(16px, calc(16px * var(--ts))); border: 1px solid color-mix(in srgb, var(--muted) 60%, transparent); border-radius: var(--radius-sm); box-shadow: none;
+}
+.e2ee-card input:not([type="checkbox"]):hover { border-color: var(--text); }
+.e2ee-card input:not([type="checkbox"]):focus { border-color: var(--primary); box-shadow: 0 0 0 1px var(--primary); outline: none; }
+.e2ee-card .pw input { padding-right: 52px; }
+.sec-form input:not([type="checkbox"]) {
+  width: 100%; min-height: 48px; padding: 10px 14px; background: none; color: var(--text); font-weight: 400;
+  font-size: max(16px, calc(16px * var(--ts))); border: 1px solid color-mix(in srgb, var(--muted) 60%, transparent); border-radius: var(--radius-sm); box-shadow: none;
+}
+.sec-form input:not([type="checkbox"]):focus { border-color: var(--primary); box-shadow: 0 0 0 1px var(--primary); outline: none; }
+.sec-form input[type="password"], .sec-form input[type="text"] { text-overflow: ellipsis; }
+
+/* ---------- Change single dates: days you changed and holidays are unmistakable ---------- */
+.cal-day.changed, .cal-key.changed {
+  background: color-mix(in srgb, var(--primary) 30%, var(--surface-2)); color: var(--text); font-weight: 700;
+  border: 2px dashed var(--primary); box-shadow: none; opacity: 1; text-decoration: none;
+}
+.cal-day.changed::after {
+  content: "\270E"; top: -7px; right: -5px; width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--primary); color: var(--on-primary); font-size: 11px; line-height: 1; box-shadow: 0 0 0 2px var(--surface-2);
+}
+.cal-day.changed.off { background: color-mix(in srgb, var(--primary) 12%, transparent); color: var(--text); text-decoration: line-through; }
+.cal-day.holiday, .cal-key.holiday {
+  background: color-mix(in srgb, var(--danger) 26%, var(--surface-2)); color: var(--text); font-weight: 700; opacity: 1; text-decoration: none;
+  border: 2px solid var(--danger); box-shadow: none;
+}
+.cal-day.holiday::after {
+  content: "\2605"; top: -7px; right: -5px; width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--danger); color: var(--on-danger); font-size: 11px; line-height: 1; box-shadow: 0 0 0 2px var(--surface-2);
+}
+.cal-key.changed::after, .cal-key.holiday::after { content: none; }
+.cal-key { width: 18px; height: 18px; border-radius: 6px; }
+.cal-day.today { box-shadow: inset 0 0 0 2px var(--text); }
+
+/* ---------- logbook separators: a week is a filled band, a day is a labelled rule ---------- */
+.week-label {
+  margin: 28px var(--gutter) 6px; padding: 12px 16px; border: 0; border-radius: var(--radius-md);
+  background: var(--accent-soft); color: var(--on-accent-soft);
+}
+.week-label small { color: color-mix(in srgb, var(--on-accent-soft) 75%, transparent); }
+.week-label b { color: var(--on-accent-soft); font-size: calc(15px * var(--ts)); }
+.day-label {
+  display: flex; align-items: baseline; gap: 10px; margin: 18px var(--gutter) 8px; padding: 0 4px 6px; border-bottom: 1px solid var(--line);
+  font-size: calc(14px * var(--ts)); font-weight: 600; letter-spacing: .01em;
+}
+.day-label .day-hours { margin-left: auto; padding: 2px 10px; border-radius: var(--radius-pill); background: var(--surface-2); color: var(--text); font-weight: 500; }
+.week-label + .day-label { margin-top: 12px; }
+
+/* ---------- export: week stepper ---------- */
+.week-picker { display: flex; align-items: center; gap: 8px; padding: 8px; border-radius: var(--radius-md); background: var(--surface-3); }
+.week-picker-text { flex: 1; min-width: 0; display: grid; gap: 2px; text-align: center; }
+.week-picker-text b { font-size: calc(16px * var(--ts)); color: var(--on-accent-soft); }
+.week-picker-text span { font-size: calc(14px * var(--ts)); color: var(--text); }
+.week-picker-text small { color: var(--muted); font-weight: 400; }
+.past-total { padding: 10px 14px; border-radius: var(--radius-sm); background: var(--accent-soft); color: var(--on-accent-soft); }
+
+/* ---------- 24-hour note on a profile ---------- */
+.profile-note {
+  display: grid; gap: 2px; justify-items: start; width: fit-content; max-width: 100%; margin: 10px 0 0; padding: 8px 16px;
+  border: 1px dashed color-mix(in srgb, var(--muted) 60%, transparent); border-radius: 18px 18px 18px 4px; background: none; color: var(--muted); text-align: left; cursor: pointer;
+}
+.profile-note.has-note { background: var(--accent-soft); color: var(--on-accent-soft); border: 0; }
+.profile-note.static { cursor: default; }
+.profile-note-text { font-weight: 600; font-size: calc(14px * var(--ts)); overflow-wrap: anywhere; }
+.profile-note small { font-size: calc(11.5px * var(--ts)); opacity: .8; }
+.reminder-time { display: grid; gap: 6px; font-weight: 500; color: var(--muted); font-size: calc(14px * var(--ts)); }
+.reminder-time input {
+  min-height: 48px; padding: 8px 14px; background: none; color: var(--text); font-size: max(16px, calc(16px * var(--ts)));
+  border: 1px solid color-mix(in srgb, var(--muted) 60%, transparent); border-radius: var(--radius-sm);
+}
+.reminder-time input:focus { border-color: var(--primary); box-shadow: 0 0 0 1px var(--primary); outline: none; }
+
+/* ---------- layout and spacing fixes for the recently added pieces ---------- */
+.hours-top { flex-wrap: wrap; gap: 8px 12px; }
+.hours-actions { flex-wrap: wrap; justify-content: flex-end; }
+.profile .pad .profile-note { margin-top: 12px; }
+.profile .pad .about { margin-top: 12px; }
+.inbox-head .msg-tray { padding: 24px var(--gutter) 8px; gap: 14px; scroll-snap-type: x proximity; }
+.msg-tray-item { scroll-snap-align: start; min-height: 48px; }
+.msg-note-pill { background: var(--surface-3); color: var(--text); border: 0; border-radius: 16px 16px 16px 4px; box-shadow: none; max-width: 84px; }
+.msg-note-pill.has-note, .msg-tray-item:not(.self) .msg-note-pill { background: var(--accent-soft); color: var(--on-accent-soft); }
+.msg-note-plus { background: var(--primary); color: var(--on-primary); box-shadow: 0 0 0 2px var(--surface); }
+.chat-active-now { color: var(--accent-text); font-weight: 500; }
+.profile-more { width: 40px; height: 40px; }
+.es-fields .row { align-items: start; }
+.sheet .row > label { min-width: 0; }
+.sheet-body > .hint:last-child { margin-bottom: 0; }
+
+/* ---------- suggestions: Material 3 filter chips that switch on and off ---------- */
+.suggest button {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 4px 14px; border-radius: 10px;
+  background: none; border: 1px solid color-mix(in srgb, var(--muted) 55%, transparent); color: var(--text); font-weight: 500;
+}
+.suggest button svg { width: 16px; height: 16px; flex: none; }
+.suggest button.on { background: var(--accent-soft); color: var(--on-accent-soft); border-color: transparent; }
+.suggest button:hover { background: color-mix(in srgb, var(--text) 8%, transparent); }
+.suggest button.on:hover { background: var(--accent-soft); }
+.set-row { display: flex; align-items: center; gap: 14px; justify-content: space-between; padding: 8px 0; }
+.set-row-text { display: grid; gap: 2px; min-width: 0; }
+.set-row-text small { color: var(--muted); font-weight: 400; }
+.interactions-tabs { margin-bottom: 8px; }
+
+/* ---------- profile three-dot menu: a solid white button with a dark ring, readable over any cover colour ---------- */
+.profile-more {
+  width: 44px; height: 44px; top: 10px; right: 10px; background: #fff; color: #111; backdrop-filter: none;
+  border: 2px solid #111; box-shadow: 0 0 0 2px rgba(255, 255, 255, .85), 0 3px 12px rgba(0, 0, 0, .55);
+}
+.profile-more svg { width: 26px; height: 26px; stroke-width: 2.6; }
+.profile-more:hover, .profile-more[aria-expanded="true"] { background: #f1e9ff; color: #000; border-color: #000; }
+.more-anchor { right: 10px; top: 60px; }
+
+/* ---------- foldables and other screen sizes ---------- */
+/* Never let content push a screen sideways, whatever the width. */
+.sheet, .sheet-body, .card, .post, .feed, .hours-top, .profile .pad { min-width: 0; }
+.sheet-body { overflow-x: hidden; overflow-wrap: anywhere; }
+.sheet { max-height: min(94dvh, 960px); }
+
+/* Cover screens of foldables (about 280 to 340 px wide): stack buttons, shrink the tab bar padding. */
+@media (max-width: 340px) {
+  .sheet-actions { flex-direction: column-reverse; align-items: stretch; }
+  .sheet-actions .btn { width: 100%; }
+  .sheet .row { grid-template-columns: 1fr; }
+  .hours-actions .lbl { display: none; }
+  .week-picker { padding: 4px; }
+  .set-row { flex-direction: column; align-items: stretch; }
+  .msg-tray { gap: 10px; }
+}
+
+/* Unfolded inner screens (roughly square, 600 to 900 px): sheets become centred dialogs, forms use two columns. */
+@media (min-width: 600px) and (max-width: 960px) and (min-aspect-ratio: 3/4) and (max-aspect-ratio: 5/4) {
+  .overlay { align-items: center; justify-items: center; padding: 16px; }
+  .sheet { width: min(620px, 100%); border-radius: var(--radius-xl, 28px); }
+  .sheet .row, .hours-grid.two { grid-template-columns: 1fr 1fr; }
+  .feed, .logbook-tools, .view-toggle { max-width: 720px; margin-inline: auto; }
+  .e2ee-card { max-width: 520px; margin-inline: auto; }
+  .week-label, .day-label { max-width: 720px; margin-inline: auto; }
+}
+
+/* Dual-screen / book posture: keep dialogs, menus and the passphrase card on one side of the hinge. */
+@media (horizontal-viewport-segments: 2) {
+  .overlay { padding-left: env(viewport-segment-left, 0px); padding-right: calc(100vw - env(viewport-segment-right, 100vw)); }
+}
+
+/* Tabletop posture (screen folded half open, top and bottom halves): keep reading content in the upper half. */
+@media (vertical-viewport-segments: 2) {
+  .sheet { max-height: calc(env(viewport-segment-height, 50dvh) - 16px); }
+}
+
+/* Large inner screens and tablets: the thread and inbox keep a readable line length. */
+@media (min-width: 960px) { .chat-body { max-width: 880px; margin-inline: auto; } }
+
+/* Short landscape screens (a phone on its side, a half-folded screen): sheets scroll instead of clipping. */
+@media (max-height: 500px) { .sheet { max-height: 100dvh; } .sheet-body { overflow-y: auto; } }
+
+/* ---------- unified field shape: inputs, selects, textareas and search bars share one rounded-square corner ---------- */
+:root { --radius-field: 12px; }
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]),
+textarea, select, .search, .sheet-search, .composer-input, .search-field { border-radius: var(--radius-field) !important; }
+.search { min-height: 48px; }
+
+/* A search input lives inside its .search bar with the icon. The bar draws the one outline; the input inside stays bare (no second box). */
+.sheet .search input:not([type="file"]):not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+.sheet .search input:not([type="file"]):not([type="checkbox"]):not([type="radio"]):not([type="range"]):hover,
+.sheet .search input:not([type="file"]):not([type="checkbox"]):not([type="radio"]):not([type="range"]):focus,
+.search input, .search input:focus {
+  width: auto; flex: 1; min-width: 0; min-height: 0; border: 0 !important; border-radius: 0 !important; background: none !important;
+  box-shadow: none !important; outline: none !important; padding: 12px 0;
+}
+.sheet .search.sheet-search { padding: 0 14px; gap: 10px; background: var(--surface-2); border: 1px solid transparent; }
+.sheet .search.sheet-search:focus-within { border-color: var(--primary); box-shadow: 0 0 0 1px var(--primary); }
+.sheet .search.sheet-search svg { color: var(--muted); }
+
+/* ---------- chat composer, in the manner of Messenger ---------- */
+.chat-composer { display: flex; align-items: flex-end; gap: 6px; padding: 8px 10px calc(8px + env(safe-area-inset-bottom, 0px)); }
+.chat-composer .composer-tools { display: flex; align-items: center; flex: none; }
+.chat-composer .tool-more { display: none; }
+/* the field is one rounded rectangle that grows with the text; the emoji button sits inside it, on the right */
+.chat-composer .composer-field {
+  flex: 1 1 0; min-width: 0; display: flex; align-items: flex-end; background: var(--surface-2); border-radius: 22px !important; padding: 0 4px 0 0;
+  border: 1px solid transparent; transition: border-color .15s var(--ease);
+}
+.chat-composer .composer-field textarea,
+.chat-composer .composer-field textarea:focus {
+  flex: 1 1 0; min-width: 0; margin: 0; min-height: 42px; max-height: 160px; padding: 10px 6px 10px 16px; border: 0 !important;
+  background: none !important; box-shadow: none !important; outline: none !important; border-radius: 0 !important; resize: none; line-height: 1.4;
+}
+.chat-composer .composer-field:focus-within { border-color: color-mix(in srgb, var(--muted) 45%, transparent); }
+.chat-composer .in-field { margin: 0 0 1px; width: 40px; height: 40px; }
+/* on a small screen the camera and photo buttons fold into one arrow while you type */
+@media (max-width: 640px) {
+  .chat-composer.compact .tool-media { display: none; }
+  .chat-composer.compact .tool-more { display: inline-flex; }
+}
+
+/* ---------- messages: quick reply and quick reaction beside the 3-dot menu ---------- */
+.msg-tools { display: flex; align-items: center; gap: 2px; }
+.msg-tools .icon-btn { width: 32px; height: 32px; }
+.msg-tools .quick-react { font-size: 18px; line-height: 1; }
+
+/* ---------- a shared entry in a chat: a card, not a link in a bubble ---------- */
+.shared-entry {
+  display: grid; gap: 4px; width: min(280px, 100%); padding: 0; overflow: hidden; border-radius: 18px; text-decoration: none; color: var(--text);
+  background: var(--surface-3); border: 1px solid var(--line);
+}
+.shared-entry .se-head { display: flex; align-items: center; gap: 8px; padding: 10px 12px 0; color: var(--muted); font-size: calc(12px * var(--ts)); font-weight: 500; }
+.shared-entry .se-title { padding: 0 12px; font-weight: 600; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.shared-entry .se-open { margin-top: 6px; padding: 10px 12px; text-align: center; font-weight: 600; color: var(--on-accent-soft); background: var(--accent-soft); }
+.msg.mine .shared-entry { border-color: transparent; }
+
+.whats-new { margin: 18px 0; display: grid; gap: 8px; }
+.whats-new h3 { margin: 0 0 4px; }
+.whats-new details { border: 1px solid var(--line); border-radius: var(--radius-md); padding: 4px 14px; }
+.whats-new summary { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; padding: 10px 0; cursor: pointer; }
+.whats-new summary small { color: var(--muted); font-weight: 400; flex: none; }
+.whats-new .about-list { margin: 0 0 10px; }
+.quick-pick .quick-current { font-size: 18px; line-height: 1; }
+
+.find-people { margin: 4px var(--gutter) 12px; padding: 16px; border-radius: var(--radius); background: var(--surface-2); display: grid; gap: 8px; }
+.find-people h2 { margin: 0; font-size: calc(16px * var(--ts)); }
+.find-people p { margin: 0; color: var(--muted); font-size: calc(13px * var(--ts)); }
+.find-people .search { margin: 4px 0 0; background: var(--surface); border: 1px solid var(--line); }
+
+/* ---------- navigation tabs: every tab (Feed, Groups, Friends, Logbook) reacts to hover and press the same way ---------- */
+.topbar .tabs .ind { pointer-events: none; }
+.topbar .tabs .tab > * { pointer-events: none; }
+@media (hover: hover) {
+  .topbar .tabs .tab:not(.tab-new):hover, .topbar .tabs .tab.on:not(.tab-new):hover { background: var(--sl-hover); color: var(--text); }
+}
+.topbar .tabs .tab:not(.tab-new):active { background: var(--sl-press); }
+@media (max-width: 599.98px) {
+  .topbar .tabs .tab:not(.tab-new):hover, .topbar .tabs .tab.on:not(.tab-new):hover { background: none; }
+}
+
+.net-banner { margin: 8px var(--gutter) 0; padding: 10px 14px; border-radius: var(--radius-sm); background: var(--surface-3); color: var(--text); font-size: calc(13px * var(--ts)); font-weight: 500; }
+.empty-actions { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 12px; }
+
+/* ---------- messages tray: the avatar is as wide as its slot, so neighbours never overlap ---------- */
+.msg-tray { align-items: flex-start; }
+.msg-tray-item { flex: 0 0 76px; width: 76px; min-width: 76px; }
+.msg-tray-item .av, .msg-tray-item .av-lg { width: 64px; height: 64px; font-size: calc(22px * var(--ts)); border-width: 0; flex: none; }
+.msg-tray-item .av-lg .av-dot { width: 14px; height: 14px; right: 1px; bottom: 1px; box-shadow: 0 0 0 2px var(--surface); }
+.msg-note-pill { max-width: 76px; top: -20px; }
+
+/* group header: a colour banner when the group has no cover photo (same colours as a profile) */
+.group-cover-color { flex: 1 1 100%; margin: -18px -16px 0; aspect-ratio: 4 / 1; border-radius: calc(var(--radius) - 1px) calc(var(--radius) - 1px) 0 0; }
+.group-head:not(.has-cover) .group-cover-color + * { margin-top: -34px; }
+.group-cover { margin-top: -18px; border-radius: calc(var(--radius) - 1px) calc(var(--radius) - 1px) 0 0; }
+.cal-day:disabled { opacity: .38; cursor: not-allowed; }
+
+/* ---------- month view: missed workdays and days off ---------- */
+.lm-day.dayoff { background: color-mix(in srgb, var(--danger) 18%, transparent); box-shadow: inset 0 0 0 2px var(--danger); }
+.lm-day.dayoff small { color: var(--danger); font-weight: 600; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.lm-missed { display: grid; gap: 8px; margin: 0 0 12px; padding: 14px 16px; border-radius: var(--radius-md); background: color-mix(in srgb, orange 18%, var(--surface-2)); border-left: 4px solid orange; }
+.lm-missed.off { background: color-mix(in srgb, var(--danger) 14%, var(--surface-2)); border-left-color: var(--danger); }
+.lm-missed span { color: var(--muted); font-size: calc(13px * var(--ts)); }
+.lm-markoff { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.posted-at { display: block; color: var(--muted); font-weight: 400; font-size: calc(11.5px * var(--ts)); }
+.lm { margin-top: 16px; }
+.slide-pane > .lm, .view-toggle + .lm { margin-top: 16px; }
+
+/* ---------- time picker: hour, minutes and AM/PM in one outlined group ---------- */
+.time-field { display: flex; align-items: center; gap: 4px; width: 100%; }
+.time-field select { flex: 1 1 0; min-width: 0; width: auto; padding-left: 10px; padding-right: 6px; text-align: center; text-align-last: center; }
+.time-field b { color: var(--muted); }
+.reminder-time .time-field { max-width: 260px; }
+.title-row { align-items: center; }
+.title-row .page-title { margin-right: auto; }
+.feed-search { margin: 4px var(--gutter) 10px; }
+.profile-also { display: grid; gap: 10px; margin: 8px 0 12px; padding: 12px 14px; border-radius: var(--radius-md); background: var(--surface-2); }
+.profile-also .switch-row small { display: block; color: var(--muted); font-weight: 400; }
+
+/* ---------- evaluator page (opened from a link, no account) ---------- */
+.eval-main { max-width: 760px; margin: 0 auto; padding: 24px var(--gutter) 48px; display: grid; gap: 14px; }
+.eval-head h1 { margin: 0 0 6px; font-size: calc(22px * var(--ts)); }
+.eval-head p { margin: 2px 0; }
+.eval-sec { border: 1px solid var(--line); border-radius: var(--radius-md); padding: 6px 14px 12px; display: grid; gap: 10px; }
+.eval-sec legend { font-weight: 700; padding: 0 6px; }
+.eval-row { display: grid; grid-template-columns: minmax(0, 1fr) 150px; gap: 12px; align-items: center; }
+.eval-row small { display: block; color: var(--muted); font-weight: 400; }
+.eval-actions { position: sticky; bottom: 0; padding: 12px 0; background: var(--surface); }
+@media (max-width: 520px) { .eval-row { grid-template-columns: 1fr; } }
+.eval-link { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.eval-link input { flex: 1 1 200px; min-width: 0; }
+
+/* =====================================================================================================================
+   ROUND 3: square buttons, Material 3 menus, Material 3 Expressive motion, spacing and small-screen fixes.
+   Conventions for this file are listed in /.ai/conventions.json.
+   ===================================================================================================================== */
+
+/* ---------- shape: buttons, icon buttons, chips and tabs are rounded squares; avatars stay round ---------- */
+:root { --radius-btn: 12px; --radius-chip: 10px; }
+.btn, .link, .act, .icon-btn, .menu-btn, .sort-chip, .suggest button, .seg label, .tab, .profile-tabs button, .profile-tabs a, .back-btn, .side-fab, .chip, .stepper button, .lm-day {
+  border-radius: var(--radius-btn);
+}
+.profile-tabs, .seg, .sort-row { border-radius: calc(var(--radius-btn) + 2px); }
+.icon-btn.send, .icon-btn.like, .tool { border-radius: var(--radius-btn); }
+.av, .av img, .av-in { border-radius: 50%; }
+.av { aspect-ratio: 1 / 1; align-self: center; }
+.av img { aspect-ratio: 1 / 1; }
+.side-card li a { align-items: center; }
+
+/* ---------- Material 3 menus: surface container, 48px rows, state layers on hover (mouse only), focus and press ---------- */
+.menu {
+  background: var(--surface-3); border: 0; border-radius: 14px; padding: 8px 0; min-width: 180px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .3), 0 4px 12px 3px rgba(0, 0, 0, .15); overflow: hidden;
+}
+.menu button, .menu a.menu-link {
+  min-height: 48px; padding: 0 16px; border-radius: 0; background: none; color: var(--text); gap: 12px; font-weight: 500;
+  transition: background-color .15s var(--ease);
+}
+.menu button svg, .menu a.menu-link svg { color: var(--muted); }
+.menu button.danger, .menu button.danger svg { color: var(--danger); }
+@media (hover: hover) {
+  .menu button:hover:not(:disabled), .menu a.menu-link:hover { background: var(--sl-hover); }
+}
+.menu button:focus-visible, .menu a.menu-link:focus-visible { background: var(--sl-press); outline: none; }
+.menu button:active:not(:disabled), .menu a.menu-link:active { background: var(--sl-press); }
+.menu-title { padding: 12px 16px 6px; }
+.menu button.on { background: var(--accent-soft); color: var(--on-accent-soft); }
+/* no hover wash is left behind on a touch screen after a tap */
+@media (hover: none) { .menu button:hover, .tab:hover, .icon-btn:hover, .btn:hover { background-color: revert-layer; } }
+
+/* ---------- profile three-dot button: a quiet tonal button, the same as any other icon button ---------- */
+.profile-more {
+  width: 40px; height: 40px; top: 12px; right: 12px; border: 0; box-shadow: none;
+  background: color-mix(in srgb, var(--surface) 78%, transparent); color: var(--text);
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+}
+.profile-more svg { width: 24px; height: 24px; stroke-width: 2.2; }
+.profile-more:hover, .profile-more[aria-expanded="true"] { background: color-mix(in srgb, var(--surface) 90%, transparent); color: var(--text); border: 0; }
+.more-anchor { right: 12px; top: 58px; }
+
+/* ---------- settings rows (Quick reaction, Clear suggestion history): text on the left, one button that never squeezes ---------- */
+.set-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 10px 0; }
+.set-row-text { flex: 1 1 auto; min-width: 0; }
+.set-row > .btn { flex: 0 0 auto; width: auto; min-width: 88px; white-space: nowrap; justify-content: center; }
+.quick-pick { display: inline-flex; align-items: center; gap: 8px; }
+.quick-pick .quick-current { display: inline-grid; place-items: center; width: 24px; height: 24px; font-size: 18px; line-height: 1; }
+@media (max-width: 420px) { .set-row { flex-wrap: wrap; } .set-row > .btn { margin-left: auto; } }
+.btn.danger.armed { background: var(--danger); color: var(--on-danger); }
+
+/* ---------- interactions sheet and export sheet: controls share the width equally and wrap on narrow screens ---------- */
+.interactions-tabs, .sheet .seg { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 4px; }
+.interactions-tabs label, .sheet .seg label { text-align: center; justify-content: center; white-space: normal; min-width: 0; padding: 10px 8px; }
+@media (max-width: 360px) { .sheet .seg { grid-auto-flow: row; grid-auto-columns: auto; } }
+.hours-grid.two { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }
+.hours-grid.two label { min-width: 0; }
+.hours-grid.two input { width: 100%; }
+
+/* ---------- even spacing: one 16px rhythm between the bar, tabs, toggles and the content under them ---------- */
+.profile-bar { margin: 16px var(--gutter); }
+.view-toggle { margin: 0 var(--gutter) 16px; }
+.profile-bar ~ .feed > .entries > .post:first-child, .profile-bar ~ .feed > .empty:first-child, .profile-bar ~ .feed > .sk-region,
+.feed > .profile-bar ~ .entries > .post:first-child, .feed > .profile-bar ~ .note, .feed > .profile-bar ~ .sk-region { margin-top: 0; }
+.lm { margin: 0 var(--gutter) 16px; }
+.feed > .week-label:first-child, .feed > .day-label:first-child, .entries > .week-label:first-child { margin-top: 0; }
+
+/* ---------- sheets scroll on phones: the body is the scroller and may shrink inside the sheet ---------- */
+.sheet { min-height: 0; }
+.sheet-body { min-height: 0; touch-action: pan-y; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+
+/* ---------- sort and filter that is not the default is visible ---------- */
+.sort-active { position: relative; }
+.sort-active::after { content: ""; position: absolute; top: 6px; right: 6px; width: 8px; height: 8px; border-radius: 50%; background: var(--primary); box-shadow: 0 0 0 2px var(--surface); }
+.sort-note { display: flex; align-items: center; gap: 8px; margin: -8px var(--gutter) 12px; padding: 6px 12px; border-radius: var(--radius-btn); background: var(--accent-soft); color: var(--on-accent-soft); font-size: calc(13px * var(--ts)); font-weight: 500; }
+.sort-note button { margin-left: auto; background: none; border: 0; color: inherit; font-weight: 700; cursor: pointer; padding: 4px 8px; border-radius: 8px; }
+
+/* ---------- Material 3 Expressive motion: springy, a little bouncy, and calm for people who ask for less ---------- */
+:root {
+  --spring-fast: linear(0, .42 6%, .86 13%, 1.06 22%, 1.08 28%, 1.03 40%, .995 55%, 1);
+  --spring-slow: linear(0, .12 4%, .52 11%, .93 21%, 1.09 29%, 1.07 37%, 1.01 52%, .995 66%, 1);
+  --ease-emphasized: cubic-bezier(.2, 0, 0, 1);
+}
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes x-sheet-up { from { opacity: 0; transform: translateY(48px) scale(.97); } to { opacity: 1; transform: none; } }
+  @keyframes x-sheet-pop { from { opacity: 0; transform: scale(.9); } to { opacity: 1; transform: none; } }
+  @keyframes x-menu { from { opacity: 0; transform: scale(.82) translateY(-6px); } to { opacity: 1; transform: none; } }
+  @keyframes x-fade { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes x-bounce { 0% { transform: scale(1); } 35% { transform: scale(1.18); } 65% { transform: scale(.94); } 100% { transform: scale(1); } }
+  @keyframes x-rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+
+  .overlay { animation: x-fade .2s var(--ease-emphasized) both; }
+  .sheet { animation: x-sheet-up .55s var(--spring-slow) both; transform-origin: bottom center; }
+  .menu { animation: x-menu .38s var(--spring-fast) both; transform-origin: top right; }
+  .toast, .snackbar { animation: x-sheet-up .5s var(--spring-slow) both; }
+  .btn, .icon-btn, .act, .sort-chip, .suggest button, .tab, .seg label, .lm-day { transition: transform .35s var(--spring-fast), background-color .15s var(--ease-emphasized), box-shadow .2s var(--ease-emphasized); }
+  .btn:active:not(:disabled), .icon-btn:active:not(:disabled), .act:active, .sort-chip:active, .suggest button:active, .tab:active, .lm-day:active { transform: scale(.94); }
+  .sort-chip.on, .suggest button.on, .act.on, .seg label.on { animation: x-bounce .45s var(--spring-fast); }
+  .topbar .tabs .ind { transition: transform .5s var(--spring-fast), width .5s var(--spring-fast), left .5s var(--spring-fast); }
+  .post, .entries > *, .people > li { animation: x-rise .45s var(--spring-slow) both; }
+  .people > li:nth-child(n+8), .entries > *:nth-child(n+8) { animation-delay: 0s; }
+  .bubble { animation: x-sheet-pop .35s var(--spring-fast) both; transform-origin: bottom left; }
+  .bubble.mine { transform-origin: bottom right; }
+  .msg-tray-item:active .av { transform: scale(.94); }
+}
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; } }
+.post-menu { display: inline-flex; align-items: center; gap: 4px; }
+.sort-tag { padding: 2px 8px; border-radius: 8px; background: var(--primary); color: var(--on-primary); font-size: calc(11.5px * var(--ts)); font-weight: 600; }
+.sort-btn.filtered { position: relative; }
+.sort-btn.filtered::after { content: ""; position: absolute; top: 6px; right: 6px; width: 8px; height: 8px; border-radius: 50%; background: var(--primary); box-shadow: 0 0 0 2px var(--surface); }
+.note-view-card { display: grid; justify-items: center; gap: 10px; padding: 18px 12px; text-align: center; }
+.note-view-text { margin: 0; padding: 12px 18px; border-radius: 18px 18px 18px 4px; background: var(--accent-soft); color: var(--on-accent-soft); font-weight: 600; max-width: 100%; overflow-wrap: anywhere; }
+.note-view-card small { color: var(--muted); }
+.skill-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.skill-list li { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 14px; border-radius: var(--radius-md); background: var(--surface-2); }
+.skill-list span { color: var(--muted); font-size: calc(13px * var(--ts)); flex: none; }
+
+/* ---------- tour ---------- */
+.tour-body { display: grid; gap: 16px; min-height: 160px; align-content: center; text-align: center; }
+.tour-step { display: grid; gap: 8px; justify-items: center; animation: x-sheet-pop .4s var(--spring-fast) both; }
+.tour-step h3 { margin: 0; font-size: calc(22px * var(--ts)); }
+.tour-step p { margin: 0; color: var(--muted); max-width: 32ch; }
+.tour-count { font-size: calc(12px * var(--ts)); color: var(--muted); font-weight: 600; }
+.tour-dots { display: flex; justify-content: center; gap: 6px; }
+.tour-dots i { width: 8px; height: 8px; border-radius: 50%; background: var(--line); transition: width .3s var(--spring-fast), background-color .2s; }
+.tour-dots i.on { width: 22px; border-radius: 6px; background: var(--primary); }
+.tour .sheet-actions { justify-content: space-between; }

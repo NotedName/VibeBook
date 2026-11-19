@@ -3,7 +3,7 @@ import {
   approveRequest, cleanQuestions, declineRequest, deleteGroup, GROUP_DESC_MAX, GROUP_NAME_MAX, saveGroupChanges, useJoinRequests,
 } from "./groups";
 import { syncEntryPrivacy } from "./entryPrivacy";
-import type { Group, GroupPrivacy, GroupRole, JoinRequest } from "./types";
+import { COVERS, type CoverId, type Group, type GroupPrivacy, type GroupRole, type JoinRequest } from "./types";
 import GroupAccessFields from "./GroupAccessFields";
 import { ago } from "./notifications";
 import { useProfile, useSession } from "./session";
@@ -55,8 +55,8 @@ function RequestRow({ group, request }: { group: Group; request: JoinRequest }) 
   );
 }
 
-/** Requests waiting for approval in a private group. Admins and moderators see them. */
-function Requests({ group }: { group: Group }) {
+/** Requests waiting for approval in a private group. Admins and moderators see them, in Manage members. */
+export function Requests({ group }: { group: Group }) {
   const { requests, error } = useJoinRequests(group.id, group.privacy === "private");
   if (group.privacy !== "private") return null;
   return (
@@ -83,6 +83,7 @@ function Details({ group, onDirty }: { group: Group; onDirty: (dirty: boolean) =
   const [description, setDescription] = useState(group.description);
   const [avatar, setAvatar] = useState(group.avatar);
   const [cover, setCover] = useState(group.coverPhoto);
+  const [coverColor, setCoverColor] = useState<CoverId>(group.cover);
   const [privacy, setPrivacy] = useState<GroupPrivacy>(group.privacy);
   const [questions, setQuestions] = useState<string[]>(group.questions);
   const [editing, setEditing] = useState<{ kind: "avatar" | "cover"; file: File } | null>(null);
@@ -91,7 +92,7 @@ function Details({ group, onDirty }: { group: Group; onDirty: (dirty: boolean) =
 
   const cleanQs = cleanQuestions(questions, privacy);
   const accessChanged = privacy !== group.privacy || cleanQs.join("\n") !== group.questions.join("\n");
-  const changed = name.trim() !== group.name || description.trim() !== group.description || avatar !== group.avatar || cover !== group.coverPhoto || accessChanged;
+  const changed = name.trim() !== group.name || description.trim() !== group.description || avatar !== group.avatar || cover !== group.coverPhoto || coverColor !== group.cover || accessChanged;
   useEffect(() => { onDirty(changed); return () => onDirty(false); }, [changed, onDirty]);
 
   function pick(kind: "avatar" | "cover") { picking.current = kind; input.current?.click(); }
@@ -114,14 +115,15 @@ function Details({ group, onDirty }: { group: Group; onDirty: (dirty: boolean) =
     } catch { notify("That image could not be used"); }
   }
   function discard() {
-    setName(group.name); setDescription(group.description); setAvatar(group.avatar); setCover(group.coverPhoto);
+    setName(group.name); setDescription(group.description); setAvatar(group.avatar); setCover(group.coverPhoto); setCoverColor(group.cover);
     setPrivacy(group.privacy); setQuestions(group.questions);
   }
   function submit(e: FormEvent) {
     e.preventDefault();
-    const photos: Partial<Pick<Group, "avatar" | "coverPhoto">> = {};
+    const photos: Partial<Pick<Group, "avatar" | "coverPhoto" | "cover">> = {};
     if (avatar !== group.avatar) photos.avatar = avatar;
     if (cover !== group.coverPhoto) photos.coverPhoto = cover;
+    if (coverColor !== group.cover) photos.cover = coverColor;
     const goingPrivate = privacy === "private" && group.privacy !== "private";
     run(async () => {
       await saveGroupChanges(group.id, name, description, photos, accessChanged ? { privacy, questions: cleanQs } : undefined);
@@ -147,7 +149,7 @@ function Details({ group, onDirty }: { group: Group; onDirty: (dirty: boolean) =
         </div>
         <div className={`manage-photo-cover drop-zone${coverDrop.over ? " drop-over one" : ""}`} {...coverDrop.bind}>
           {coverDrop.over && <DropHint label="Drop cover photo" />}
-          <div className="cover-preview c-amethyst">{cover && <img src={cover} alt="" />}</div>
+          <div className={`cover-preview c-${coverColor}`}>{cover && <img src={cover} alt="" />}</div>
           <div className="manage-photo-actions">
             <b>Cover photo</b>
             <div>
@@ -156,6 +158,17 @@ function Details({ group, onDirty }: { group: Group; onDirty: (dirty: boolean) =
             </div>
           </div>
         </div>
+        {!cover && (
+          <fieldset className="covers">
+            <legend>Cover color <small>(shown when there is no cover photo)</small></legend>
+            {COVERS.map((c) => (
+              <label key={c.id} className={`cover-opt${coverColor === c.id ? " on" : ""}`}>
+                <input type="radio" name="group-cover" value={c.id} checked={coverColor === c.id} disabled={busy} onChange={() => setCoverColor(c.id)} />
+                <span className={`swatch c-${c.id}`} /> {c.label}
+              </label>
+            ))}
+          </fieldset>
+        )}
         {editing && (
           <PhotoEditor file={editing.file} onCancel={() => setEditing(null)} onApply={apply}
             fixedRatio={editing.kind === "avatar" ? 1 : 3} outSide={editing.kind === "avatar" ? 512 : 1200}
@@ -220,7 +233,6 @@ export default function GroupManageSheet({ group, myRole, onClose }: Props) {
               ? "Admins edit the group and decide who may join. To change roles or remove people, open Members."
               : "Moderators decide who may join and take posts out of the feed (open a post's menu to remove it). To remove people, open Members."}
           </p>
-          <Requests group={group} />
           {isAdmin && <section className="manage-section"><h3>Details</h3><Details group={group} onDirty={onDirty} /></section>}
           {isOwner && (
             <section className="manage-section deactivate-section" aria-label="Delete group">

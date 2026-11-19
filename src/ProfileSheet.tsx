@@ -177,7 +177,7 @@ export default function ProfileSheet({ profile, suggestedName = "", onClose }: P
               </label>
               {error === NAME_MISSING && <FormError>{error}</FormError>}
               <UsernameField value={username} onChange={setUsername} selfUid={uid} />
-              <label>Headline
+              <label>Position
                 <input value={headline} onChange={(e) => setHeadline(e.target.value)} maxLength={HEADLINE_MAX}
                   placeholder="e.g. OJT intern, IT department" />
               </label>

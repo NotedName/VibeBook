@@ -159,7 +159,8 @@ export function useReportDetails(uid: string): ReportDetails | null {
     reportRef(uid),
     (snap) => {
       const d = snap.data() ?? {};
-      const pick = (k: keyof ReportDetails) => (typeof d[k] === "string" ? (d[k] as string) : "");
+      // a location never saved keeps the school's usual line; one saved as empty stays empty
+      const pick = (k: keyof ReportDetails) => (typeof d[k] === "string" ? (d[k] as string) : k === "location" ? EMPTY_DETAILS.location : "");
       setDetails(Object.fromEntries(Object.keys(EMPTY_DETAILS).map((k) => [k, pick(k as keyof ReportDetails)])) as ReportDetails);
     },
     () => setDetails({ ...EMPTY_DETAILS }),

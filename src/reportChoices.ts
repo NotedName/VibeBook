@@ -8,7 +8,7 @@ export type ReportChoices = { kinds: ReportKind[]; format: Format; withPhotos: b
 export const DEFAULT_CHOICES: ReportChoices = { kinds: ["daily"], format: "docx", withPhotos: true, showHours: false, descriptionsOnly: false };
 
 const KEY = "vibebook.exportChoices";
-const KINDS: ReportKind[] = ["daily", "weekly", "period"];
+const KINDS: ReportKind[] = ["daily", "weekly", "period", "plan"];
 const FORMATS: Format[] = ["docx", "pdf", "text"];
 
 /** The remembered choices of this device, or the defaults when there are none. */

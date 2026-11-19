@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { setEntryGroups, type Entry } from "./entries";
+import { chosenVisibility } from "./entryPrivacy";
+import type { Visibility } from "./types";
 import { AlreadyInGroupError, repostId, saveRepost } from "./reposts";
 import { groupsHoldingEntry } from "./groups";
 import { useSession } from "./session";
@@ -33,10 +35,13 @@ export default function ShareGroupsPane({ entry, ownerUid, onDone }: { entry: En
     return () => { live = false; };
   }, [mine, groupKey, ownerUid, entry.id, s.uid, existing]);
 
+  // Posting to a private group normally keeps the entry off your profile. This opts it back onto the profile, for the audience you pick.
+  const [onProfile, setOnProfile] = useState(entry.alsoOnProfile === true);
+  const [profileVis, setProfileVis] = useState<Visibility>(chosenVisibility(entry) === "private" ? "friends" : chosenVisibility(entry));
   const toggle = (id: string) => setGroupIds((p) => (p.includes(id) ? p.filter((g) => g !== id) : [...p, id]));
   const held = (existing?.groupIds ?? []).filter((id) => s.groups.ids.has(id));
   const original = mine ? (entry.groupIds ?? []).filter((id) => s.groups.ids.has(id)) : held;
-  const changed = [...groupIds].sort().join() !== [...original].sort().join();
+  const changed = [...groupIds].sort().join() !== [...original].sort().join() || (mine && (onProfile !== (entry.alsoOnProfile === true) || (onProfile && profileVis !== chosenVisibility(entry))));
 
   async function save() {
     setBusy(true);
@@ -44,7 +49,7 @@ export default function ShareGroupsPane({ entry, ownerUid, onDone }: { entry: En
     try {
       if (mine) {
         const kept = (entry.groupIds ?? []).filter((id) => !s.groups.ids.has(id)); // groups you have left stay as they were
-        await setEntryGroups(s.uid, entry, [...kept, ...groupIds]);
+        await setEntryGroups(s.uid, entry, [...kept, ...groupIds], onProfile, onProfile ? profileVis : chosenVisibility(entry));
         s.notify("Sharing updated");
       } else {
         const kept = (existing?.groupIds ?? []).filter((id) => !s.groups.ids.has(id));
@@ -72,7 +77,22 @@ export default function ShareGroupsPane({ entry, ownerUid, onDone }: { entry: En
             : `“${entry.title}” is shown in the groups you tick. Sharing it to a group also adds it to your logbook as a repost.`}
         </p>
         {privatePicked && (
-          <p className="hint unsaved">A private group is ticked: only its members will see this entry. It leaves your profile, the feed and its share link.</p>
+          <div className="profile-also">
+            <label className="switch-row">
+              <span>Also show this on my profile<small>It is in your logbook either way. Choose who can see it there. Group members can always see it.</small></span>
+              <input type="checkbox" checked={onProfile} onChange={(e) => setOnProfile(e.target.checked)} />
+            </label>
+            {onProfile ? (
+              <label>Who can see this on my profile
+                <select value={profileVis} onChange={(e) => setProfileVis(e.target.value as Visibility)}>
+                  <option value="friends">Friends</option>
+                  <option value="public">Public</option>
+                </select>
+              </label>
+            ) : (
+              <p className="hint unsaved">Only the group's members will see this entry. It stays off your profile, the feed and its share link.</p>
+            )}
+          </div>
         )}
         <fieldset className="group-pick">
           <legend>Groups</legend>

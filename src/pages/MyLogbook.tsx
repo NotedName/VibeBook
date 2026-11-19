@@ -20,14 +20,17 @@ import { FeedSkeleton } from "../Skeleton";
 import PersonPage from "./PersonPage";
 import { DownloadIcon, EyeIcon, SearchIcon } from "../icons";
 import FriendsSheet from "../FriendsSheet";
+import SkillsSheet from "../SkillsSheet";
 import LogbookMonth from "../LogbookMonth";
-import { useHoursGoal } from "../hours";
+import { saveAvailability, useHoursGoal } from "../hours";
+import { addHolidays, removeHoliday } from "../availability";
 
 function Logbook({ onViewAs }: { onViewAs: () => void }) {
   const s = useSession();
   const [entries, setEntries] = useState<Entry[] | null>(null);
   const [loadError, setLoadError] = useState("");
   const [friendsOpen, setFriendsOpen] = useState(false);
+  const [skillsOpen, setSkillsOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [range, setRange] = useState(NO_RANGE);
   const [search, setSearch] = useState("");
@@ -48,7 +51,7 @@ function Logbook({ onViewAs }: { onViewAs: () => void }) {
   // Everything that counts as hours (HoursCard, reports) vs. what you posted: a shift saved by Clock out is hours only, not a logbook entry.
   const hoursList = useMemo(() => (entries ?? []).filter((e) => e.archived !== true).sort(newestFirst), [entries]);
   const list = useMemo(() => hoursList.filter((e) => e.hoursOnly !== true), [hoursList]);
-  // Notes are what you wrote; Reposts and Likes are other people's entries. Only Notes count towards your stats and reports.
+  // Notes are what you wrote; Reposts and Vibes are other people's entries. Only Notes count towards your stats and reports.
   const [tab, setTab] = useState<ProfileTab>("notes");
   const [mode, setMode] = useSortMode("logbook");
   const [view, setView] = useLogbookView("logbook");
@@ -81,8 +84,8 @@ function Logbook({ onViewAs }: { onViewAs: () => void }) {
     <>
       <ProfileHeader profile={s.me} editable onEditProfile={s.editProfile} onViewAs={onViewAs}>
         <div className="stats">
-          {stats.map(([label, n]) => label === "Friends" ? (
-            <button type="button" className="stat stat-btn" key={label} onClick={() => setFriendsOpen(true)}><b>{n}</b><span>{label}</span></button>
+          {stats.map(([label, n]) => label === "Friends" || label === "Skills" ? (
+            <button type="button" className="stat stat-btn" key={label} onClick={() => (label === "Friends" ? setFriendsOpen(true) : setSkillsOpen(true))}><b>{n}</b><span>{label}</span></button>
           ) : (
             <div className="stat" key={label}><b>{n}</b><span>{label}</span></div>
           ))}
@@ -99,6 +102,7 @@ function Logbook({ onViewAs }: { onViewAs: () => void }) {
         <ReportSheet entries={hoursList} onClose={() => setExportOpen(false)}
           initialRange={range.from && range.to && range.from <= range.to ? range : undefined} />
       )}
+      {skillsOpen && <SkillsSheet entries={list} onClose={() => setSkillsOpen(false)} />}
       {friendsOpen && <FriendsSheet uid={s.uid} onClose={() => setFriendsOpen(false)} />}
       <ProfileTabs tab={tab} onChange={setTab} showLikes />
 
@@ -121,7 +125,8 @@ function Logbook({ onViewAs }: { onViewAs: () => void }) {
 
       <div ref={content} className="slide-pane">
       {monthOn && entries !== null && goal.ready && (
-        <LogbookMonth entries={list} availability={goal.availability} onEdit={s.openEntry} onAdd={(date) => s.openEntry(null, undefined, date)} />
+        <LogbookMonth entries={list} availability={goal.availability} onEdit={s.openEntry} onAdd={(date) => s.openEntry(null, undefined, date)}
+          onMarkDay={(date, reason) => saveAvailability(s.uid, reason === null ? removeHoliday(goal.availability, date) : addHolidays(goal.availability, [date], reason), !!s.me && s.me.scheduleAudience !== "private")} />
       )}
 
       <div className="feed" aria-live="polite" style={monthOn ? { display: "none" } : undefined}>
@@ -158,12 +163,12 @@ function Logbook({ onViewAs }: { onViewAs: () => void }) {
         {tab === "likes" && !searching && !likes.loading && pool.length === 0 && (
           <div className="empty">
             <h2>Nothing liked yet</h2>
-            <p>Entries you give a Vibe show up here, only for you. Likes from before this list existed are not included.</p>
+            <p>Entries you give a Vibe show up here, only for you. Vibes from before this list existed are not included.</p>
           </div>
         )}
         <EntryList entries={shown} onEdit={s.openEntry} dayHeadings={mode.kind === "newest" || mode.kind === "oldest"}
-          weeks={notesShown ? { origin: earliestDay(list) } : undefined}
-          dayHours={notesShown} />
+          weeks={notesShown && view === "weeks" ? { origin: earliestDay(list) } : undefined}
+          dayHours={notesShown} hoursSource={hoursList} />
       </div>
       </div>
     </>

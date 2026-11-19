@@ -6,11 +6,11 @@ export type ProfileTab = "notes" | "reposts" | "likes";
 const ALL: { id: ProfileTab; label: string; icon: ReactNode }[] = [
   { id: "notes", label: "Notes", icon: <NoteIcon /> },
   { id: "reposts", label: "Reposts", icon: <RepostIcon /> },
-  { id: "likes", label: "Likes", icon: <ThumbUpIcon /> },
+  { id: "likes", label: "Vibes", icon: <ThumbUpIcon /> },
 ];
 
 /**
- * Notes / Reposts (/ Likes, on your own logbook) columns above a logbook, like the tabs on a Threads profile.
+ * Notes / Reposts (/ Vibes, on your own logbook) columns above a logbook, like the tabs on a Threads profile.
  * `children` (the sort button) sit in their own small card beside the tabs, so the button is never squeezed
  * into the tab bar and the tabs keep the whole width of their own card.
  */

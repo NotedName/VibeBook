@@ -21,7 +21,7 @@ type Stored = Partial<Omit<Group, "id">>;
 
 function toGroup(id: string, d: Stored): Group {
   return {
-    id, name: d.name ?? "", description: d.description ?? "", ownerUid: d.ownerUid ?? "", avatar: d.avatar ?? "", coverPhoto: d.coverPhoto ?? "",
+    id, name: d.name ?? "", description: d.description ?? "", ownerUid: d.ownerUid ?? "", avatar: d.avatar ?? "", coverPhoto: d.coverPhoto ?? "", cover: d.cover === "dusk" || d.cover === "steel" ? d.cover : "amethyst",
     privacy: d.privacy === "private" ? "private" : "public",
     questions: Array.isArray(d.questions) ? d.questions.filter((q): q is string => typeof q === "string") : [],
   };
@@ -374,7 +374,7 @@ export async function updateGroup(gid: string, name: string, description: string
 
 /** Admins: saves the group's name, description and any changed pictures in one write, so a save either happens whole or not at all. */
 export async function saveGroupChanges(
-  gid: string, name: string, description: string, photos: Partial<Pick<Group, "avatar" | "coverPhoto">>,
+  gid: string, name: string, description: string, photos: Partial<Pick<Group, "avatar" | "coverPhoto" | "cover">>,
   access?: { privacy: GroupPrivacy; questions: string[] },
 ): Promise<void> {
   const clean = { name: clip(name.trim(), GROUP_NAME_MAX), description: clip(description.trim(), GROUP_DESC_MAX) };
@@ -385,7 +385,7 @@ export async function saveGroupChanges(
 }
 
 /** Admins: sets, replaces or (with "") removes the group's picture and cover photo. */
-export async function updateGroupPhotos(gid: string, change: Partial<Pick<Group, "avatar" | "coverPhoto">>): Promise<void> {
+export async function updateGroupPhotos(gid: string, change: Partial<Pick<Group, "avatar" | "coverPhoto" | "cover">>): Promise<void> {
   await updateDoc(doc(db, "groups", gid), change);
   cache.delete(gid);
   editListeners.forEach((f) => f());
@@ -456,11 +456,6 @@ export function useMyGroups(uid: string): MyGroups {
 export async function deleteGroup(ownerUid: string, group: Pick<Group, "id" | "name" | "ownerUid">): Promise<void> {
   if (group.ownerUid !== ownerUid) throw new Error("Only the group owner can delete this group.");
   const memberUids = await loadMembers(group.id);
-  await Promise.all(
-    memberUids
-      .filter((uid) => uid !== ownerUid)
-      .map((uid) => pushNote(uid, ownerUid, `group_deleted_${group.id}`, "group_deleted", { groupId: group.id, groupName: group.name })),
-  );
 
   const [membersSnap, invitesSnap, requestsSnap, bansSnap, postsSnap] = await Promise.all([
     getDocs(query(collection(db, "groupMembers"), where("groupId", "==", group.id))),
@@ -484,6 +479,13 @@ export async function deleteGroup(ownerUid: string, group: Pick<Group, "id" | "n
     refs.slice(i, i + 200).forEach((r) => batch.delete(r));
     await batch.commit();
   }
+
+  // Notify only once the group is really gone, so nobody hears about a deletion that failed half way.
+  await Promise.all(
+    memberUids
+      .filter((uid) => uid !== ownerUid)
+      .map((uid) => pushNote(uid, ownerUid, `group_deleted_${group.id}`, "group_deleted", { groupId: group.id, groupName: group.name })),
+  );
 
   cache.delete(group.id);
   editListeners.forEach((f) => f());

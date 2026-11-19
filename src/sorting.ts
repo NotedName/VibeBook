@@ -27,25 +27,19 @@ export const needsEngagement = (m: SortMode) => m.kind === "hot" || m.kind === "
 /** Which end of the date index to read from. Oldest has to ask the database for the oldest, not just flip what is loaded. */
 export const dateDir = (m: SortMode): "asc" | "desc" => (m.kind === "oldest" ? "asc" : "desc");
 
-const kinds = new Set<string>(SORT_KINDS.map((k) => k.id));
-const periods = new Set<string>(PERIODS.map((p) => p.id));
 
-/** The chosen sort, remembered on this device (per list, e.g. "feed" or "logbook"). */
-export function useSortMode(key: string): [SortMode, (m: SortMode) => void] {
-  const storeKey = `vibebook.sort.${key}`;
-  const [mode, setMode] = useState<SortMode>(() => {
-    try {
-      const raw = JSON.parse(localStorage.getItem(storeKey) ?? "null");
-      if (raw && kinds.has(raw.kind) && periods.has(raw.period)) return raw as SortMode;
-    } catch { /* storage blocked or corrupt: fall through */ }
-    return DEFAULT_SORT;
-  });
-  const set = useCallback((m: SortMode) => {
-    setMode(m);
-    try { localStorage.setItem(storeKey, JSON.stringify(m)); } catch { /* not remembered, still works */ }
-  }, [storeKey]);
+/**
+ * The chosen sort for one list (e.g. "feed" or "logbook"). It is kept only while that screen is open: going to another tab and coming
+ * back starts again from Newest, so a list is never left sorted in a way you forgot about.
+ */
+export function useSortMode(_key: string): [SortMode, (m: SortMode) => void] {
+  const [mode, setMode] = useState<SortMode>(DEFAULT_SORT);
+  const set = useCallback((m: SortMode) => setMode(m), []);
   return [mode, set];
 }
+
+/** True when the list is not in the default order, so it can say so. */
+export const isDefaultSort = (m: SortMode) => m.kind === DEFAULT_SORT.kind;
 
 /** How a list of your own entries is grouped: under week headings (each with its total hours) and day headings, or under day headings only. */
 export type Grouping = "weeks" | "days";

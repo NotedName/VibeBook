@@ -93,6 +93,8 @@ export type Group = {
   avatar: string;
   /** 3:1 banner JPEG data URL, "" when none */
   coverPhoto: string;
+  /** the colour of the banner when there is no cover photo, the same choices as a profile */
+  cover: CoverId;
 };
 
 /**

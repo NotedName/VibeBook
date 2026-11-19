@@ -15,6 +15,10 @@ import { useProfile, useSession } from "../session";
 import { usePresence } from "../activeStatus";
 import { chatPhoto } from "../image";
 import { insertEmoji } from "../emoji";
+import { NetworkUnavailable } from "../network";
+import SharedEntryCard from "../SharedEntryCard";
+import { parseSharedEntry } from "../shareEntry";
+import { DEFAULT_QUICK_EMOJI, usePreferences } from "../preferences";
 import { useMessagingFrame } from "../msgFrame";
 import type { Media } from "../stickers";
 import type { Profile } from "../types";
@@ -30,7 +34,7 @@ import { enterSendsMessage } from "../preferences";
 import { DropHint, useImageDrop } from "../imageDrop";
 import MediaPicker from "../MediaPicker";
 import {
-  AlertIcon, ArrowLeftIcon, CameraIcon, CheckIcon, ChevronDownIcon, ChevronUpIcon, CloseIcon, ForwardIcon, ImageIcon, InfoIcon, MoreIcon, PinIcon, SearchIcon, SendIcon,
+  AlertIcon, ArrowLeftIcon, CameraIcon, CheckIcon, ChevronDownIcon, ChevronRightIcon, ChevronUpIcon, CloseIcon, ForwardIcon, ImageIcon, InfoIcon, MoreIcon, PinIcon, ReplyIcon, SearchIcon, SendIcon,
   SmileIcon,
 } from "../icons";
 import { LoadingImg, MessagesSkeleton, NameSkeleton } from "../Skeleton";
@@ -75,6 +79,8 @@ type BubblesProps = {
   /** false when nothing can be written (a request, a block, locked keys): no menu, no reacting */
   canAct: boolean;
   onMenu: (m: Message) => void; onReact: (m: Message, emoji: string) => void; onJump: (id: string) => void;
+  /** the quick reply button beside the menu, and the quick reaction (this device's emoji) */
+  onReply: (m: Message) => void; quickEmoji: string;
 };
 
 /**
@@ -103,7 +109,7 @@ function useOnline(): boolean {
   );
 }
 
-function Bubbles({ messages, loading, me, other, otherSeenAt, q, activeId, onPhoto, nameOf, realName, reactions, pinned, flash, canAct, onMenu, onReact, onJump }: BubblesProps) {
+function Bubbles({ messages, loading, me, other, otherSeenAt, q, activeId, onPhoto, nameOf, realName, reactions, pinned, flash, canAct, onMenu, onReact, onJump, onReply, quickEmoji }: BubblesProps) {
   const [timeFor, setTimeFor] = useState("");
   const byId = useMemo(() => new Map(messages.map((m) => [m.id, m])), [messages]);
   // Long press (touch) opens the message menu; a right click or the ... button does the same on a computer.
@@ -149,6 +155,7 @@ function Bubbles({ messages, loading, me, other, otherSeenAt, q, activeId, onPho
         const ends = !next || nextSep || next.from !== m.from || !!next.sys;
         const pos = starts && ends ? "solo" : starts ? "first" : ends ? "last" : "mid";
         const big = !m.image && !m.gif && isBigEmoji(m.text);
+        const shared = !m.image && !m.gif && !m.unsent ? parseSharedEntry(m.text) : null;
         const seen = otherSeenAt > 0 && otherSeenAt >= m.at;
         if (primed.current && !known.current.has(m.id) && m.at >= newest.current) animated.current.add(m.id);
         if (m.sys) {
@@ -181,10 +188,11 @@ function Bubbles({ messages, loading, me, other, otherSeenAt, q, activeId, onPho
                   </button>
                 )}
                 {m.gif && <LoadingImg className="msg-gif" src={m.gif} alt="GIF" referrerPolicy="no-referrer" />}
-                {m.text !== "" && (
+                {shared && <SharedEntryCard uid={shared.uid} id={shared.id} title={shared.title} />}
+                {m.text !== "" && !(shared && !shared.note) && (
                   <div className={`bubble ${mine ? "mine" : "theirs"}${big ? " big" : ""}`} title={timeLabel(m.at)}
                     onClick={() => setTimeFor((t) => (t === m.id ? "" : m.id))}>
-                    {q.trim() ? <Highlight text={m.text} q={q} current={m.id === activeId} /> : <Linkified text={m.text} />}
+                    {q.trim() ? <Highlight text={m.text} q={q} current={m.id === activeId} /> : <Linkified text={shared ? shared.note : m.text} />}
                   </div>
                 )}
                 <ReactionChips list={reactions.get(m.id) ?? []} me={me} onToggle={(emoji) => canAct && onReact(m, emoji)} />
@@ -196,6 +204,9 @@ function Bubbles({ messages, loading, me, other, otherSeenAt, q, activeId, onPho
               </div>
               {canAct && !m.unsent && !m.pending && (
                 <div className="msg-tools">
+                  <button type="button" className="icon-btn quick-react" aria-label={`React with ${quickEmoji}`} title={`React with ${quickEmoji}`}
+                    onClick={() => onReact(m, quickEmoji)}>{quickEmoji}</button>
+                  <button type="button" className="icon-btn" aria-label="Reply" title="Reply" onClick={() => onReply(m)}><ReplyIcon /></button>
                   <button type="button" className="icon-btn" aria-label="Message actions: react, reply, forward, pin and more" title="React, reply and more" onClick={() => onMenu(m)}><MoreIcon /></button>
                 </div>
               )}
@@ -235,11 +246,14 @@ function Composer({ onSend, emoji, adder, replying, replyName, onCancelReply, ed
   const [pending, setPending] = useState<Pending[]>([]);
   const [panel, setPanel] = useState(false);
   const [camera, setCamera] = useState(false);
+  /** On a small screen the camera and photo buttons fold into one arrow while you type, as in Messenger; the arrow brings them back. */
+  const [toolsOpen, setToolsOpen] = useState(false);
   const shot = useRef<HTMLInputElement>(null);
   const box = useRef<HTMLTextAreaElement>(null);
   const files = useRef<HTMLInputElement>(null);
   const nextId = useRef(0);
   const hasText = text.trim().length > 0;
+  const compact = hasText && !toolsOpen;
   const ready = editing ? hasText && text.trim() !== editing.text.trim() : hasText || pending.length > 0;
 
   // Editing puts the message's words in the box; leaving edit mode (saved or cancelled) empties it again.
@@ -335,19 +349,28 @@ function Composer({ onSend, emoji, adder, replying, replyName, onCancelReply, ed
         <p className="chat-limit" role="alert"><AlertIcon />Character limit reached ({MESSAGE_MAX.toLocaleString()}). Shorten your message or send it in parts.</p>
       )}
       {panel && !editing && <MediaPicker onPick={pickMedia} onEmoji={(e) => insertEmoji(box.current, text, e, setText, MESSAGE_MAX)} />}
-      <form className="chat-composer" onSubmit={(e) => { e.preventDefault(); send(); }}>
-        <button type="button" className="icon-btn tool" aria-label="Take a photo" title="Take a photo" disabled={!!editing}
-          onClick={() => (window.matchMedia("(pointer: coarse)").matches || !navigator.mediaDevices?.getUserMedia ? shot.current?.click() : setCamera(true))}><CameraIcon /></button>
-        <button type="button" className="icon-btn tool" aria-label="Add photos" title="Add photos" disabled={!!editing}
-          onClick={() => files.current?.click()}><ImageIcon /></button>
-        <button type="button" className={`icon-btn tool${panel ? " on" : ""}`} aria-label="Emoji, stickers and GIFs" title="Emoji, stickers and GIFs" disabled={!!editing}
-          aria-expanded={panel} onClick={() => setPanel((v) => !v)}><SmileIcon /></button>
-        <textarea ref={box} rows={1} value={text} maxLength={MESSAGE_MAX} placeholder="Aa" aria-label="Message"
-          onChange={(e) => setText(e.target.value)} onKeyDown={onKey} onPaste={onPaste} />
+      {/* A div, not a form: iOS shows its "previous / next / done" bar for the fields of a form, which made the chat look like a search. */}
+      <div className={`chat-composer${compact ? " compact" : ""}`} role="group" aria-label="Write a message">
+        <div className="composer-tools">
+          <button type="button" className="icon-btn tool tool-more" aria-label="Show camera and photos" title="Show camera and photos" aria-expanded={!compact}
+            onClick={() => setToolsOpen(true)}><ChevronRightIcon /></button>
+          <button type="button" className="icon-btn tool tool-media" aria-label="Take a photo" title="Take a photo" disabled={!!editing}
+            onClick={() => (window.matchMedia("(pointer: coarse)").matches || !navigator.mediaDevices?.getUserMedia ? shot.current?.click() : setCamera(true))}><CameraIcon /></button>
+          <button type="button" className="icon-btn tool tool-media" aria-label="Add photos" title="Add photos" disabled={!!editing}
+            onClick={() => files.current?.click()}><ImageIcon /></button>
+        </div>
+        <div className="composer-field">
+          <textarea ref={box} rows={1} value={text} maxLength={MESSAGE_MAX} placeholder="Aa" aria-label="Message"
+            enterKeyHint={enterSends() ? "send" : "enter"} autoComplete="off" autoCorrect="on" autoCapitalize="sentences" spellCheck inputMode="text" name="vb-chat-message" aria-autocomplete="none"
+            data-lpignore="true" data-1p-ignore="true" data-form-type="other"
+            onFocus={() => setToolsOpen(false)} onChange={(e) => { setText(e.target.value); setToolsOpen(false); }} onKeyDown={onKey} onPaste={onPaste} />
+          <button type="button" className={`icon-btn tool in-field${panel ? " on" : ""}`} aria-label="Emoji, stickers and GIFs" title="Emoji, stickers and GIFs" disabled={!!editing}
+            aria-expanded={panel} onClick={() => setPanel((v) => !v)}><SmileIcon /></button>
+        </div>
         {editing
-          ? <button key="save" type="submit" className="icon-btn send" aria-label="Save edit" title="Save edit" disabled={!ready}><CheckIcon /></button>
+          ? <button key="save" type="button" className="icon-btn send" aria-label="Save edit" title="Save edit" disabled={!ready} onClick={send}><CheckIcon /></button>
           : ready
-            ? <button key="send" type="submit" className="icon-btn send" aria-label="Send" disabled={preparing > 0}><SendIcon /></button>
+            ? <button key="send" type="button" className="icon-btn send" aria-label="Send" disabled={preparing > 0} onClick={send}><SendIcon /></button>
             : <button key="like" type="button" className="icon-btn like" aria-label={`Send ${emoji}`} title={`Send ${emoji}`}
               onClick={() => { onSend({ text: emoji, ...(replying ? { reply: replyRefOf(replying) } : {}) }); if (replying) onCancelReply(); }}>{emoji}</button>}
         {/* on a phone this opens the camera app itself; the picture comes back like any other file */}
@@ -355,7 +378,7 @@ function Composer({ onSend, emoji, adder, replying, replyName, onCancelReply, ed
           onChange={(e) => { void addFiles(Array.from(e.target.files ?? [])); e.target.value = ""; }} />
         <input ref={files} type="file" accept="image/*" multiple hidden
           onChange={(e) => { void addFiles(Array.from(e.target.files ?? [])); e.target.value = ""; }} />
-      </form>
+      </div>
       {camera && <CameraSheet onCapture={(f) => void addFiles([f])} onClose={() => setCamera(false)} />}
     </div>
   );
@@ -389,6 +412,7 @@ export default function ThreadPage({ uid: other }: { uid: string }) {
 
   const keysReady = useE2ee().phase === "ready";
   const settings = useChatSettings(s.uid, other);
+  const quickEmoji = usePreferences().quickEmoji || DEFAULT_QUICK_EMOJI;
   const presence = usePresence(other);
   const prefs = s.chats.prefsOf(other);
   const blocked = s.chats.blocked.has(other);
@@ -570,6 +594,7 @@ export default function ThreadPage({ uid: other }: { uid: string }) {
   }
   function closeSearch() { setFinding(false); setQ(""); }
 
+  if (p === null && !navigator.onLine) return <NetworkUnavailable back={{ href: "#/messages", label: "Back to messages" }} />;
   if (p === null) {
     return (
       <div className="empty">
@@ -626,7 +651,7 @@ export default function ThreadPage({ uid: other }: { uid: string }) {
       )}
 
       <div className="chat-main">
-        <div className="chat-body" ref={body} onScroll={onScroll} aria-live="polite">
+        <div className={`chat-body${keysReady ? "" : " e2ee-blur"}`} ref={body} onScroll={onScroll} aria-live="polite">
           <div className="chat-stream">
             {error && <p className="error note" role="alert">{error}</p>}
             {loading && <MessagesSkeleton />}
@@ -645,7 +670,7 @@ export default function ThreadPage({ uid: other }: { uid: string }) {
                 {messages.length === 0 && <p className="hint">No messages yet. Say hello.</p>}
               </div>
             )}
-            <Bubbles messages={messages} loading={loading} me={s.uid} other={p} otherSeenAt={prefs.receipts ? chat?.otherSeenAt ?? 0 : 0}
+            <Bubbles quickEmoji={quickEmoji} onReply={(m) => { setEditId(""); setReplyId(m.id); }} messages={messages} loading={loading} me={s.uid} other={p} otherSeenAt={prefs.receipts ? chat?.otherSeenAt ?? 0 : 0}
               q={finding ? q : ""} activeId={finding ? activeId : ""} onPhoto={setViewer}
               nameOf={(uid) => (uid === s.uid ? "You" : name)} realName={realName} reactions={reactions} pinned={pinnedIds} flash={flash} canAct={canCompose}
               onMenu={(m) => setMenuId(m.id)} onReact={react} onJump={jump} />

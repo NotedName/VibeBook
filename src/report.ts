@@ -92,7 +92,7 @@ function periodReport(entries: Entry[], from: string, to: string): string {
  * Text for the export sheet's "Copy text": a day, the week that contains it, or a date range (`kind`), or only the
  * descriptions of those days. `origin` (the first day of the logbook) is Week 1.
  */
-export function exportText(entries: Entry[], kind: "daily" | "weekly" | "period", from: string, to: string, origin: string, descriptionsOnly: boolean): string {
+export function exportText(entries: Entry[], kind: "daily" | "weekly" | "period" | "plan", from: string, to: string, origin: string, descriptionsOnly: boolean): string {
   if (descriptionsOnly) return allDescriptions(entries.filter((e) => e.date >= from && e.date <= to), origin);
   if (kind === "daily") return dailyReport(entries, from);
   if (kind === "weekly") return weeklyReport(entries, from, origin);

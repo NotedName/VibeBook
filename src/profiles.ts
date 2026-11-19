@@ -184,6 +184,7 @@ export async function saveProfile(uid: string, p: Omit<Profile, "uid" | "deactiv
     const problem = usernameProblem(clean.username);
     if (problem) throw new Error(problem);
   }
+  const previous = await fetchProfile(uid).catch(() => null); // so the 24-hour note survives saving the form
   const profileRef = doc(db, "profiles", uid);
   // One transaction: the username is claimed (or swapped for a new one) and the profile saved together,
   // so a name can never end up on two profiles, and a profile never points at a name it does not own.
@@ -207,7 +208,7 @@ export async function saveProfile(uid: string, p: Omit<Profile, "uid" | "deactiv
   });
   clearPendingUsername(uid);
   refCache.clear(); // a changed username means old links no longer point here
-  const saved: Profile = { uid, ...clean, deactivated: false };
+  const saved: Profile = { uid, ...clean, deactivated: false, note: previous?.note ?? "", noteAt: previous?.noteAt ?? 0 };
   primeProfile(saved);
   logActivity(uid, "Updated your profile");
   return saved;

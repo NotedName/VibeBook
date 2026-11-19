@@ -41,13 +41,17 @@ export default function PeoplePage() {
   return (
     <div className="people-page">
       <div className="title-row">
-        <h1 className="page-title">People</h1>
+        <h1 className="page-title">Friends</h1>
       </div>
-      <div className="search">
-        <SearchIcon />
-        <input type="search" value={text} onChange={(e) => setText(e.target.value)}
-          placeholder="Search by name or @username" aria-label="Search people by name or username" />
-      </div>
+      <section className="find-people" aria-label="Find people">
+        <h2>Find people</h2>
+        <p>Search for classmates and coworkers by name or @username, then tap Add friend or Follow on their row.</p>
+        <div className="search">
+          <SearchIcon />
+          <input type="search" value={text} onChange={(e) => setText(e.target.value)} enterKeyHint="search"
+            placeholder="Search by name or @username" aria-label="Search people by name or username" />
+        </div>
+      </section>
       {s.error && <p className="error note" role="alert">{s.error}</p>}
 
       {results !== null ? (

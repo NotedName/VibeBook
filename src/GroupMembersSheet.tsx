@@ -1,3 +1,5 @@
+import { Requests } from "./GroupManageSheet";
+import type { Group } from "./types";
 import { useCallback, useEffect, useState } from "react";
 import type { GroupRole, Member } from "./types";
 import { useBannedUids } from "./groups";
@@ -10,6 +12,8 @@ import { CloseIcon, PlusIcon, SettingsIcon } from "./icons";
 
 type Props = {
   gid: string;
+  /** needed to show the join requests while managing a private group */
+  group?: Group;
   members: Member[] | null;
   error: string;
   ownerUid: string;
@@ -27,7 +31,7 @@ type Props = {
  * Admins and moderators can switch it to Manage mode: each person then shows their role and a Remove button, and people who
  * were removed are listed below with "Allow back" for admins.
  */
-export default function GroupMembersSheet({ gid, members, error, ownerUid, myRole, startManaging, onInvite, onClose }: Props) {
+export default function GroupMembersSheet({ gid, group, members, error, ownerUid, myRole, startManaging, onInvite, onClose }: Props) {
   const canManage = myRole === "admin" || myRole === "moderator";
   const [managing, setManaging] = useState(!!startManaging && canManage);
   const banned = useBannedUids(gid, canManage && managing);
@@ -55,6 +59,7 @@ export default function GroupMembersSheet({ gid, members, error, ownerUid, myRol
               )}
             </div>
           )}
+          {managing && group && <Requests group={group} />}
           {managing && <p className="hint">Change a role or remove someone. Removed people cannot rejoin until an admin allows it.</p>}
           {error && <p className="error note">{error}</p>}
           {!members && !error && <RowsSkeleton />}

@@ -1,3 +1,4 @@
+import { NetworkUnavailable, useOnline } from "../network";
 import { useEffect, useMemo, useState } from "react";
 import { acceptInvite, cancelRequest, joinGroup, leaveGroup, useGroup, useGroupMembers, useMyRequest, withRoles } from "../groups";
 import JoinRequestSheet from "../JoinRequestSheet";
@@ -75,9 +76,11 @@ export default function GroupPage({ gid }: { gid: string }) {
     return () => clearTimeout(t);
   }, [armed]);
 
+  const online = useOnline();
   const members = useMemo(() => (stored && group ? withRoles(stored, group.ownerUid) : null), [stored, group]);
 
   if (group === undefined) return <><GroupHeadSkeleton /><FeedSkeleton /></>;
+  if (group === null && !online) return <NetworkUnavailable back={{ href: "#/groups", label: "Back to groups" }} />;
   if (group === null) {
     return (
       <div className="empty">
@@ -102,6 +105,7 @@ export default function GroupPage({ gid }: { gid: string }) {
   return (
     <>
       <section className={`group-head${group.coverPhoto ? " has-cover" : ""}`}>
+        {!group.coverPhoto && <div className={`group-cover-color c-${group.cover}`} aria-hidden="true" />}
         {group.coverPhoto && (
           <button type="button" className="group-cover" aria-label={`View the cover photo of ${group.name}`} onClick={() => setViewing("cover")}>
             <img src={group.coverPhoto} alt="" />
@@ -163,7 +167,7 @@ export default function GroupPage({ gid }: { gid: string }) {
           label={viewing === "avatar" ? `${group.name} picture` : `${group.name} cover photo`} onClose={() => setViewing(null)} />
       )}
       {listing && (
-        <GroupMembersSheet gid={gid} members={members} error={membersError} ownerUid={group.ownerUid} myRole={myRole} onClose={() => setListing(false)}
+        <GroupMembersSheet gid={gid} group={group} members={members} error={membersError} ownerUid={group.ownerUid} myRole={myRole} onClose={() => setListing(false)}
           onInvite={member ? () => { setListing(false); setInviting(true); } : undefined} />
       )}
       {inviting && <InviteSheet gid={gid} groupName={group.name} onClose={() => setInviting(false)} />}

@@ -33,10 +33,17 @@ type Prefs = {
   mutedChats: string[];
   /** does the Enter key send a message? "auto": yes with a keyboard, no on a touch screen (Enter is a new line there) */
   enterSends: "auto" | "on" | "off";
+  /** remind me to log my work: a notification with a picture, once a day at `reminderTime` (HH:mm) */
+  /** suggestions only come from entries written after this moment (ms); "Clear suggestions" sets it to now */
+  suggestionsClearedAt: number;
+  /** the emoji the quick-react button on a message sends (this device only); empty = the original */
+  quickEmoji: string;
+  reminderOn: boolean;
+  reminderTime: string;
 };
 
 const KEY = "vibebook-prefs";
-const DEFAULTS: Prefs = { startPage: "feed", photo: "standard", visibility: "private", reduceMotion: false, entrySuggestions: true, groupInvites: true, groupPosts: true, mutedGroups: [], mutedChats: [], enterSends: "auto" };
+const DEFAULTS: Prefs = { startPage: "feed", photo: "standard", visibility: "private", reduceMotion: false, entrySuggestions: true, groupInvites: true, groupPosts: true, mutedGroups: [], mutedChats: [], enterSends: "auto", reminderOn: false, reminderTime: "16:30", suggestionsClearedAt: 0, quickEmoji: "" };
 
 function load(): Prefs {
   try {
@@ -52,6 +59,10 @@ function load(): Prefs {
       mutedGroups: Array.isArray(raw.mutedGroups) ? raw.mutedGroups.filter((g) => typeof g === "string") : [],
       mutedChats: Array.isArray(raw.mutedChats) ? raw.mutedChats.filter((g) => typeof g === "string") : [],
       enterSends: raw.enterSends === "on" || raw.enterSends === "off" ? raw.enterSends : "auto",
+      suggestionsClearedAt: typeof raw.suggestionsClearedAt === "number" && raw.suggestionsClearedAt > 0 ? raw.suggestionsClearedAt : 0,
+      quickEmoji: typeof raw.quickEmoji === "string" && raw.quickEmoji.length <= 16 ? raw.quickEmoji : "",
+      reminderOn: raw.reminderOn === true,
+      reminderTime: typeof raw.reminderTime === "string" && /^([01]\d|2[0-3]):[0-5]\d$/.test(raw.reminderTime) ? raw.reminderTime : DEFAULTS.reminderTime,
     };
   } catch { return DEFAULTS; }
 }
@@ -94,6 +105,10 @@ export function usePreferences() {
     setPhoto: (photo: PhotoQuality) => update({ photo }),
     setVisibility: (visibility: Visibility) => update({ visibility }),
     setEntrySuggestions: (entrySuggestions: boolean) => update({ entrySuggestions }),
+    clearSuggestions: () => update({ suggestionsClearedAt: Date.now() }),
+    setQuickEmoji: (quickEmoji: string) => update({ quickEmoji }),
+    setReminderOn: (reminderOn: boolean) => update({ reminderOn }),
+    setReminderTime: (reminderTime: string) => update({ reminderTime }),
     setReduceMotion: (reduceMotion: boolean) => update({ reduceMotion }),
     setGroupInvites: (groupInvites: boolean) => update({ groupInvites }),
     setGroupPosts: (groupPosts: boolean) => update({ groupPosts }),
@@ -104,3 +119,6 @@ export function usePreferences() {
       update({ mutedGroups: muted ? [...new Set([...state.mutedGroups, gid])] : state.mutedGroups.filter((g) => g !== gid) }),
   };
 }
+
+/** The emoji a message's quick-react button sends until the person picks another one in Settings. */
+export const DEFAULT_QUICK_EMOJI = "❤️";

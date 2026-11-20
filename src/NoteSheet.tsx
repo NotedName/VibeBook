@@ -1,11 +1,11 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { NOTE_MAX, setProfileNote } from "./profiles";
+import { NOTE_MAX, noteExpiry, setProfileNote } from "./profiles";
 import { useSession } from "./session";
 import { useScrollLock } from "./scrollLock";
 import { CloseIcon } from "./icons";
 
 /** Share, change or clear the 24-hour note. It shows at the top of Messages and on your profile and logbook until it expires. */
-export default function NoteSheet({ initial, onClose }: { initial: string; onClose: () => void }) {
+export default function NoteSheet({ initial, noteAt = 0, onClose }: { initial: string; /** when the current note was shared, to show how long it has left */ noteAt?: number; onClose: () => void }) {
   const { uid, notify } = useSession();
   const [draft, setDraft] = useState(initial);
   const [busy, setBusy] = useState(false);
@@ -38,7 +38,7 @@ export default function NoteSheet({ initial, onClose }: { initial: string; onClo
           <button type="button" className="icon-btn close" aria-label="Close" disabled={busy} onClick={onClose}><CloseIcon /></button>
         </div>
         <div className="sheet-body">
-          <p className="hint">Visible at the top of Messages and on your profile for 24 hours.</p>
+          <p className="hint">Visible at the top of Messages and on your profile for 24 hours.{initial && noteAt ? <> <b>{noteExpiry({ note: initial, noteAt })}.</b></> : null}</p>
           <label>
             Note
             <input

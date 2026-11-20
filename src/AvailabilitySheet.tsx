@@ -137,6 +137,12 @@ export default function AvailabilitySheet({ uid, hours, value, share, onClose }:
           </fieldset>
 
           <fieldset className="setting">
+            <legend>Starting date</legend>
+            <input type="date" aria-label="Starting date" value={a.startDate ?? ""} onChange={(e) => setA((cur) => ({ ...cur, startDate: e.target.value || undefined }))} />
+            <p className="hint">Your first day. Days before it are never asked for an entry.</p>
+          </fieldset>
+
+          <fieldset className="setting">
             <legend>Usual week</legend>
             <div className="day-chips">
               {WEEK.map((d) => (

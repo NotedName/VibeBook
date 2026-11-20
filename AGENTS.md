@@ -15,3 +15,4 @@
 7. Copy is short: one plain sentence for any hint or description.
 8. New noticeable feature: add a step to `src/tourSteps.ts` and bump `TOUR_VERSION`.
 9. Exported OJT documents must stay close to the school's original forms (see `src/formDocs.ts`).
+10. Push notifications: app side in `src/push.ts` and `public/firebase-messaging-sw.js`; the sender is `functions/` (see `PUSH.md`). Messages are encrypted, so pushes never contain message text.

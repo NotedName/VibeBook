@@ -3,7 +3,7 @@
  * When you add a feature people will notice: add a step here and raise TOUR_VERSION (a number, newest highest).
  * Keep each text to one short sentence.
  */
-export const TOUR_VERSION = 3;
+export const TOUR_VERSION = 5;
 export type TourStep = { id: string; title: string; text: string; since: number };
 
 export const TOUR_STEPS: TourStep[] = [
@@ -16,6 +16,8 @@ export const TOUR_STEPS: TourStep[] = [
   { id: "export", since: 1, title: "Export", text: "Make your portfolio, DTR, journal and other OJT forms as Word or PDF." },
   { id: "settings", since: 1, title: "Settings", text: "Privacy, reminders, data and What's new are in Settings." },
   { id: "forms", since: 2, title: "New: OJT forms", text: "Export your Daily Time Record and Term Journal. Send evaluation forms to your supervisor by link." },
+  { id: "themes", since: 5, title: "New: chat themes", text: "Open the i in a chat to pick a color theme and more." },
+  { id: "evals", since: 4, title: "New: one-time evaluation links", text: "Send your supervisor a link. They answer, print, and the link closes." },
   { id: "notes", since: 3, title: "New: notes you can reply to", text: "Open a friend's note in Messages to read it and reply." },
   { id: "chat", since: 2, title: "New: better chats", text: "Quick reply, quick react and shared entry cards." },
 ];

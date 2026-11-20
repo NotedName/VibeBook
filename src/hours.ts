@@ -109,6 +109,7 @@ export function useSharedSchedule(uid: string, enabled: boolean): SharedSchedule
 export const publishSchedule = (uid: string, a: Availability) =>
   setDoc(scheduleRef(uid), {
     workDays: a.workDays, hoursPerDay: a.hoursPerDay, daysOff: a.daysOff, daysOn: a.daysOn,
+    ...(a.startDate ? { startDate: a.startDate } : {}),
     ...(a.startTime && a.endTime && a.breakMinutes !== undefined ? { startTime: a.startTime, endTime: a.endTime, breakMinutes: a.breakMinutes } : {}),
     ...(a.breakAt ? { breakAt: a.breakAt } : {}),
   });
@@ -148,7 +149,7 @@ export async function saveAvailability(uid: string, value: Availability, share: 
   const a = cleanExceptions(value);
   if (!(a.hoursPerDay > 0 && a.hoursPerDay <= 24)) throw new Error("Hours per day must be between 0 and 24.");
   const times = a.startTime && a.endTime && a.breakMinutes !== undefined ? { startTime: a.startTime, endTime: a.endTime, breakMinutes: a.breakMinutes } : {};
-  await setDoc(goalRef(uid), { workDays: a.workDays, daysOff: a.daysOff, daysOn: a.daysOn, holidays: a.holidays ?? [], hoursPerDay: Math.round(a.hoursPerDay * 100) / 100, ...times, breakAt: a.breakAt ?? deleteField() }, { merge: true });
+  await setDoc(goalRef(uid), { workDays: a.workDays, daysOff: a.daysOff, daysOn: a.daysOn, holidays: a.holidays ?? [], hoursPerDay: Math.round(a.hoursPerDay * 100) / 100, startDate: a.startDate ?? deleteField(), ...times, breakAt: a.breakAt ?? deleteField() }, { merge: true });
   if (share) await publishSchedule(uid, a);
 }
 

@@ -234,7 +234,8 @@ service cloud.firestore {
       allow delete: if isOwner(uid);
       allow create, update: if isOwner(uid) && (
         (docId == 'goal'
-          && request.resource.data.keys().hasOnly(['requiredHours', 'workDays', 'daysOff', 'daysOn', 'holidays', 'hoursPerDay', 'startTime', 'endTime', 'breakMinutes', 'breakAt'])
+          && request.resource.data.keys().hasOnly(['requiredHours', 'workDays', 'daysOff', 'daysOn', 'holidays', 'hoursPerDay', 'startDate', 'startTime', 'endTime', 'breakMinutes', 'breakAt'])
+          && request.resource.data.get('startDate', '') is string && request.resource.data.get('startDate', '').size() <= 10
           && request.resource.data.get('holidays', []) is list && request.resource.data.get('holidays', []).size() <= 200
           && request.resource.data.get('breakAt', '00:00') is string && request.resource.data.get('breakAt', '00:00').matches('^([01][0-9]|2[0-3]):[0-5][0-9]$')
           && request.resource.data.get('requiredHours', 1) is number
@@ -289,7 +290,7 @@ service cloud.firestore {
           && request.resource.data.onBreak is bool
           && request.resource.data.get('breakEndsAt', 0) is number)
         || (docId == 'schedule'
-          && request.resource.data.keys().hasOnly(['workDays', 'hoursPerDay', 'daysOff', 'daysOn', 'startTime', 'endTime', 'breakMinutes', 'breakAt'])
+          && request.resource.data.keys().hasOnly(['workDays', 'hoursPerDay', 'daysOff', 'daysOn', 'startDate', 'startTime', 'endTime', 'breakMinutes', 'breakAt'])
           && request.resource.data.get('breakAt', '00:00') is string && request.resource.data.get('breakAt', '00:00').size() == 5
           && request.resource.data.get('daysOff', []) is list
           && request.resource.data.get('daysOn', []) is list
@@ -354,6 +355,27 @@ service cloud.firestore {
         && request.resource.data.keys().hasOnly(['entryAt'])
         && request.resource.data.entryAt == request.time
         && resource.data.entryAt + duration.value(5, 's') <= request.time;
+    }
+
+    // One-time evaluation forms. The id is random, so only whoever was given the link can open it. The details of the form are stored (the
+    // trainee's name, course and dates); the evaluator's ratings and comments are never sent to the database. Once the evaluator has made
+    // the file the status becomes "done" and the link closes. There is no way to list evaluations.
+    match /evaluations/{evalId} {
+      allow get: if true;
+      allow create: if signedIn() && request.resource.data.keys().hasOnly(['ownerUid', 'status', 'createdAt', 'payload'])
+        && request.resource.data.ownerUid == request.auth.uid && request.resource.data.status == 'open'
+        && request.resource.data.createdAt == request.time && request.resource.data.payload is map;
+      allow update: if resource.data.status == 'open' && request.resource.data.status == 'done'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'doneAt'])
+        && request.resource.data.doneAt == request.time;
+      allow delete: if signedIn() && resource.data.ownerUid == request.auth.uid;
+    }
+
+    // Push notification tokens of this person's devices. Only the owner can read, add or remove them; the push function reads them with admin rights.
+    match /users/{uid}/pushTokens/{token} {
+      allow read, delete: if isOwner(uid);
+      allow create, update: if isOwner(uid) && request.resource.data.keys().hasOnly(['createdAt', 'agent']) && request.resource.data.createdAt == request.time
+        && (!('agent' in request.resource.data) || (request.resource.data.agent is string && request.resource.data.agent.size() <= 200));
     }
 
     match /users/{uid}/entries/{entryId} {
@@ -903,7 +925,8 @@ service cloud.firestore {
         allow create, update: if inPair(pid)
           && chatOpen(pid)
           && settingsId == 'shared'
-          && request.resource.data.keys().hasOnly(['emoji', 'nick'])
+          && request.resource.data.keys().hasOnly(['emoji', 'nick', 'theme'])
+          && (!('theme' in request.resource.data) || (request.resource.data.theme is string && request.resource.data.theme.size() >= 1 && request.resource.data.theme.size() <= 20))
           && (!('emoji' in request.resource.data)
               || (request.resource.data.emoji is string
                   && request.resource.data.emoji.size() >= 1 && request.resource.data.emoji.size() <= 16))

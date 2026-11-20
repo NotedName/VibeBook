@@ -659,3 +659,94 @@ textarea, select, .search, .sheet-search, .composer-input, .search-field { borde
 .tour-dots i { width: 8px; height: 8px; border-radius: 50%; background: var(--line); transition: width .3s var(--spring-fast), background-color .2s; }
 .tour-dots i.on { width: 22px; border-radius: 6px; background: var(--primary); }
 .tour .sheet-actions { justify-content: space-between; }
+
+/* ---------- evaluator page: one centred card on the app background, fields stacked like in the sheets ---------- */
+.eval-page { min-height: 100dvh; display: grid; place-items: center; padding: 16px; box-sizing: border-box; }
+.eval-main {
+  width: min(760px, 100%); max-width: none; margin: 0; padding: 24px; box-sizing: border-box; border-radius: var(--radius-lg, 24px);
+  background: var(--surface-2); box-shadow: 0 1px 3px rgba(0, 0, 0, .3), 0 8px 24px rgba(0, 0, 0, .25); align-self: start; margin-block: 16px;
+}
+.eval-main label { display: grid; gap: 6px; font-weight: 500; color: var(--muted); font-size: calc(14px * var(--ts)); }
+.eval-main input:not([type="checkbox"]), .eval-main textarea, .eval-main select {
+  width: 100%; box-sizing: border-box; min-height: 48px; padding: 10px 14px; background: none; color: var(--text); font-weight: 400;
+  font-size: max(16px, calc(16px * var(--ts))); border: 1px solid color-mix(in srgb, var(--muted) 60%, transparent); outline: none; box-shadow: none;
+}
+.eval-main textarea { min-height: 120px; resize: vertical; line-height: 1.45; }
+.eval-main input:focus, .eval-main textarea:focus, .eval-main select:focus { border-color: var(--primary); box-shadow: 0 0 0 1px var(--primary); }
+.eval-main .row { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+.eval-row { color: var(--text); }
+.eval-row > span { font-weight: 500; }
+.eval-actions { position: sticky; bottom: 0; margin: 0 -24px -24px; padding: 14px 24px; background: var(--surface-2); border-radius: 0 0 var(--radius-lg, 24px) var(--radius-lg, 24px); display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
+.eval-actions .btn { width: 100%; justify-content: center; }
+.eval-done { padding: 40px 12px; }
+@media (max-width: 520px) { .eval-main { padding: 18px; } .eval-actions { margin: 0 -18px -18px; padding: 12px 18px; } }
+
+/* ---------- export sheet: file type options always share the full width, whether there are two or three ---------- */
+.sheet .setting .seg { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); width: 100%; }
+@media (max-width: 360px) { .sheet .setting .seg { grid-auto-flow: row; grid-auto-columns: auto; } }
+
+/* ---------- entry form: when it happened vs when it was posted ---------- */
+.when-box { border: 1px solid var(--line); border-radius: var(--radius-md); padding: 8px 14px 14px; display: grid; gap: 12px; margin: 0; min-width: 0; }
+.when-box legend { padding: 0 6px; font-weight: 700; color: var(--text); }
+.when-box .row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.posted-line { margin: 0; padding: 10px 12px; border-radius: var(--radius-sm); background: var(--surface-2); display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; align-items: baseline; }
+.posted-line span { color: var(--muted); font-size: calc(12px * var(--ts)); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+.posted-line small { grid-column: 2; color: var(--muted); font-weight: 400; }
+
+/* on a card: what happened is the headline, when it was posted sits under it with a label */
+.posted-at { display: flex; align-items: center; gap: 6px; margin-top: 2px; color: var(--muted); font-size: calc(12.5px * var(--ts)); font-weight: 400; }
+.posted-at span { padding: 1px 7px; border-radius: 6px; background: var(--surface-3); color: var(--text); font-size: calc(11px * var(--ts)); font-weight: 600; letter-spacing: .03em; }
+
+/* ---------- chat info on wide screens: sections sit at the top of their column, rows never stretch ---------- */
+.chat-info .sheet-body { align-items: start; align-content: start; }
+.chat-info-section { align-self: start; align-content: start; grid-auto-rows: min-content; }
+@media (min-width: 900px) { .chat-info { max-width: min(760px, 92vw); } }
+
+/* ---------- skills: each skill is a clear tonal row with a bar for how often it was used ---------- */
+.skill-list li { position: relative; overflow: hidden; min-height: 52px; padding: 0 16px; background: var(--surface-3); border: 1px solid var(--line); }
+.skill-list .skill-bar { position: absolute; inset: 0 auto 0 0; background: var(--accent-soft); opacity: .75; border-radius: inherit; transition: width .5s var(--spring-slow); }
+.skill-list b, .skill-list .skill-count { position: relative; }
+.skill-list b { color: var(--text); font-size: calc(15px * var(--ts)); }
+.skill-list .skill-count { min-width: 28px; height: 28px; display: inline-grid; place-items: center; border-radius: 8px; background: var(--primary); color: var(--on-primary); font-weight: 700; }
+/* the Skills and Friends numbers in the logbook look like buttons */
+.stat-btn { background: var(--surface-3); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 8px 12px; position: relative; cursor: pointer; }
+.stat-btn::after { content: "›"; position: absolute; top: 4px; right: 8px; color: var(--primary); font-weight: 700; }
+@media (hover: hover) { .stat-btn:hover { background: var(--accent-soft); } }
+
+/* ---------- chat themes: one colour tints the background and your bubbles ---------- */
+.chat-themed .chat-body { background: linear-gradient(180deg, color-mix(in srgb, var(--chat-accent) 20%, var(--surface)), color-mix(in srgb, var(--chat-accent) 6%, var(--surface))); }
+.chat-themed .bubble.mine { background: var(--chat-accent); color: #fff; }
+.chat-themed .chat-composer .send, .chat-themed .chat-composer .tool { color: var(--chat-accent); }
+.chat-themed .chat-composer .composer-field:focus-within { border-color: var(--chat-accent); }
+.chat-themed .chat-context { border-left-color: var(--chat-accent); }
+.theme-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(88px, 1fr)); gap: 12px; padding: 4px 0; }
+.theme-opt { display: grid; justify-items: center; gap: 8px; padding: 12px 6px; border: 2px solid transparent; border-radius: var(--radius-md); background: var(--surface-2); color: var(--text); cursor: pointer; font-size: calc(13px * var(--ts)); }
+.theme-opt.on { border-color: var(--primary); background: var(--accent-soft); }
+.theme-opt i { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; background: var(--c, var(--primary)); color: #fff; }
+.theme-opt i svg { width: 22px; height: 22px; }
+.theme-opt.default i { background: conic-gradient(var(--primary), var(--surface-3), var(--primary)); }
+.msg-tray-left { color: var(--muted); font-size: calc(11px * var(--ts)); font-weight: 500; }
+
+/* ---------- chat info: collapsible groups, an encryption note, and rows that never stretch ---------- */
+.chat-secure { display: flex; gap: 12px; align-items: center; margin: 0; padding: 12px 14px; border-radius: var(--radius-md); background: var(--surface-2); }
+.chat-secure svg { width: 22px; height: 22px; color: var(--primary); flex: none; }
+.chat-secure span { display: grid; gap: 2px; min-width: 0; }
+.chat-secure small { color: var(--muted); font-weight: 400; }
+.chat-info-section.collapse { border-top: 1px solid var(--line); padding-top: 0; }
+.chat-info-section.collapse > summary { display: flex; justify-content: space-between; align-items: center; min-height: 52px; padding: 0 4px; cursor: pointer; list-style: none; font-weight: 700; color: var(--text); font-size: calc(15px * var(--ts)); border-radius: var(--radius-sm); }
+.chat-info-section.collapse > summary::-webkit-details-marker { display: none; }
+.chat-info-section.collapse > summary svg { transition: transform .35s var(--spring-fast, ease); color: var(--muted); }
+.chat-info-section.collapse[open] > summary svg { transform: rotate(180deg); }
+@media (hover: hover) { .chat-info-section.collapse > summary:hover { background: var(--sl-hover); } }
+.collapse-body { display: grid; gap: 4px; padding-bottom: 10px; align-content: start; }
+.theme-dot { width: 22px; height: 22px; border-radius: 50%; display: inline-block; }
+/* one column at every width: the groups are accordions now */
+.chat-info .sheet-body { grid-template-columns: minmax(0, 1fr) !important; column-gap: 0; }
+.chat-info { max-width: min(560px, 94vw) !important; }
+.install-app { display: grid; gap: 8px; margin: 12px 0; padding: 14px; border-radius: var(--radius-md); background: var(--surface-2); justify-items: start; }
+.install-app .hint { margin: 0; }
+
+/* the evaluator page is one centred panel, on every screen */
+.eval-page { width: 100%; min-height: 100dvh; box-sizing: border-box; display: flex; justify-content: center; align-items: center; padding: 16px; }
+.eval-main { margin: 0 auto; align-self: center; }
+@media (max-height: 700px) { .eval-page { align-items: flex-start; } .eval-main { align-self: flex-start; margin-block: 8px; } }

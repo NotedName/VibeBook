@@ -150,7 +150,7 @@ function FullEntryCard({ entry, onEdit, inGroup, single = false }: Props) {
         <div className="post-who">
           {mine ? <b>{name}</b> : <a className="post-name" href={personHash(ownerUid, owner)}>{name}</a>}
           <time>{longDay(entry.date)} · {entryWhen(entry)}</time>
-          {entry.createdAt?.toDate && <small className="posted-at" title="The time the entry was really posted. It cannot be changed.">Posted {entry.createdAt.toDate().toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</small>}
+          {entry.createdAt?.toDate && <small className="posted-at" title="When the entry was really posted. It cannot be changed."><span>Posted</span> {entry.createdAt.toDate().toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" })} · {entry.createdAt.toDate().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}</small>}
           {mine && entry.archived && <span className="archived-tag" title="Only you can see this entry"><ArchiveIcon />Archived</span>}
           {groupIds.length > 0 && <ul className="group-links" aria-label="Shared to groups">{groupIds.map((id) => <GroupLink key={id} id={id} />)}</ul>}
         </div>

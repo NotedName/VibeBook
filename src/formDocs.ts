@@ -20,16 +20,22 @@ export const isFormKind = (k: string): k is FormKind => (FORM_KINDS as string[])
 export const isEvaluatorKind = (k: string): k is "eval" | "comments" => k === "eval" || k === "comments";
 
 export type Run = { text: string; bold?: boolean; italic?: boolean };
-export type Cell = string | { text: string; bold?: boolean; span?: number; align?: "left" | "center"; size?: number };
+/** A table cell. "\n" in `text` starts a new line. `head` is a bold first line; `fill` is a grey background (hex); `valign` defaults to centre. */
+export type Cell = string | { text: string; head?: string; bold?: boolean; span?: number; align?: "left" | "center" | "justify"; size?: number; fill?: string; valign?: "top" | "center" };
 export type Block =
   | { t: "p"; runs: Run[]; align?: "left" | "center" | "justify" }
-  | { t: "table"; widths: number[]; rows: Cell[][]; headerRows?: number; align?: ("left" | "center")[]; center?: boolean; tight?: boolean }
-  | { t: "cols"; widths: number[]; cells: Run[][] }
+  | { t: "table"; widths: number[]; rows: Cell[][]; headerRows?: number; align?: ("left" | "center")[]; center?: boolean; tight?: boolean; /** minimum height of each row in inches (0 or missing = fit the text) */ rowHeights?: number[] }
+  | { t: "cols"; widths: number[]; /** one entry per column; each is a list of paragraphs, each a list of runs */ cells: Run[][][] }
   | { t: "lines"; count: number }
   | { t: "sig"; left: SigSide; right?: SigSide };
 export type SigSide = { label: string; name: string; caption: string };
 export type FormDoc = {
+  /** school lines for the page header; empty when "Include header and footer" is off */
   head: { text: string; bold?: boolean }[];
+  /** page footer text (the page number is added by the writer); empty when off */
+  footer: string;
+  /** the document's name, used in the footer */
+  title: string;
   /** point size of the body text */
   size: number;
   margins: { top: number; bottom: number; left: number; right: number };
@@ -112,11 +118,19 @@ export function dayRecords(entries: Entry[], from: string, to: string) {
 }
 
 /** `stats` replaces the logbook when the form is made from a link: the evaluator has no access to the entries. */
-export type FormInput = { kind: FormKind; from: string; to: string; entries: Entry[]; details: ReportDetails; answers?: string[]; evaluator?: EvaluatorAnswers; stats?: { days: number; minutes: number; started: string } };
+export type FormInput = { /** false leaves out the page header and footer (for paper that is already printed with them) */ headerFooter?: boolean; kind: FormKind; from: string; to: string; entries: Entry[]; details: ReportDetails; answers?: string[]; evaluator?: EvaluatorAnswers; stats?: { days: number; minutes: number; started: string } };
 
 const STUDENT_MARGINS = { top: 1, bottom: 1, left: 1, right: 1 };
 
 export function buildForm(input: FormInput): FormDoc {
+  const doc = buildBody(input);
+  if (input.headerFooter === false) return { ...doc, head: [], footer: "" };
+  const who = capitalizeWords(input.details.traineeName.trim());
+  // a blank line keeps the title off the page header
+  return { ...doc, blocks: [P(""), ...doc.blocks], footer: [who, doc.title].filter(Boolean).join("  ·  ") };
+}
+
+function buildBody(input: FormInput): FormDoc {
   const { kind, from, to, details: d } = input;
   const name = capitalizeWords(d.traineeName.trim());
   const term = capitalizeWords(d.term.trim());
@@ -131,7 +145,7 @@ export function buildForm(input: FormInput): FormDoc {
   if (kind === "dtr") {
     const rows: Cell[][] = days.map((r) => [shortDay(r.date), clockTime(r.timeIn), clockTime(r.timeOut), hrs(r.minutes)]);
     return {
-      head: head(d, "student", true), size: 12, margins: STUDENT_MARGINS, fileName: stem("OJT_Daily_Time_Record"),
+      footer: "", title: "Daily Time Record", head: head(d, "student", true), size: 12, margins: STUDENT_MARGINS, fileName: stem("OJT_Daily_Time_Record"),
       blocks: [
         P("DAILY TIME RECORD", { bold: true, align: "center" }),
         PR([{ text: `Term: ${term || line(36)}`, bold: true }], "center"),
@@ -162,41 +176,36 @@ export function buildForm(input: FormInput): FormDoc {
       blocks.push(...BLANK());
     });
     blocks.push(...BLANK(), { t: "sig", left: { label: "Prepared by:", name, caption: "(Name of Student)" } });
-    return { head: head(d, "student", true), size: 12, margins: STUDENT_MARGINS, fileName: stem("OJT_Term_Journal"), blocks };
+    return { footer: "", title: "Term Journal Report", head: head(d, "student", true), size: 12, margins: STUDENT_MARGINS, fileName: stem("OJT_Term_Journal"), blocks };
   }
 
   if (kind === "plan") {
-    // One row per activity in the entries (the comma-separated items of each Activity), with the skills gained and the days it was done.
-    type Task = { name: string; dates: string[]; skills: string[]; seen: Set<string> };
-    const tasks = new Map<string, Task>();
+    // One row per day that has entries: the full date, the activities done that day, and a blank column for the person responsible.
+    const byDate = new Map<string, string[]>();
     for (const e of entriesInRange(input.entries, from, to).filter((x) => !x.hoursOnly)) {
+      const list = byDate.get(e.date) ?? [];
       for (const raw of e.title.split(",")) {
         const n = capitalizeWords(raw.trim().replace(/\s+/g, " "));
-        if (!n) continue;
-        const t = tasks.get(n.toLowerCase()) ?? { name: n, dates: [], skills: [], seen: new Set<string>() };
-        if (!t.dates.includes(e.date)) t.dates.push(e.date);
-        for (const sk of e.skills) { const k = sk.trim().toLowerCase(); if (k && !t.seen.has(k)) { t.seen.add(k); t.skills.push(capitalizeWords(sk.trim())); } }
-        tasks.set(n.toLowerCase(), t);
+        if (n && !list.some((x) => x.toLowerCase() === n.toLowerCase())) list.push(n);
       }
+      byDate.set(e.date, list);
     }
-    const many = from.slice(0, 4) !== to.slice(0, 4);
-    const md = (x: string) => ymd(x).toLocaleDateString("en-US", many ? { month: "short", day: "numeric", year: "numeric" } : { month: "short", day: "numeric" });
-    const rows: Cell[][] = [...tasks.values()].sort((a, b) => a.dates[0].localeCompare(b.dates[0]) || a.name.localeCompare(b.name)).map((t, i) => [
-      String(i + 1), { text: t.name, align: "left" as const }, { text: t.skills.slice(0, 6).join(", ") || "–", align: "left" as const },
-      t.dates.length <= 2 ? t.dates.map(md).join(", ") : `${md(t.dates[0])} – ${md(t.dates[t.dates.length - 1])} (${t.dates.length} days)`,
+    const rows: Cell[][] = [...byDate.entries()].sort(([x], [y]) => x.localeCompare(y)).map(([date, acts]) => [
+      { text: fullDay(date), align: "left" as const, valign: "top" as const }, { text: acts.join("\n"), align: "left" as const, valign: "top" as const }, "",
     ]);
+    const company = capitalizeWords(d.company.trim());
     return {
-      head: head(d, "student", true), size: 12, margins: STUDENT_MARGINS, fileName: stem("OJT_Training_Plan"),
+      footer: "", title: "OJT Training Plan", head: head(d, "student", true), size: 12, margins: STUDENT_MARGINS, fileName: stem("OJT_Training_Plan"),
       blocks: [
         P("OJT TRAINING PLAN", { bold: true, align: "center" }),
         ...BLANK(),
-        PR([{ text: "Name of Student: ", bold: true }, { text: name || line(30) }]),
-        PR([{ text: "Course: ", bold: true }, { text: course || line(30) }]),
-        PR([{ text: "Company: ", bold: true }, { text: capitalizeWords(d.company.trim()) || line(30) }]),
-        PR([{ text: "Date of Deployment: ", bold: true }, { text: fullDay(d.deployed) || line(24) }]),
+        { t: "cols", widths: [3.4, 3.1], cells: [
+          [[{ text: "Name of Student: ", bold: true }, { text: name || line(22) }], [{ text: "Course: ", bold: true }, { text: course || line(22) }]],
+          [[{ text: "Company: ", bold: true }, { text: company || line(20) }], [{ text: "Date of Deployment: ", bold: true }, { text: fullDay(d.deployed) || line(16) }]],
+        ] },
         ...BLANK(),
-        { t: "table", widths: [0.5, 2.2, 2.3, 1.5], headerRows: 1, tight: true,
-          rows: [["No.", "Training Activity", "Skill/s Acquired", "Date/s Performed"].map((h) => ({ text: h, bold: true })), ...rows] },
+        { t: "table", widths: [1.9, 3.0, 1.6], headerRows: 1, tight: true,
+          rows: [["Date", "Activities to be Performed", "Person Responsible"].map((h) => ({ text: h, bold: true })), ...rows] },
         ...BLANK(2),
         P("Submitted by:"), ...BLANK(2),
         { t: "sig", left: { label: "", name, caption: "Printed Name with Signature" } },
@@ -208,27 +217,31 @@ export function buildForm(input: FormInput): FormDoc {
   if (kind === "eval") {
     const period = (term || "Prelim").toUpperCase();
     const rating = (k: string): string => ev.ratings?.[k] ?? "";
+    const GREY = "D9D9D9";
     const rows: Cell[][] = [
       [{ text: `Evaluation Scale:   ${EVAL_SCALE.map((s) => `${s.id}-${s.label}`).join("   ")}`, bold: true, span: 2, align: "left" }],
       [{ text: "CRITERIA", bold: true }, { text: "EVALUATION PERIOD", bold: true, size: 9 }],
       ["", { text: period, bold: true }],
     ];
     for (const sec of EVAL_SECTIONS) {
-      rows.push([{ text: sec.title, bold: true, align: "left" }, ""]);
+      rows.push([{ text: sec.title, bold: true, align: "left", fill: GREY }, { text: "", fill: GREY }]);
       sec.items.forEach((it, i) => {
         rows.push([{ text: it.text, align: "left" }, rating(`${sec.id}${i + 1}`)]);
         if (it.sub) rows.push([{ text: it.sub, align: "left" }, ""]);
       });
     }
-    rows.push([{ text: "Initials of Evaluator", align: "left" }, ev.initials ?? ""], [{ text: "Date", align: "left" }, fullDay(ev.date ?? "")]);
+    rows.push(
+      [{ text: "Initials of Evaluator", align: "left", fill: GREY }, { text: ev.initials ?? "", fill: GREY }],
+      [{ text: "Date", align: "left", fill: GREY }, { text: fullDay(ev.date ?? ""), fill: GREY }],
+    );
     return {
-      head: head(d, "evaluation", false), size: 11, margins: { top: 0.5, bottom: 0.5, left: 1, right: 1 }, fileName: stem("OJT_Training_Evaluation_Report"),
+      footer: "", title: "Practicum Training Evaluation Report", head: head(d, "evaluation", false), size: 11, margins: { top: 0.5, bottom: 0.5, left: 1, right: 1 }, fileName: stem("OJT_Training_Evaluation_Report"),
       blocks: [
         P("PRACTICUM TRAINING EVALUATION REPORT", { bold: true, align: "center" }),
         { t: "table", widths: [4.03, 2.46], align: ["left", "left"], tight: true,
           rows: [
             [`Name of Trainee: ${name}`, `Course: ${course}`],
-            [`Date Started: ${fullDay(d.deployed || input.stats?.started || days[0]?.date || from)}`, `Date Completed: ${fullDay(to)}`],
+            [`Date Started: ${fullDay(d.deployed || input.stats?.started || days[0]?.date || from)}`, `Date Completed: ${fullDay(to)}\nTerm: ${short(from)} – ${short(to)}`],
             [`No. of days attendance: ${dayCount || ""}`, `No. of hours completed: ${totalMin ? hrs(totalMin) : ""}`],
           ] },
         ...BLANK(),
@@ -237,21 +250,23 @@ export function buildForm(input: FormInput): FormDoc {
     };
   }
 
-  // comments
-  const text = (v: string | undefined, blanks: number): Block[] =>
-    v?.trim() ? v.trim().split(/\n+/).map((x) => P(x, { align: "justify" })) : blanks > 0 ? BLANK(blanks) : [];
+  // comments: the evaluator's remarks go in boxes, as in the school's form
+  const box = (heading: string, v: string | undefined): Block[] => [
+    P(heading, { bold: true }),
+    { t: "table", widths: [6.4], center: true, rowHeights: [1.3], align: ["left"], rows: [[{ text: v?.trim() ?? "", align: "justify", valign: "top" }]] },
+    ...BLANK(),
+  ];
   return {
-    head: head(d, "evaluation", true), size: 11, margins: STUDENT_MARGINS, fileName: stem("OJT_Training_Evaluation_Comments"),
+    footer: "", title: "Practicum Training Evaluation: Comments", head: head(d, "evaluation", true), size: 11, margins: STUDENT_MARGINS, fileName: stem("OJT_Training_Evaluation_Comments"),
     blocks: [
-      ...BLANK(),
       P("PRACTICUM TRAINING EVALUATION REPORT", { bold: true, align: "center" }),
       ...BLANK(),
-      { t: "cols", widths: [3.4, 3.1], cells: [[{ text: `Name of Trainee: ${name || line(28)}` }], [{ text: `Course-Major: ${course || line(20)}` }]] },
-      { t: "cols", widths: [3.4, 3.1], cells: [[{ text: `Inclusive Dates: ${inclusive}` }], [{ text: `Term: ${term || line(20)}` }]] },
+      { t: "cols", widths: [3.4, 3.1], cells: [[[{ text: `Name of Trainee: ${name || line(26)}` }], [{ text: `Inclusive Dates: ${inclusive}` }]], [[{ text: `Course-Major: ${course || line(20)}` }], [{ text: `Term: ${term || line(20)}` }]]] },
       ...BLANK(),
-      P("Trainee’s Strengths:", { bold: true }), ...text(ev.strengths, 5), ...(ev.strengths?.trim() ? BLANK() : []),
-      P("Trainee’s Points for Improvements:", { bold: true }), ...text(ev.improvements, 5), ...(ev.improvements?.trim() ? BLANK() : []),
-      P("Comments:", { bold: true }), ...text(ev.comments, 6), ...(ev.comments?.trim() ? BLANK() : []),
+      ...box("Trainee’s Strengths:", ev.strengths),
+      ...box("Trainee’s Points for Improvements:", ev.improvements),
+      ...box("Comments:", ev.comments),
+      ...BLANK(),
       PR([{ text: "Evaluator (Company):" }]),
       { t: "sig", left: { label: "", name: ev.evaluator?.trim() ?? "", caption: "Signature over Printed Name" } },
     ],

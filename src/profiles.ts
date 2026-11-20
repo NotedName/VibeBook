@@ -2,7 +2,7 @@ import { logActivity } from "./activity";
 import {
   collection, deleteDoc, deleteField, doc, getDoc, getDocs, limit, query, runTransaction, serverTimestamp, updateDoc, where,
 } from "firebase/firestore";
-import { db } from "./firebase";
+import { auth, db } from "./firebase";
 import { isAudience, type Audience, type CoverId, type Profile } from "./types";
 import { clip } from "./text";
 import { syncSchedule } from "./hours";
@@ -19,6 +19,14 @@ export function activeNoteText(p: Pick<Profile, "note" | "noteAt"> | null | unde
   if (!p?.note || !p.noteAt) return "";
   if (now - p.noteAt >= NOTE_TTL_MS) return "";
   return p.note;
+}
+
+/** "Expires in 23 hours": how long a note has left. Empty when there is no live note. */
+export function noteExpiry(p: Pick<Profile, "note" | "noteAt"> | null | undefined, now = Date.now()): string {
+  if (!activeNoteText(p, now)) return "";
+  const m = Math.max(1, Math.ceil((((p?.noteAt ?? 0) + NOTE_TTL_MS) - now) / 60_000));
+  if (m >= 60) { const h = Math.ceil(m / 60); return `Expires in ${h} ${h === 1 ? "hour" : "hours"}`; }
+  return `Expires in ${m} ${m === 1 ? "minute" : "minutes"}`;
 }
 
 // ---- Usernames -------------------------------------------------------------------------------
@@ -107,6 +115,8 @@ export function resolveUserRef(ref: string): Promise<string | null> {
 type Stored = Partial<Omit<Profile, "uid">> & { friendsVisible?: boolean; hoursVisible?: boolean };
 
 function toProfile(uid: string, d: Stored): Profile {
+  // A person who hides their photos still sees them. Everyone else gets the initials and the cover colour.
+  const mine = auth.currentUser?.uid === uid;
   return {
     uid,
     displayName: d.displayName ?? "",
@@ -114,9 +124,11 @@ function toProfile(uid: string, d: Stored): Profile {
     headline: d.headline ?? "",
     workplace: d.workplace ?? "",
     bio: d.bio ?? "",
-    avatar: d.avatar ?? "",
+    avatar: !mine && d.hideAvatar === true ? "" : d.avatar ?? "",
+    hideAvatar: d.hideAvatar === true,
+    hideCover: d.hideCover === true,
     cover: (d.cover as CoverId) ?? "amethyst",
-    coverPhoto: d.coverPhoto ?? "",
+    coverPhoto: !mine && d.hideCover === true ? "" : d.coverPhoto ?? "",
     // Profiles saved before audiences existed hold friendsVisible / hoursVisible booleans; they map to the same reach.
     friendsAudience: isAudience(d.friendsAudience) ? d.friendsAudience : d.friendsVisible === false ? "private" : "everyone",
     hoursAudience: isAudience(d.hoursAudience) ? d.hoursAudience : d.hoursVisible === true ? "everyone" : "private",
@@ -208,7 +220,7 @@ export async function saveProfile(uid: string, p: Omit<Profile, "uid" | "deactiv
   });
   clearPendingUsername(uid);
   refCache.clear(); // a changed username means old links no longer point here
-  const saved: Profile = { uid, ...clean, deactivated: false, note: previous?.note ?? "", noteAt: previous?.noteAt ?? 0 };
+  const saved: Profile = { uid, ...clean, hideAvatar: previous?.hideAvatar === true, hideCover: previous?.hideCover === true, deactivated: false, note: previous?.note ?? "", noteAt: previous?.noteAt ?? 0 };
   primeProfile(saved);
   logActivity(uid, "Updated your profile");
   return saved;
@@ -327,4 +339,12 @@ export async function reactivateAccount(uid: string): Promise<void> {
   cache.delete(uid);
   await syncEntryPrivacy(uid).catch(() => {});
   logActivity(uid, "Reactivated your account");
+}
+
+/** Settings > Privacy: hide your profile photo and/or cover photo from other people. Only the screens of this app respect it. */
+export async function setPhotoPrivacy(uid: string, change: { hideAvatar?: boolean; hideCover?: boolean }): Promise<void> {
+  await updateDoc(doc(db, "profiles", uid), change);
+  const cached = await fetchProfile(uid).catch(() => null);
+  if (cached) primeProfile({ ...cached, ...change });
+  logActivity(uid, "Changed who can see your photos");
 }

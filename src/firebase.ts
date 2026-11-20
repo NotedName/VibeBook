@@ -14,6 +14,8 @@ const app = initializeApp({
   authDomain: env("VITE_FIREBASE_AUTH_DOMAIN"),
   projectId: env("VITE_FIREBASE_PROJECT_ID"),
   appId: env("VITE_FIREBASE_APP_ID"),
+  // only needed for push notifications (see PUSH.md)
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID as string | undefined,
 });
 
 // App Check proves that a request comes from the real VibeBook page and not from a script. It is off until a reCAPTCHA v3 site
@@ -26,5 +28,6 @@ if (appCheckKey) {
   initializeAppCheck(app, { provider: new ReCaptchaV3Provider(appCheckKey), isTokenAutoRefreshEnabled: true });
 }
 
+export { app };
 export const auth = getAuth(app);
 export const db = getFirestore(app);

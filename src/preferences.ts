@@ -38,12 +38,14 @@ type Prefs = {
   suggestionsClearedAt: number;
   /** the emoji the quick-react button on a message sends (this device only); empty = the original */
   quickEmoji: string;
+  /** track hours (the hours card, hours in the logbook, missed days). Off for people who only want the logbook. On by default. */
+  hoursOn: boolean;
   reminderOn: boolean;
   reminderTime: string;
 };
 
 const KEY = "vibebook-prefs";
-const DEFAULTS: Prefs = { startPage: "feed", photo: "standard", visibility: "private", reduceMotion: false, entrySuggestions: true, groupInvites: true, groupPosts: true, mutedGroups: [], mutedChats: [], enterSends: "auto", reminderOn: false, reminderTime: "16:30", suggestionsClearedAt: 0, quickEmoji: "" };
+const DEFAULTS: Prefs = { startPage: "feed", photo: "standard", visibility: "private", reduceMotion: false, entrySuggestions: true, groupInvites: true, groupPosts: true, mutedGroups: [], mutedChats: [], enterSends: "auto", hoursOn: true, reminderOn: false, reminderTime: "16:30", suggestionsClearedAt: 0, quickEmoji: "" };
 
 function load(): Prefs {
   try {
@@ -61,6 +63,7 @@ function load(): Prefs {
       enterSends: raw.enterSends === "on" || raw.enterSends === "off" ? raw.enterSends : "auto",
       suggestionsClearedAt: typeof raw.suggestionsClearedAt === "number" && raw.suggestionsClearedAt > 0 ? raw.suggestionsClearedAt : 0,
       quickEmoji: typeof raw.quickEmoji === "string" && raw.quickEmoji.length <= 16 ? raw.quickEmoji : "",
+      hoursOn: raw.hoursOn !== false,
       reminderOn: raw.reminderOn === true,
       reminderTime: typeof raw.reminderTime === "string" && /^([01]\d|2[0-3]):[0-5]\d$/.test(raw.reminderTime) ? raw.reminderTime : DEFAULTS.reminderTime,
     };
@@ -107,6 +110,7 @@ export function usePreferences() {
     setEntrySuggestions: (entrySuggestions: boolean) => update({ entrySuggestions }),
     clearSuggestions: () => update({ suggestionsClearedAt: Date.now() }),
     setQuickEmoji: (quickEmoji: string) => update({ quickEmoji }),
+    setHoursOn: (hoursOn: boolean) => update({ hoursOn }),
     setReminderOn: (reminderOn: boolean) => update({ reminderOn }),
     setReminderTime: (reminderTime: string) => update({ reminderTime }),
     setReduceMotion: (reduceMotion: boolean) => update({ reduceMotion }),

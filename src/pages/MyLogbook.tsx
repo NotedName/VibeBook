@@ -4,6 +4,7 @@ import { entriesRef, newestFirst, stampOf, type Entry } from "../entries";
 import { useRepostedEntries } from "../reposts";
 import { earliestDay } from "../weeks";
 import HoursCard from "../HoursCard";
+import { usePreferences } from "../preferences";
 import ReportSheet from "../ReportSheet";
 import { DateFilterMenu, inRange, NO_RANGE, rangeActive, RangeSummary } from "../DateRangeFilter";
 import { useSession } from "../session";
@@ -35,6 +36,7 @@ function Logbook({ onViewAs }: { onViewAs: () => void }) {
   const [range, setRange] = useState(NO_RANGE);
   const [search, setSearch] = useState("");
   const goal = useHoursGoal(s.uid);
+  const { hoursOn } = usePreferences();
 
   useEffect(
     () => onSnapshot(
@@ -91,7 +93,7 @@ function Logbook({ onViewAs }: { onViewAs: () => void }) {
           ))}
         </div>
 
-        <HoursCard entries={hoursList} loading={entries === null} />
+        {hoursOn && <HoursCard entries={hoursList} loading={entries === null} />}
 
         <div className="report">
           <button type="button" className="btn primary" onClick={() => setExportOpen(true)}><DownloadIcon /> Export Portfolio</button>
@@ -125,7 +127,7 @@ function Logbook({ onViewAs }: { onViewAs: () => void }) {
 
       <div ref={content} className="slide-pane">
       {monthOn && entries !== null && goal.ready && (
-        <LogbookMonth entries={list} availability={goal.availability} onEdit={s.openEntry} onAdd={(date) => s.openEntry(null, undefined, date)}
+        <LogbookMonth entries={list} availability={hoursOn ? goal.availability : undefined} onEdit={s.openEntry} onAdd={(date) => s.openEntry(null, undefined, date)}
           onMarkDay={(date, reason) => saveAvailability(s.uid, reason === null ? removeHoliday(goal.availability, date) : addHolidays(goal.availability, [date], reason), !!s.me && s.me.scheduleAudience !== "private")} />
       )}
 
@@ -168,7 +170,7 @@ function Logbook({ onViewAs }: { onViewAs: () => void }) {
         )}
         <EntryList entries={shown} onEdit={s.openEntry} dayHeadings={mode.kind === "newest" || mode.kind === "oldest"}
           weeks={notesShown && view === "weeks" ? { origin: earliestDay(list) } : undefined}
-          dayHours={notesShown} hoursSource={hoursList} />
+          dayHours={notesShown && hoursOn} hoursSource={hoursList} hideHours={!hoursOn} />
       </div>
       </div>
     </>

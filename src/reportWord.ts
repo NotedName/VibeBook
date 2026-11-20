@@ -1,4 +1,4 @@
-import { AlignmentType, BorderStyle, Document, Header, ImageRun, Packer, Paragraph, Table, TableCell, TableLayoutType, TableRow, TextRun, VerticalAlignTable, WidthType } from "docx";
+import { AlignmentType, BorderStyle, Document, Footer, Header, ImageRun, PageNumber, Packer, Paragraph, Table, TableCell, TableLayoutType, TableRow, TextRun, VerticalAlignTable, WidthType } from "docx";
 import type { ReportModel } from "./reportDocs";
 
 const FONT = "Times New Roman";
@@ -74,7 +74,11 @@ export async function makeWord(model: ReportModel): Promise<Uint8Array> {
     styles: { default: { document: { run: { font: FONT, size: SIZE } } } },
     sections: [{
       properties: { page: { size: { width: 12240, height: 15840 }, margin: { top: 1440, bottom: 1440, left: 1440, right: 1440, header: 540 } } },
-      headers: { default: pageHeader },
+      headers: model.headerLines.length ? { default: pageHeader } : undefined,
+      footers: model.footer ? { default: new Footer({ children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [
+        new TextRun({ text: `${model.footer}  ·  Page `, font: FONT, size: 18 }), new TextRun({ children: [PageNumber.CURRENT], font: FONT, size: 18 }),
+        new TextRun({ text: " of ", font: FONT, size: 18 }), new TextRun({ children: [PageNumber.TOTAL_PAGES], font: FONT, size: 18 }),
+      ] })] }) } : undefined,
       children: model.groups.length === 0 && !model.picturesTitle ? [title, ...info, para("", { after: 120 }), t1] : [title, ...info, para("", { after: 120 }), t1, para("", { after: 240 }), para(model.picturesTitle), t2],
     }],
   });

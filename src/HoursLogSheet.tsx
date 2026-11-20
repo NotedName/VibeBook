@@ -8,11 +8,18 @@ import { entryMinutes, formatHM, sumMinutes, weekEnd, weekNumber, weekRange, wee
 import { useSession } from "./session";
 import { ClockIcon, CloseIcon, EditIcon } from "./icons";
 import PastHoursSheet from "./PastHoursSheet";
+import ConfirmDialog from "./ConfirmDialog";
+import { deleteHours } from "./entries";
+import { PlusIcon, TrashIcon } from "./icons";
 import { useScrollLock } from "./scrollLock";
 
 /** Your own hours, newest first, week by week: when each shift started and ended, how long it was, and whether the start was edited. */
 export default function HoursLogSheet({ entries, clock, plan, onClose }: { entries: Entry[]; clock: RunningClock | null; plan?: BreakPlan | null; onClose: () => void }) {
   const [editing, setEditing] = useState<Entry | null>(null);
+  const [deleting, setDeleting] = useState<Entry | null>(null);
+  const [pastAsk, setPastAsk] = useState(false);
+  const [pastOpen, setPastOpen] = useState(false);
+  const [error, setError] = useState("");
   useScrollLock();
   const s = useSession();
   useEffect(() => {
@@ -41,6 +48,8 @@ export default function HoursLogSheet({ entries, clock, plan, onClose }: { entri
           <button type="button" className="icon-btn close" aria-label="Close" onClick={onClose}><CloseIcon /></button>
         </div>
         <div className="sheet-body">
+          <button type="button" className="btn small" onClick={() => setPastAsk(true)}><PlusIcon />Add past hours</button>
+          {error && <p className="error" role="alert">{error}</p>}
           <p className="hint">
             {logged.length === 0 ? "Nothing logged yet." : <><b>{formatHM(sumMinutes(logged))}</b> over {logged.length} {logged.length === 1 ? "shift" : "shifts"}{edits > 0 ? ` · ${edits} with an edited start` : ""}.</>}
           </p>
@@ -75,6 +84,7 @@ export default function HoursLogSheet({ entries, clock, plan, onClose }: { entri
                     </div>
                     <span className="log-len">{formatHM(entryMinutes(e))}</span>
                     <button type="button" className="icon-btn log-edit" aria-label={`Edit the hours for ${longDay(e.date)}`} title="Edit hours" onClick={() => setEditing(e)}><EditIcon /></button>
+                    <button type="button" className="icon-btn log-edit" aria-label={`Delete the hours for ${longDay(e.date)}`} title="Delete hours" onClick={() => setDeleting(e)}><TrashIcon /></button>
                   </li>
                 ))}
               </ul>
@@ -83,6 +93,18 @@ export default function HoursLogSheet({ entries, clock, plan, onClose }: { entri
         </div>
       </div>
       {editing && <PastHoursSheet entry={editing} onClose={() => setEditing(null)} />}
+      {pastOpen && <PastHoursSheet onClose={() => setPastOpen(false)} />}
+      {pastAsk && (
+        <ConfirmDialog title="Add hours for a past day?" confirmLabel="Yes, I worked it" onCancel={() => setPastAsk(false)} onConfirm={() => { setPastAsk(false); setPastOpen(true); }}>
+          <p>Only add a shift you really worked. Honest hours keep your logbook and reports trustworthy. Are you adding this the right way?</p>
+        </ConfirmDialog>
+      )}
+      {deleting && (
+        <ConfirmDialog title="Delete these hours?" confirmLabel="Delete hours" danger onCancel={() => setDeleting(null)}
+          onConfirm={() => { const e = deleting; setDeleting(null); setError(""); deleteHours(s.uid, e).catch(() => setError("Could not delete the hours. Try again.")); }}>
+          <p>{longDay(deleting.date)}, {clockTime(deleting.clockIn!)} – {clockTime(deleting.clockOut!)}. {deleting.hoursOnly ? "The shift is removed." : "The entry stays; only its hours are removed."}</p>
+        </ConfirmDialog>
+      )}
     </div>
   );
 }

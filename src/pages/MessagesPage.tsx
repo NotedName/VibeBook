@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import E2eePrompt from "../E2eePrompt";
 import { useE2ee } from "../e2ee";
 import { isUnread } from "../messages";
-import { activeNoteText, fetchProfile } from "../profiles";
+import { activeNoteText, fetchProfile, noteExpiry } from "../profiles";
 import { useProfile, useSession } from "../session";
 import { usePresence } from "../activeStatus";
 import { INVITE_LIST_LIMIT, type Profile } from "../types";
@@ -136,6 +136,7 @@ export default function MessagesPage() {
                 <span className="msg-note-plus" aria-hidden="true">+</span>
               </span>
               <span className="msg-tray-name">Your note</span>
+              {myNote && <small className="msg-tray-left">{noteExpiry(s.me).replace("Expires in ", "").replace(" hours", "h").replace(" hour", "h").replace(" minutes", "m").replace(" minute", "m")} left</small>}
             </button>
             {trayIds.map((uid) => <ActiveTrayItem key={uid} uid={uid} />)}
           </div>
@@ -192,7 +193,7 @@ export default function MessagesPage() {
         </div>
       </div>
 
-      {noteOpen && <NoteSheet initial={myNote} onClose={() => setNoteOpen(false)} />}
+      {noteOpen && <NoteSheet initial={myNote} noteAt={s.me?.noteAt} onClose={() => setNoteOpen(false)} />}
     </div>
   );
 }

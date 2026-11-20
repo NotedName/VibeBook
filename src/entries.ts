@@ -312,3 +312,22 @@ export async function updateEntryHours(uid: string, entry: Entry, h: { date: str
   (entry.groupIds ?? []).forEach((gid) => batch.update(groupPostRef(gid, uid, entry.id), { date: h.date, time: h.clockIn }));
   await batch.commit();
 }
+
+/**
+ * Deletes the hours of one entry. A shift saved only as hours (by Clock out) is deleted altogether; on a logbook entry only the hours
+ * (time in and out, break, minutes) are removed and the entry stays.
+ */
+export async function deleteHours(uid: string, entry: Entry): Promise<void> {
+  if (entry.hoursOnly) return deleteEntry(uid, entry);
+  await updateDoc(doc(entriesRef(uid), entry.id), {
+    clockIn: deleteField(), clockOut: deleteField(), minutes: deleteField(), breakMinutes: deleteField(),
+    startEdited: deleteField(), originalStart: deleteField(), originalStartDate: deleteField(),
+  });
+}
+
+/** Removes every logged hour you have, and the running clock. Entries that have text stay. Returns how many shifts were removed. */
+export async function resetAllHours(uid: string, onProgress?: (done: number, total: number) => void): Promise<number> {
+  const withHours = (await listAllEntries(uid)).filter((e) => e.clockIn || e.clockOut || e.hoursOnly);
+  for (let i = 0; i < withHours.length; i++) { await deleteHours(uid, withHours[i]); onProgress?.(i + 1, withHours.length); }
+  return withHours.length;
+}

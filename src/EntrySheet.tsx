@@ -77,8 +77,8 @@ export default function EntrySheet({ uid, entry, defaultGroupId, defaultDate, on
         // "Clear suggestions" in Settings: only entries written since then are used.
         const made = r.createdAt?.toMillis?.();
         if (clearedAt && made !== undefined && made <= clearedAt) continue;
-        for (const t of splitList(r.title ?? "")) if (activities.length < 8 && !activities.some((x) => x.toLowerCase() === t.toLowerCase())) activities.push(t);
-        for (const k of r.skills ?? []) if (skills.length < 8 && !skills.some((x) => x.toLowerCase() === k.toLowerCase())) skills.push(k);
+        for (const t of splitList(r.title ?? "")) if (activities.length < 4 && !activities.some((x) => x.toLowerCase() === t.toLowerCase())) activities.push(t);
+        for (const k of r.skills ?? []) if (skills.length < 4 && !skills.some((x) => x.toLowerCase() === k.toLowerCase())) skills.push(k);
       }
       if (live) setRecent({ activities, skills });
     }).catch(() => {});
@@ -230,27 +230,35 @@ export default function EntrySheet({ uid, entry, defaultGroupId, defaultDate, on
 
           </div>
           <div className="es-fields">
-          <div className="row">
-            <label>Date it happened
-              <input type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
-            </label>
-            {!hasHours && (
-              <label>Time it happened
-                <TimeField value={time} required onChange={(v) => setTime(v)} />
-              </label>
-            )}
-          </div>
-          <p className="hint">The date and time are when this happened, and you can change them. The time it is posted is recorded by VibeBook and cannot be changed.</p>
-          {hasHours && (
+          <fieldset className="when-box">
+            <legend>When it happened</legend>
             <div className="row">
-              <label>Time in
-                <TimeField value={clockInTime} required onChange={(v) => setClockInTime(v)} />
+              <label>Date
+                <input type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
               </label>
-              <label>Time out
-                <TimeField value={clockOutTime} required onChange={(v) => setClockOutTime(v)} />
-              </label>
+              {hasHours ? (
+                <label>Time in
+                  <TimeField value={clockInTime} required onChange={(v) => setClockInTime(v)} />
+                </label>
+              ) : (
+                <label>Time
+                  <TimeField value={time} required onChange={(v) => setTime(v)} />
+                </label>
+              )}
             </div>
-          )}
+            {hasHours && (
+              <div className="row">
+                <label>Time out
+                  <TimeField value={clockOutTime} required onChange={(v) => setClockOutTime(v)} />
+                </label>
+              </div>
+            )}
+            <p className="posted-line">
+              <span>Posted</span>
+              <b>{entry?.createdAt?.toDate ? entry.createdAt.toDate().toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }) : "When you save"}</b>
+              <small>Set by VibeBook. It cannot be changed.</small>
+            </p>
+          </fieldset>
           <label><span className="lbl-head">Activity <small className={actsOver ? "count-warn" : "count"}>{actList.length}/{ACTIVITIES_MAX} activities</small></span>
             <input ref={titleRef} value={title} onChange={(e) => setTitle(e.target.value)} required
               maxLength={TITLE_MAX} placeholder="e.g. Set up a PC, Install software, Label cables" />

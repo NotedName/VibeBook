@@ -5,6 +5,7 @@
     "rules": "firestore.rules",
     "indexes": "firestore.indexes.json"
   },
+  "functions": [{ "source": "functions", "codebase": "default", "ignore": ["node_modules", ".git"] }],
   "hosting": {
     "site": "vibebook",
     "public": "dist",
@@ -37,6 +38,14 @@
             "value": "no-cache"
           }
         ]
+      },
+      {
+        "source": "/sw.js",
+        "headers": [{ "key": "Cache-Control", "value": "no-cache" }]
+      },
+      {
+        "source": "/firebase-messaging-sw.js",
+        "headers": [{ "key": "Cache-Control", "value": "no-cache" }]
       },
       {
         "source": "/index.html",

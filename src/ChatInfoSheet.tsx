@@ -5,16 +5,17 @@ import { usePreferences } from "./preferences";
 import { useScrollLock } from "./scrollLock";
 import { useSession } from "./session";
 import {
-  calledBy, DEFAULT_EMOJI, isUnread, NICK_MAX, setChatEmoji, setNickname, type ChatSettings, type Message, type Pin,
+  calledBy, DEFAULT_EMOJI, isUnread, NICK_MAX, setChatEmoji, setNickname, type ChatSettings, type Message, type Pin, setChatTheme,
 } from "./messages";
 import { NameSkeleton, RowsSkeleton } from "./Skeleton";
+import { CHAT_THEMES, themeOf } from "./chatThemes";
 import { muteLabel, useChatCommands } from "./chatCommands";
 import Avatar from "./Avatar";
 import EmojiPicker from "./EmojiPicker";
 import MuteChoices from "./MuteChoices";
 import type { Profile } from "./types";
 import {
-  ArchiveIcon, ArrowLeftIcon, BellIcon, BellOffIcon, BlockIcon, ChevronRightIcon, CloseIcon, EditIcon, ImageIcon, PinIcon, ReceiptsIcon, RestrictIcon,
+  ArchiveIcon, ArrowLeftIcon, BellIcon, BellOffIcon, BlockIcon, CheckIcon, ChevronDownIcon, ChevronRightIcon, LockIcon, PaletteIcon, CloseIcon, EditIcon, ImageIcon, PinIcon, ReceiptsIcon, RestrictIcon,
   SearchIcon, SmileIcon, TrashIcon, UnarchiveIcon, UserIcon,
 } from "./icons";
 
@@ -41,8 +42,8 @@ type Props = {
   onClose: () => void;
 };
 
-type View = "main" | "emoji" | "nicknames" | "media" | "pins" | "mute";
-const TITLE: Record<View, string> = { main: "Chat info", emoji: "Emoji", nicknames: "Nicknames", media: "Photos & GIFs", pins: "Pinned messages", mute: "Mute notifications" };
+type View = "main" | "theme" | "emoji" | "nicknames" | "media" | "pins" | "mute";
+const TITLE: Record<View, string> = { main: "Chat info", theme: "Theme", emoji: "Emoji", nicknames: "Nicknames", media: "Photos & GIFs", pins: "Pinned messages", mute: "Mute notifications" };
 
 /**
  * What opens when you tap the person at the top of a conversation, like the info panel in Messenger: who they are, quick
@@ -114,17 +115,35 @@ export default function ChatInfoSheet({ uid, profile, friend, settings, messages
                 </button>
               </div>
 
-              <section className="chat-info-section" aria-label="Messages">
-                <h3>Messages</h3>
+              <p className="chat-secure" role="note">
+                <LockIcon />
+                <span><b>End-to-end encrypted</b><small>Messages in this chat are locked so only you and {realName} can read them.</small></span>
+              </p>
+
+              <Collapse title="Media &amp; messages">
+                <button type="button" className="action-row" onClick={onSearch}>
+                  <i><SearchIcon /></i>
+                  <span>Search in conversation<small>Find a word in this chat</small></span>
+                  <ChevronRightIcon />
+                </button>
                 <button type="button" className="action-row" onClick={() => setView("pins")}>
                   <i><PinIcon /></i>
                   <span>Pinned messages<small>{!pinsReady && pins.length === 0 ? <NameSkeleton /> : pins.length > 0 ? `${pins.length} pinned in this chat` : "Press and hold a message, then choose Pin"}</small></span>
                   <ChevronRightIcon />
                 </button>
-              </section>
+                <button type="button" className="action-row" onClick={() => setView("media")}>
+                  <i><ImageIcon /></i>
+                  <span>Photos &amp; GIFs<small>{media.length > 0 ? `${media.length}${hasMore ? "+" : ""} shared in this chat` : "Nothing shared yet"}</small></span>
+                  <ChevronRightIcon />
+                </button>
+              </Collapse>
 
-              <section className="chat-info-section" aria-label="Customize chat">
-                <h3>Customize chat</h3>
+              <Collapse title="Customize chat" open>
+                <button type="button" className="action-row" onClick={() => setView("theme")}>
+                  <i><PaletteIcon /></i>
+                  <span>Theme<small>{themeOf(settings.theme).label}. Changes the chat colors for both of you</small></span>
+                  <em className="action-value theme-dot" style={{ background: themeOf(settings.theme).color || "var(--primary)" }} aria-hidden="true" /><ChevronRightIcon />
+                </button>
                 <button type="button" className="action-row" onClick={() => setView("emoji")}>
                   <i><SmileIcon /></i>
                   <span>Emoji<small>Sent by the button next to the message box</small></span>
@@ -135,15 +154,9 @@ export default function ChatInfoSheet({ uid, profile, friend, settings, messages
                   <span>Nicknames<small>{settings.nick[uid] ? `${realName} is “${settings.nick[uid]}”` : "Give each of you a nickname here"}</small></span>
                   <ChevronRightIcon />
                 </button>
-                <button type="button" className="action-row" onClick={() => setView("media")}>
-                  <i><ImageIcon /></i>
-                  <span>Photos &amp; GIFs<small>{media.length > 0 ? `${media.length}${hasMore ? "+" : ""} shared in this chat` : "Nothing shared yet"}</small></span>
-                  <ChevronRightIcon />
-                </button>
-              </section>
+              </Collapse>
 
-              <section className="chat-info-section" aria-label="Privacy and notifications">
-                <h3>Privacy &amp; notifications</h3>
+              <Collapse title="Privacy &amp; notifications">
                 {s.me && (
                   <label className="switch-row">
                     <span>Active status<small>
@@ -176,14 +189,13 @@ export default function ChatInfoSheet({ uid, profile, friend, settings, messages
                   </button>
                 )}
                 <label className="switch-row">
-                  <span>Enter sends the message<small>Off: Enter adds a new line. Applies to all chats on this device</small></span>
+                  <span>Enter sends the message<small>On: Enter sends, Shift+Enter adds a line. Off: Enter adds a line, Shift+Enter sends. This device only</small></span>
                   <input type="checkbox" role="switch" checked={enterOn(prefs.enterSends)} onChange={(e) => prefs.setEnterSends(e.target.checked)} />
                   <i className="switch" aria-hidden="true" />
                 </label>
-              </section>
+              </Collapse>
 
-              <section className="chat-info-section" aria-label="Manage chat">
-                <h3>Manage chat</h3>
+              <Collapse title="Manage chat">
                 <button type="button" className="action-row" onClick={() => void cmd.archive(!archived)}>
                   <i>{archived ? <UnarchiveIcon /> : <ArchiveIcon />}</i>{archived ? "Unarchive chat" : "Archive chat"}
                 </button>
@@ -199,10 +211,11 @@ export default function ChatInfoSheet({ uid, profile, friend, settings, messages
                   <i><TrashIcon /></i>
                   <span>Delete chat<small>Clears it for you only</small></span>
                 </button>
-              </section>
+              </Collapse>
             </>
           )}
 
+          {view === "theme" && <ThemeView uid={uid} current={settings.theme} friend={friend} onDone={back} />}
           {view === "emoji" && <EmojiView uid={uid} current={settings.emoji} friend={friend} onDone={back} />}
           {view === "nicknames" && <NicknamesView uid={uid} profile={profile} realName={realName} settings={settings} friend={friend} />}
           {view === "pins" && <PinsView pins={pins} ready={pinsReady} me={s.uid} name={name} canUnpin={canUnpin} onUnpin={onUnpin} onJump={onJump} />}
@@ -214,6 +227,35 @@ export default function ChatInfoSheet({ uid, profile, friend, settings, messages
         </div>
       </div>
     </div>
+  );
+}
+
+/** A collapsible group of options, closed by default unless `open`, like the accordions in Messenger. */
+function Collapse({ title, open, children }: { title: string; open?: boolean; children: React.ReactNode }) {
+  return (
+    <details className="chat-info-section collapse" open={open}>
+      <summary><span>{title}</span><ChevronDownIcon /></summary>
+      <div className="collapse-body">{children}</div>
+    </details>
+  );
+}
+
+/** Pick the chat theme: a colour for the background and your bubbles. */
+function ThemeView({ uid, current, friend, onDone }: { uid: string; current: string; friend: boolean; onDone: () => void }) {
+  const s = useSession();
+  return (
+    <>
+      {!friend && <p className="hint">Themes can be changed once you are friends.</p>}
+      <div className="theme-grid" role="radiogroup" aria-label="Chat theme">
+        {CHAT_THEMES.map((t) => (
+          <button key={t.id} type="button" role="radio" aria-checked={current === t.id} disabled={!friend}
+            className={`theme-opt${t.id === "default" ? " default" : ""}${current === t.id ? " on" : ""}`}
+            onClick={() => { void setChatTheme(s.uid, uid, t.id).then(onDone).catch(() => s.notify("Could not change the theme. Try again.")); }}>
+            <i style={{ ["--c" as string]: t.color || undefined }}>{current === t.id && <CheckIcon />}</i>{t.label}
+          </button>
+        ))}
+      </div>
+    </>
   );
 }
 

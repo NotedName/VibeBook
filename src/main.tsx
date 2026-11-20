@@ -7,6 +7,7 @@ import "./fluid.css";
 import "./topbar.css";
 import "./material.css";
 import "./share.css";
+import { startPwa } from "./pwa";
 import { watchInsets } from "./insets";
 import { watchParallax } from "./parallax";
 
@@ -14,3 +15,5 @@ watchInsets();
 watchParallax();
 
 createRoot(document.getElementById("root")!).render(<OfflineGate><App /></OfflineGate>);
+
+startPwa();

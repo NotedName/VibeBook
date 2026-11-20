@@ -41,6 +41,8 @@ export type ReportGroup = { label: string; images: ReportImage[]; paragraphs: st
 export type ReportModel = {
   /** School name first (printed bold), then the department, program and school year. */
   headerLines: string[];
+  /** page footer text; the page number is added by the writer. Empty when the header and footer are left out. */
+  footer: string;
   title: string;
   info: string[];
   table: ReportTable;
@@ -50,6 +52,8 @@ export type ReportModel = {
 };
 
 export type ReportInput = {
+  /** false leaves out the page header and footer (for paper that already has them) */
+  headerFooter?: boolean;
   kind: ReportKind;
   /** First and last day, YYYY-MM-DD. A daily report has from === to. */
   from: string;
@@ -129,13 +133,16 @@ export function buildReport(input: ReportInput): ReportModel {
     paragraphs: es.flatMap((e) => paragraphsOf(e.description)),
   }));
 
-  const headerLines = [details.school, details.department, details.program].map((l) => capitalizeWords(l.trim()))
+  const headerLines = [details.school, details.location, details.department, details.program].map((l) => capitalizeWords(l.trim()))
     .concat(details.schoolYear ? `S.Y. ${details.schoolYear.replace(/^S\.?Y\.?\s*/i, "")}` : "").filter(Boolean);
   const info = [`Name of Trainee: ${capitalizeWords(details.traineeName.trim())}`, `Term: ${capitalizeWords(details.term.trim())}`];
   if (kind !== "daily") info.push(`Period: ${monthDay(from, true)} – ${monthDay(to, true)}`);
 
+  const reportTitle = kind === "daily" ? "DAILY OJT REPORT" : kind === "weekly" ? "WEEKLY OJT REPORT" : "OJT REPORT";
+  const withHF = input.headerFooter !== false;
   return {
-    headerLines,
+    headerLines: withHF ? headerLines : [],
+    footer: withHF ? [capitalizeWords(details.traineeName.trim()), reportTitle].filter(Boolean).join("  ·  ") : "",
     title: kind === "daily" ? "DAILY OJT REPORT" : kind === "weekly" ? "WEEKLY OJT REPORT" : "OJT REPORT",
     info,
     table,

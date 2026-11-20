@@ -9,6 +9,8 @@ export type Availability = {
   workDays: number[]; daysOff: string[]; daysOn: string[];
   /** paid hours in a full day: start to end, less the break. This is what every calculation uses. */
   hoursPerDay: number;
+  /** the first day of the training, YYYY-MM-DD. Earlier days are never workdays, so nothing is asked of you for them. Missing = no start date. */
+  startDate?: string;
   /** how that day is made up, "HH:MM", so the schedule sheet can show it again */
   startTime?: string; endTime?: string; breakMinutes?: number;
   /** when the break starts, "HH:MM". With breakMinutes it is the planned break: taken out of the shift automatically (see hours.ts) */
@@ -67,12 +69,14 @@ export function normalizeAvailability(raw: Record<string, unknown> | undefined):
       }).slice(0, HOLIDAYS_MAX)
       : [],
     hoursPerDay: hpd,
+    ...(isDate(raw.startDate) ? { startDate: raw.startDate as string } : {}),
     ...(timed ? { startTime: raw.startTime as string, endTime: raw.endTime as string, breakMinutes: raw.breakMinutes as number } : {}),
     ...(timed && isTime(raw.breakAt) ? { breakAt: raw.breakAt } : {}),
   };
 }
 
 export function isAvailable(date: string, a: Availability): boolean {
+  if (a.startDate && date < a.startDate) return false; // the training had not started yet
   // A day marked as a holiday or an absence stays unavailable for good, so the hours and the missed-day count stay right afterwards.
   if (a.holidays?.some((h) => h.date === date)) return false;
   // Changed dates are kept, past ones too, so the calendar keeps showing every day you were off or worked on a day you normally do not.

@@ -11,6 +11,7 @@ import { copyText } from "../report";
 import ConfirmDialog from "../ConfirmDialog";
 import { ForwardSheet, MessageActions, ReactionChips, ReplyQuote, ReportMessageSheet } from "../MessageTools";
 import { personHash } from "../profiles";
+import { themeStyle } from "../chatThemes";
 import { useProfile, useSession } from "../session";
 import { usePresence } from "../activeStatus";
 import { chatPhoto } from "../image";
@@ -315,7 +316,8 @@ function Composer({ onSend, emoji, adder, replying, replyName, onCancelReply, ed
 
   function onKey(e: KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === "Escape") { setPanel(false); if (editing) onCancelEdit(); else if (replying) onCancelReply(); }
-    if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing && enterSends()) { e.preventDefault(); send(); }
+    // "Enter sends the message" on: Enter sends and Shift+Enter adds a line. Off: Enter adds a line and Shift+Enter sends.
+    if (e.key === "Enter" && !e.nativeEvent.isComposing && (enterSends() ? !e.shiftKey : e.shiftKey)) { e.preventDefault(); send(); }
   }
 
   function onPaste(e: ClipboardEvent<HTMLTextAreaElement>) {
@@ -611,7 +613,7 @@ export default function ThreadPage({ uid: other }: { uid: string }) {
   const olderLoading = hasMore && !loading && messages.length < count; // older messages are on their way
 
   return (
-    <div className={`chat${over ? " drop-over" : ""}`} ref={frame} {...bind}>
+    <div className={`chat${over ? " drop-over" : ""}${settings.theme !== "default" ? " chat-themed" : ""}`} style={themeStyle(settings.theme)} ref={frame} {...bind}>
       {over && <DropHint label="Drop photos to add them to your message" />}
       {finding ? (
         <header className="chat-bar">
@@ -631,7 +633,7 @@ export default function ThreadPage({ uid: other }: { uid: string }) {
       ) : (
         <header className="chat-bar">
           <a className="chat-back" href="#/messages" aria-label="Back to messages"><ArrowLeftIcon /></a>
-          <button type="button" className="chat-who" aria-haspopup="dialog" aria-label={nameLoading ? "Chat info" : `${name}, chat info`} onClick={() => setInfoOpen(true)}>
+          <a className="chat-who" href={personHash(other, p)} aria-label={nameLoading ? "Open profile" : `Open ${name}'s profile`}>
             <Avatar profile={p} size="md" active={presence.status === "active"} />
             <span className="chat-who-text">
               <b>{nameLoading ? <NameSkeleton /> : name}</b>
@@ -639,7 +641,7 @@ export default function ThreadPage({ uid: other }: { uid: string }) {
                 ? <span className={presence.status === "active" ? "chat-active-now" : undefined}>{presence.label}</span>
                 : p?.username ? <span>@{p.username}</span> : null}
             </span>
-          </button>
+          </a>
           <button type="button" className="icon-btn" aria-label="Chat info and options" title="Chat info, search and options" aria-haspopup="dialog" onClick={() => setInfoOpen(true)}><InfoIcon /></button>
         </header>
       )}

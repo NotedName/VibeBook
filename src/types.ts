@@ -53,6 +53,9 @@ export type Profile = {
    * Defaults to on. While off, others cannot see your active status and you cannot see theirs.
    */
   activeStatus: boolean;
+  /** Settings > Privacy: other people see initials instead of the profile photo, and the cover colour instead of the cover photo. */
+  hideAvatar?: boolean;
+  hideCover?: boolean;
   /**
    * Account deactivated (Settings > Data & account > Deactivate account). The account and its uid stay; other people see a blank
    * "Deactivated account" instead of the profile, and signing in again offers to reactivate it.

@@ -8,13 +8,15 @@ import { ACTIVITY_SHOWN, useActivityState } from "./activity";
 import { ago } from "./notifications";
 import { useProfile, useSession } from "./session";
 import { allowReminders, canNotify } from "./reminder";
+import { disablePush, enablePush, pushAvailable, pushEnabledHere } from "./push";
 import { CHANGELOG } from "./changelog";
 import Tour from "./Tour";
-import { archiveAllEntries, deleteAllEntries } from "./entries";
+import { canPromptInstall, isInstalled, isIos, onInstallChange, promptInstall } from "./pwa";
+import { archiveAllEntries, deleteAllEntries, resetAllHours } from "./entries";
 import { discardClock } from "./hours";
 import EmojiPicker from "./EmojiPicker";
 import { DEFAULT_QUICK_EMOJI } from "./preferences";
-import { deactivateAccount, personHash, setActiveStatus, setFriendsAudience, setHoursAudience, setPrivateProfile, setScheduleAudience, setStatusAudience } from "./profiles";
+import { deactivateAccount, personHash, setActiveStatus, setPhotoPrivacy, setFriendsAudience, setHoursAudience, setPrivateProfile, setScheduleAudience, setStatusAudience } from "./profiles";
 import { AUDIENCES, VISIBILITY, type Audience } from "./types";
 import { BrandName } from "./Logo";
 import { TermsContent } from "./Terms";
@@ -246,6 +248,34 @@ function Media() {
 
 const VIS_ICON = { private: <LockIcon />, friends: <UsersIcon />, public: <GlobeIcon /> };
 
+function PushSetting() {
+  const { uid, notify } = useSession();
+  const [on, setOn] = useState(pushEnabledHere);
+  const [avail, setAvail] = useState<"yes" | "unsupported" | "unconfigured" | "">("");
+  useEffect(() => { void pushAvailable().then(setAvail); }, []);
+  async function toggle(next: boolean) {
+    try {
+      if (next) await enablePush(uid); else await disablePush(uid);
+      setOn(next);
+      notify(next ? "Push notifications are on for this device" : "Push notifications are off for this device");
+    } catch (e) { notify((e as Error).message || "Could not change push notifications."); }
+  }
+  return (
+    <Switch device label="Push notifications" checked={on} onChange={(v) => void toggle(v)} disabled={avail !== "yes"}
+      hint={avail === "unsupported" ? "This browser cannot show push notifications. On iPhone, add VibeBook to the Home Screen first."
+        : avail === "unconfigured" ? "Push needs one-time setup by the app owner (PUSH.md)."
+        : "Get a notification for new messages and activity when VibeBook is closed. Set per device."} />
+  );
+}
+
+function HoursSetting() {
+  const p = usePreferences();
+  return (
+    <Switch device label="Track hours" checked={p.hoursOn} onChange={p.setHoursOn}
+      hint="Shows the hours card, hours in the logbook and missed days. Turn it off if you only want the logbook." />
+  );
+}
+
 function LogReminder() {
   const p = usePreferences();
   const { notify } = useSession();
@@ -351,6 +381,12 @@ function Privacy() {
       <Switch label="Active status" checked={me.activeStatus}
         hint="Show friends and people you message when you're active or recently active. You won't see their active status while this is turned off."
         onChange={(on) => save(setActiveStatus(uid, on))} />
+      <Switch label="Hide my profile photo" checked={me.hideAvatar === true}
+        hint="Other people see your initials instead of your photo."
+        onChange={(on) => save(setPhotoPrivacy(uid, { hideAvatar: on }))} />
+      <Switch label="Hide my cover photo" checked={me.hideCover === true}
+        hint="Other people see a plain cover color instead of your cover photo."
+        onChange={(on) => save(setPhotoPrivacy(uid, { hideCover: on }))} />
       <Switch label="Private profile" checked={me.privateProfile}
         hint="Only friends see your entries, hours, schedule and friends. Everyone else sees your name and photo and can send a friend request."
         onChange={(on) => save(setPrivateProfile(uid, on))} />
@@ -377,6 +413,23 @@ function Accessibility() {
   );
 }
 
+function InstallApp() {
+  const [, bump] = useState(0);
+  useEffect(() => onInstallChange(() => bump((n) => n + 1)), []);
+  const { notify } = useSession();
+  if (isInstalled()) return <p className="hint">VibeBook is installed on this device.</p>;
+  return (
+    <div className="install-app">
+      <p className="hint">Add VibeBook to your home screen or desktop so it opens like an app, even with a weak connection.</p>
+      {canPromptInstall()
+        ? <button type="button" className="btn primary" onClick={() => void promptInstall().then((ok) => ok && notify("VibeBook was installed"))}>Install VibeBook</button>
+        : isIos()
+          ? <p className="hint"><b>iPhone and iPad:</b> tap the Share button in Safari, then <b>Add to Home Screen</b>.</p>
+          : <p className="hint">In your browser menu, choose <b>Install app</b> or <b>Add to Home screen</b>.</p>}
+    </div>
+  );
+}
+
 function About({ uid }: { uid: string }) {
   const [tour, setTour] = useState(false);
   return (
@@ -393,6 +446,7 @@ function About({ uid }: { uid: string }) {
         <li>Make it yours: light, dark or AMOLED, accent colour and backgrounds, text size, square corners, and the page the app opens on. Add it to your home screen to use it like an app.</li>
       </ul>
       <p className="hint">Entries, photos, hours and profile are saved to your account. Display settings are saved per device.</p>
+      <InstallApp />
       <button type="button" className="btn" onClick={() => setTour(true)}>Show the tour</button>
       {tour && <Tour uid={uid} all onClose={() => setTour(false)} />}
       <section className="whats-new" aria-label="What's new">
@@ -488,7 +542,7 @@ function DataAccount({ onNavigate, onAskReset }: { onNavigate: () => void; onAsk
   const [deleting, setDeleting] = useState(false);
   const [confirmDeactivate, setConfirmDeactivate] = useState(false);
   const [showLog, setShowLog] = useState(false);
-  const [bulk, setBulk] = useState<"clock" | "archive" | "delete" | null>(null);
+  const [bulk, setBulk] = useState<"clock" | "archive" | "delete" | "hours" | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
 
   async function download() {
@@ -552,7 +606,11 @@ function DataAccount({ onNavigate, onAskReset }: { onNavigate: () => void; onAsk
     if (!what) return;
     setBusy(true);
     try {
-      if (what === "clock") { await discardClock(uid); setStatus("The hours timer was reset."); notify("Hours timer reset"); }
+      if (what === "hours") {
+        await discardClock(uid);
+        const n = await resetAllHours(uid, (d, t) => setStatus(`Removing hours… ${d} of ${t}`));
+        setStatus(n === 0 ? "There were no logged hours." : `Removed ${n} logged ${n === 1 ? "shift" : "shifts"}.`); notify("Hours reset");
+      } else if (what === "clock") { await discardClock(uid); setStatus("The hours timer was reset."); notify("Hours timer reset"); }
       else if (what === "archive") {
         const n = await archiveAllEntries(uid, (d, t) => setStatus(`Archiving… ${d} of ${t}`));
         setStatus(n === 0 ? "There were no entries to archive." : `Archived ${n} ${n === 1 ? "entry" : "entries"}.`); if (n) notify("All entries archived");
@@ -584,6 +642,10 @@ function DataAccount({ onNavigate, onAskReset }: { onNavigate: () => void; onAsk
           <button type="button" className="btn small" disabled={busy} onClick={() => setBulk("clock")}>Reset</button>
         </div>
         <div className="set-row">
+          <div className="set-row-text"><b>Reset all hours</b><small>Removes every logged shift and the running clock. Entries with text stay.</small></div>
+          <button type="button" className="btn small danger" disabled={busy} onClick={() => setBulk("hours")}>Reset</button>
+        </div>
+        <div className="set-row">
           <div className="set-row-text"><b>Archive all entries</b><small>Moves every entry to your archive. Nothing is deleted.</small></div>
           <button type="button" className="btn small" disabled={busy} onClick={() => setBulk("archive")}>Archive</button>
         </div>
@@ -594,11 +656,11 @@ function DataAccount({ onNavigate, onAskReset }: { onNavigate: () => void; onAsk
       </Section>
       {bulk && (
         <ConfirmDialog
-          title={bulk === "clock" ? "Reset the hours timer?" : bulk === "archive" ? "Archive all entries?" : "Delete all entries?"}
-          confirmLabel={bulk === "clock" ? "Reset timer" : bulk === "archive" ? "Archive all" : "Delete all"} danger={bulk !== "clock"}
-          typeToConfirm={bulk === "clock" ? "reset timer" : bulk === "archive" ? "archive all" : "delete all"}
+          title={bulk === "hours" ? "Reset all hours?" : bulk === "clock" ? "Reset the hours timer?" : bulk === "archive" ? "Archive all entries?" : "Delete all entries?"}
+          confirmLabel={bulk === "hours" ? "Reset all hours" : bulk === "clock" ? "Reset timer" : bulk === "archive" ? "Archive all" : "Delete all"} danger={bulk !== "clock" && bulk !== "archive"}
+          typeToConfirm={bulk === "hours" ? "reset hours" : bulk === "clock" ? "reset timer" : bulk === "archive" ? "archive all" : "delete all"}
           onCancel={() => setBulk(null)} onConfirm={() => void runBulk()}>
-          <p>{bulk === "clock" ? "The running shift is discarded. Hours you already logged are kept." : bulk === "archive" ? "Every entry moves to your archive and leaves your profile and feed." : "Every entry is deleted for good, with its photos, comments and reactions. Download a backup first if you may need them."}</p>
+          <p>{bulk === "hours" ? "Every logged shift and the running clock are removed for good. Your entries, goal and schedule stay." : bulk === "clock" ? "The running shift is discarded. Hours you already logged are kept." : bulk === "archive" ? "Every entry moves to your archive and leaves your profile and feed." : "Every entry is deleted for good, with its photos, comments and reactions. Download a backup first if you may need them."}</p>
         </ConfirmDialog>
       )}
 
@@ -700,7 +762,8 @@ export default function SettingsSheet({ onClose }: { onClose: () => void }) {
               <Section title="New entry"><EntrySuggestionsSetting /></Section>
               <Section title="Photos"><Media /></Section>
               <Section title="Messages"><QuickReactSetting /></Section>
-              <Section title="Notifications"><Notifications /></Section>
+              <Section title="Notifications"><PushSetting /><Notifications /></Section>
+              <Section title="Hours"><HoursSetting /></Section>
               <Section title="Log reminder"><LogReminder /></Section>
               <Section title="Accessibility"><Accessibility /></Section>
             </>

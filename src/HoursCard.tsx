@@ -7,12 +7,11 @@ import { availableDaysIn, planOf, projectFinish } from "./availability";
 import AvailabilitySheet from "./AvailabilitySheet";
 import { formatHM, spanMinutes, sumMinutes, weekEnd, weekStart } from "./weeks";
 import { useSession } from "./session";
-import { ClockIcon, CoffeeIcon, EditIcon, ListIcon, PlayIcon, PlusIcon } from "./icons";
+import { ClockIcon, CoffeeIcon, EditIcon, ListIcon, PlayIcon } from "./icons";
 import { HoursSkeleton } from "./Skeleton";
 import ConfirmDialog from "./ConfirmDialog";
 import FormError from "./FormError";
 import HoursLogSheet from "./HoursLogSheet";
-import PastHoursSheet from "./PastHoursSheet";
 
 /** A shift this long (or longer) needs the word typed before it can be thrown away. */
 const LONG_SHIFT_MINUTES = 120;
@@ -34,7 +33,6 @@ export default function HoursCard({ entries, loading = false }: { entries: Entry
   const [startTime, setStartTime] = useState("");
   const [error, setError] = useState("");
   const [logOpen, setLogOpen] = useState(false);
-  const [pastOpen, setPastOpen] = useState(false);
   const [confirming, setConfirming] = useState<null | "discard" | "start">(null);
   const [clocking, setClocking] = useState(false);
   // After "No, still on break" the question waits this long (epoch ms) before it is asked again.
@@ -140,9 +138,6 @@ export default function HoursCard({ entries, loading = false }: { entries: Entry
         <div className="hours-actions">
           <button type="button" className="btn small" title="Edit required hours and available days" onClick={() => setDaysOpen(true)}>
             <EditIcon /><span className="lbl">Edit</span>
-          </button>
-          <button type="button" className="btn small" title="Add hours for a past date" onClick={() => setPastOpen(true)}>
-            <PlusIcon /><span className="lbl">Past hours</span>
           </button>
           <button type="button" className="btn small" title="View logged hours" onClick={() => setLogOpen(true)}>
             <ListIcon /><span className="lbl">Logged hours</span>
@@ -252,7 +247,6 @@ export default function HoursCard({ entries, loading = false }: { entries: Entry
           </ConfirmDialog>
         );
       })()}
-      {pastOpen && <PastHoursSheet defaultBreak={plan?.minutes ?? 0} onClose={() => setPastOpen(false)} />}
       {logOpen && <HoursLogSheet entries={entries} clock={clock ?? null} plan={plan} onClose={() => setLogOpen(false)} />}
       {daysOpen && <AvailabilitySheet uid={s.uid} hours={goal.hours} value={a} share={!!s.me && s.me.scheduleAudience !== "private"} onClose={() => setDaysOpen(false)} />}
     </section>

@@ -397,8 +397,8 @@ export const markConversationSeen = (me: string, other: string) =>
 export const DEFAULT_EMOJI = "👍";
 export const NICK_MAX = 40;
 /** `emoji` is what the quick-send button sends; `nick` maps a person's uid to the nickname given to them (either of you can change them). */
-export type ChatSettings = { emoji: string; nick: Record<string, string>; /** false until the first answer: the nicknames are not known yet */ loaded: boolean };
-const NO_SETTINGS: ChatSettings = { emoji: DEFAULT_EMOJI, nick: {}, loaded: false };
+export type ChatSettings = { emoji: string; /** the chat theme id (see chatThemes.ts) */ theme: string; nick: Record<string, string>; /** false until the first answer: the nicknames are not known yet */ loaded: boolean };
+const NO_SETTINGS: ChatSettings = { emoji: DEFAULT_EMOJI, theme: "default", nick: {}, loaded: false };
 const settingsRef = (me: string, other: string) => doc(db, "conversations", pairId(me, other), "settings", "shared");
 
 // The last answer for each conversation stays here after its listener stops, so a list that comes back (changing tabs) shows the
@@ -415,7 +415,7 @@ function watch(me: string, other: string, cb: () => void) {
       const d = snap.data() ?? {};
       const nick: Record<string, string> = {};
       for (const [k, v] of Object.entries((d.nick ?? {}) as Record<string, unknown>)) if (typeof v === "string" && v) nick[k] = v;
-      entry.value = { emoji: typeof d.emoji === "string" && d.emoji ? d.emoji : DEFAULT_EMOJI, nick, loaded: true };
+      entry.value = { emoji: typeof d.emoji === "string" && d.emoji ? d.emoji : DEFAULT_EMOJI, theme: typeof d.theme === "string" && d.theme ? d.theme : "default", nick, loaded: true };
       lastKnown.set(id, entry.value);
       entry.subs.forEach((f) => f());
     }, () => { entry.value = { ...entry.value, loaded: true }; entry.subs.forEach((f) => f()); }); // no access (rules not deployed): real names
@@ -450,6 +450,8 @@ async function postNotice(me: string, other: string, sys: Notice) {
   } catch { /* the change itself went through */ }
 }
 
+/** Changes the chat theme for both of you. */
+export const setChatTheme = (me: string, other: string, theme: string) => setDoc(settingsRef(me, other), { theme }, { merge: true });
 export const setChatEmoji = (me: string, other: string, emoji: string) =>
   setDoc(settingsRef(me, other), { emoji }, { merge: true }).then(() => postNotice(me, other, { k: "emoji", emoji }));
 /** Gives `who` (you or the other person) a nickname in this conversation; an empty one takes it away. */

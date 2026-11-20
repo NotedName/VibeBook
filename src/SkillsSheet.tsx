@@ -23,18 +23,22 @@ export default function SkillsSheet({ entries, onClose }: { entries: Entry[]; on
     }
     return [...map.values()].sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
   }, [entries]);
+  const max = Math.max(1, ...skills.map((k) => k.count));
   return (
     <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className="sheet" role="dialog" aria-modal="true" aria-label="Skills">
         <div className="sheet-head">
-          <h2>Skills <span className="count">{skills.length}</span></h2>
+          <h2>Skills ({skills.length})</h2>
           <button type="button" className="icon-btn close" aria-label="Close" onClick={onClose}><CloseIcon /></button>
         </div>
         <div className="sheet-body">
           {skills.length === 0 ? <p className="hint">Skills you add to your entries are listed here.</p> : (
             <ul className="skill-list">
               {skills.map((k) => (
-                <li key={k.name}><b>{k.name}</b><span>{k.count} {k.count === 1 ? "entry" : "entries"}</span></li>
+                <li key={k.name}>
+                  <i className="skill-bar" style={{ width: `${Math.max(8, Math.round((k.count / max) * 100))}%` }} aria-hidden="true" />
+                  <b>{k.name}</b><span className="skill-count">{k.count}</span>
+                </li>
               ))}
             </ul>
           )}

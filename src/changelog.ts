@@ -12,6 +12,33 @@ export type Release = { date: string; title: string; changes: string[] };
 
 export const CHANGELOG: Release[] = [
   {
+    date: "2026-11-21",
+    title: "Chat themes, tidier chat info, install as an app",
+    changes: [
+      "Pick a chat theme (color) for the chat background and bubbles, shared with the other person.",
+      "Chat info is organized in dropdown groups, shows that the chat is end-to-end encrypted, and has Search in conversation.",
+      "Tap the person's name or photo at the top of a chat to open their profile. Tap the i for chat info.",
+      "Enter sends is now clear: on, Enter sends and Shift+Enter adds a line; off, Enter adds a line and Shift+Enter sends.",
+      "Your note shows how long it has left. Skills shows the count in brackets.",
+      "Install VibeBook to your home screen on Android, iPhone or desktop from Settings > About. It opens offline.",
+      "Posted shows the day and time. The evaluation form opens centered on the screen.",
+    ],
+  },
+  {
+    date: "2026-11-20",
+    title: "One-time evaluation links, hours controls, push",
+    changes: [
+      "Evaluation links work once: after your supervisor exports the form, the link says \"Evaluation completed\". Making a link closes the export.",
+      "The evaluation forms print shaded sections, the term dates under Date Completed, and comments in boxes like the school's form.",
+      "New toggle in the export: Include header and footer, on every document.",
+      "The Training Plan lists dates, activities and a blank Person Responsible column.",
+      "Hours: set a Starting date, delete logged hours, add past hours inside Logged hours (with a check), and reset all hours in Settings.",
+      "Settings: turn Track hours off if you only want the logbook, hide your profile and cover photo, and turn on push notifications.",
+      "Entries show when something happened and, separately, when it was posted. Recent suggestions are limited to four.",
+      "Skills and the chat info page are easier to read.",
+    ],
+  },
+  {
     date: "2026-11-19",
     title: "Forms that match the school's, tour and tidy-up",
     changes: [

@@ -177,5 +177,12 @@ export async function makePdf(model: ReportModel): Promise<Uint8Array> {
     }
   }
 
+  if (model.footer) {
+    const pages = doc.getPages();
+    pages.forEach((pg, n) => {
+      const t = `${model.footer}  ·  Page ${n + 1} of ${pages.length}`.replace(/[^\x20-\x7e\u00b7]/g, "");
+      pg.drawText(t, { x: PAGE_W / 2 - regular.widthOfTextAtSize(t, 9) / 2, y: 30, size: 9, font: regular, color: black });
+    });
+  }
   return await doc.save();
 }

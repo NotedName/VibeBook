@@ -42,7 +42,7 @@ export default function App() {
 
   // A supervisor opens an evaluation link without an account.
   const evaluation = parseEvalHash(hash);
-  if (evaluation) return <EvaluatorForm payload={evaluation} />;
+  if (evaluation) return <EvaluatorForm id={evaluation} />;
 
   // Until auth answers, the splash screen from index.html is showing; this line is only a fallback.
   if (user === undefined) return <div className="page"><main className="logbook"><ProfileSkeleton /><FeedSkeleton /></main></div>;

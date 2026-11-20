@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { loadPhotos, type Entry } from "./entries";
 import { copyText, exportText, todayStr } from "./report";
 import { buildForm, dayRecords, isEvaluatorKind, isFormKind, JOURNAL_QUESTIONS, type FormKind } from "./formDocs";
-import { evalLink } from "./evalLink";
+import { createEvalLink } from "./evalLink";
 import { makeFormWord } from "./formWord";
 import { makeFormPdf } from "./formPdf";
 import { buildReport, entriesInRange, EMPTY_DETAILS, reportRange, type ReportDetails, type ReportImage, type ReportKind } from "./reportDocs";
@@ -87,7 +87,8 @@ export default function ReportSheet({ entries, initialRange, onClose }: Props) {
   /** The forms cover a range of dates like a Date range report; their own layout is applied when the file is made. */
   const kinds = useMemo<ReportKind[]>(() => [isFormKind(kind) ? "period" : kind], [kind]);
   const [answers, setAnswers] = useState(loadAnswers);
-  const [link, setLink] = useState("");
+  const [headerFooter, setHeaderFooter] = useState(() => { try { return localStorage.getItem("vibebook.exportHF") !== "off"; } catch { return true; } });
+  const changeHF = (on: boolean) => { setHeaderFooter(on); try { localStorage.setItem("vibebook.exportHF", on ? "on" : "off"); } catch { /* not remembered */ } };
   const [day, setDay] = useState(todayStr());
   const [from, setFrom] = useState(initialRange?.from || todayStr());
   const [to, setTo] = useState(initialRange?.to || todayStr());
@@ -141,7 +142,6 @@ export default function ReportSheet({ entries, initialRange, onClose }: Props) {
     // The plan and the OJT forms cover the whole training by default; the dates can be narrowed.
     if (isFormKind(k) && (!from || from === to)) { setFrom(earliestDay(entries)); setTo(todayStr()); }
     if (isFormKind(k) && format === "text") setFormat("docx");
-    setLink("");
   }
 
   const copying = format === "text";
@@ -189,18 +189,21 @@ export default function ReportSheet({ entries, initialRange, onClose }: Props) {
       if (isEvaluatorKind(kind)) {
         // The supervisor fills this in on their own device from a link; nothing about their answers comes back to the app or a server.
         const recs = dayRecords(entries, range.from, range.to);
-        const url = evalLink({
-          k: kind, from: range.from, to: range.to, days: recs.length, minutes: recs.reduce((n, r) => n + r.minutes, 0), started: recs[0]?.date ?? "",
+        const url = await createEvalLink(s.uid, {
+          k: kind, from: range.from, to: range.to, days: recs.length, minutes: recs.reduce((n, r) => n + r.minutes, 0), started: recs[0]?.date ?? "", hf: headerFooter,
           d: { traineeName: details.traineeName, term: details.term, school: details.school, location: details.location, department: details.department, program: details.program, schoolYear: details.schoolYear, deployed: details.deployed },
         });
-        setLink(url);
-        if (await copyText(url)) s.notify("Link copied. Send it to your supervisor.");
+        // One link per form: it is copied, and the export closes. The supervisor's answers never come back to the app.
+        const copied = await copyText(url);
+        if (copied) s.notify("One-time link copied. Send it to your supervisor.");
+        else s.manualCopy(url);
+        onClose();
         return;
       }
       if (formKind) {
         if (kind === "journal") { try { localStorage.setItem(JOURNAL_KEY, JSON.stringify(answers)); } catch { /* answers not kept */ } }
         setBusy(`Making the ${format === "docx" ? "Word file" : "PDF"}…`);
-        const model = buildForm({ kind, from: range.from, to: range.to, entries, details, answers });
+        const model = buildForm({ headerFooter, kind, from: range.from, to: range.to, entries, details, answers });
         const bytes = format === "docx" ? await makeFormWord(model) : await makeFormPdf(model);
         const f = FORMATS.find((x) => x.id === format)!;
         const saved = await saveFile(bytes, `${model.fileName}.${format}`, f.mime, f.kind);
@@ -232,7 +235,7 @@ export default function ReportSheet({ entries, initialRange, onClose }: Props) {
       setBusy(`Making the ${format === "docx" ? "Word file" : "PDF"}…`);
       const f = FORMATS.find((x) => x.id === format)!;
       for (const p of parts) {
-        const model = buildReport({ kind: p.kind, from: p.from, to: p.to, entries, details, photos, showHours });
+        const model = buildReport({ headerFooter, kind: p.kind, from: p.from, to: p.to, entries, details, photos, showHours });
         const bytes = await make(model);
         const saved = await saveFile(bytes, `${model.fileName}.${format}`, f.mime, f.kind);
         if (saved === "cancelled") { setBusy(""); return; } // closed the Save as screen: nothing went wrong
@@ -264,6 +267,7 @@ export default function ReportSheet({ entries, initialRange, onClose }: Props) {
               ))}
             </select>
           </label>
+          {!formKind && <p className="hint">Entries are placed by the date they happened, not the day they were posted.</p>}
           {formKind && (
             <p className="hint">{{
               dtr: "Every day with time in, time out and total hours, taken from your logged hours.",
@@ -311,6 +315,14 @@ export default function ReportSheet({ entries, initialRange, onClose }: Props) {
               ))}
             </div>
           </fieldset>}
+
+          {!copying && (
+            <label className="switch-row">
+              <span>Include header and footer<small>The school lines at the top of each page, and your name and the page number at the bottom.</small></span>
+              <input type="checkbox" role="switch" checked={headerFooter} onChange={(e) => changeHF(e.target.checked)} />
+              <i className="switch" aria-hidden="true" />
+            </label>
+          )}
 
           {copying ? (
             <label className="switch-row">
@@ -366,13 +378,6 @@ export default function ReportSheet({ entries, initialRange, onClose }: Props) {
             </>}
           </fieldset>}
 
-          {link && (
-            <div className="eval-link" role="status">
-              <input readOnly value={link} aria-label="Evaluator link" onFocus={(e) => e.currentTarget.select()} />
-              <button type="button" className="btn small" onClick={async () => { if (await copyText(link)) s.notify("Link copied"); else s.manualCopy(link); }}><CopyIcon />Copy</button>
-              {typeof navigator.share === "function" && <button type="button" className="btn small" onClick={() => void navigator.share({ title: "Evaluation form", url: link }).catch(() => {})}>Share</button>}
-            </div>
-          )}
           {error && (
             <FormError>
               {error}
